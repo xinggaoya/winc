@@ -336,19 +336,18 @@ fn sidebar_top_buttons_hover_in_both_views() {
     let dir = search_folder("top-hover");
     let mut app = app_with(&dir, false);
 
-    for view in [Panel::Files] {
-        app.set_sidebar_view(view);
-        paint(&mut app);
+    let view = Panel::Files;
+    app.set_sidebar_view(view);
+    paint(&mut app);
 
-        // 侧栏开关、两个视图切换按钮和分隔条，在两种视图中都有悬停效果。
-        let button = app.layout.sidebar_button;
-        app.on_mouse_move(button.x + 4.0, button.y + 4.0);
-        assert_eq!(app.pointer.hover, Hover::SidebarButton, "{view:?}");
+    // 侧栏开关、两个视图切换按钮和分隔条，在两种视图中都有悬停效果。
+    let button = app.layout.sidebar_button;
+    app.on_mouse_move(button.x + 4.0, button.y + 4.0);
+    assert_eq!(app.pointer.hover, Hover::SidebarButton, "{view:?}");
 
-        let splitter = app.layout.splitter;
-        app.on_mouse_move(splitter.x + 1.0, 300.0);
-        assert_eq!(app.pointer.hover, Hover::Splitter, "{view:?}");
-    }
+    let splitter = app.layout.splitter;
+    app.on_mouse_move(splitter.x + 1.0, 300.0);
+    assert_eq!(app.pointer.hover, Hover::Splitter, "{view:?}");
 
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -1188,7 +1187,11 @@ fn long_result_files_unfold_under_the_mouse() {
     let dir = search_folder("global-unfold");
     let deep = dir.join("src/aaa/deeply/nested/module/directory");
     std::fs::create_dir_all(&deep).unwrap();
-    std::fs::write(deep.join("a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs"), "let config = 1;\n").unwrap();
+    std::fs::write(
+        deep.join("a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs"),
+        "let config = 1;\n",
+    )
+    .unwrap();
     let many: String = (0..200).map(|i| format!("let config_{i} = 0;\n")).collect();
     std::fs::write(dir.join("src/many.rs"), many).unwrap();
     let mut app = app_with(&dir, false);
@@ -1221,7 +1224,10 @@ fn long_result_files_unfold_under_the_mouse() {
     assert_eq!(app.panels.global.overflow, None);
 
     // 放不下的行从卡片右边缘起写全名，按钮移到全名之后。
-    let long = file_row(&app, "a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs");
+    let long = file_row(
+        &app,
+        "a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs",
+    );
     let row = hover(&mut app, long);
     let overflow = app.panels.global.overflow.unwrap();
     let spill = overflow.spill.unwrap();
@@ -1251,11 +1257,9 @@ fn long_result_files_unfold_under_the_mouse() {
     let (_, dismiss) = app.panels.global.overflow.unwrap().actions;
     click(&mut app, (dismiss.x + dismiss.w / 2.0, y));
     let files = &app.panels.global.engine.results;
-    assert!(
-        !files
-            .iter()
-            .any(|f| f.relative.ends_with("a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs"))
-    );
+    assert!(!files.iter().any(|f| f.relative.ends_with(
+        "a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs"
+    )));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
