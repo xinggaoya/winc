@@ -198,8 +198,10 @@ impl Layout {
 
         // 编辑区卡片从侧栏卡片右侧的间距之后开始，到右栏卡片左侧的间距之前结束；两侧的栏都
         // 隐藏时与窗口边缘相隔 `ISLAND_MARGIN`。
+        //
+        // 两侧的间距都是 `ISLAND_GAP`：卡片各让出间距的一半，中间那张卡片两侧各让一半。
         let main_x = (visible_w + ISLAND_GAP / 2.0).max(m);
-        let main_right = (width - right_visible.max(m)).max(main_x);
+        let main_right = (width - (right_visible + ISLAND_GAP / 2.0).max(m)).max(main_x);
         let main_w = (main_right - main_x).max(0.0);
         let top_bar = Rect::new(main_x, m, main_w, TOP_BAR);
 

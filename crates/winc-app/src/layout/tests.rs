@@ -479,3 +479,27 @@ fn drawn_scroll_positions_are_whole_pixels() {
         assert!((px - line * f64::from(lh)).abs() <= 0.5, "{line}");
     }
 }
+
+/// 三栏之间的卡片间距一致：左栏与中栏、中栏与右栏都隔 `ISLAND_GAP`。
+#[test]
+fn the_columns_have_the_same_gap_on_both_sides() {
+    let layout = Layout::compute(
+        1280.0,
+        820.0,
+        300.0,
+        1.0,
+        320.0,
+        1.0,
+        &[Panel::Files],
+        &[Panel::Commit],
+        0,
+        0,
+        0.0,
+        60.0,
+        STATUS_HEIGHT,
+    );
+    let left_gap = layout.editor.x - layout.sidebar.right();
+    let right_gap = layout.right.x - layout.editor.right();
+    assert_eq!(left_gap, ISLAND_GAP);
+    assert_eq!(right_gap, ISLAND_GAP);
+}
