@@ -1,4 +1,4 @@
-//! 侧栏的全局搜索面板：条件输入、后台搜索、结果列表和跨文件替换。
+//! 全局搜索弹窗：条件输入、后台搜索、结果列表和跨文件替换。
 //!
 //! [`GlobalSearch`] 保存输入框、选项、折叠状态和选中的行；搜索交给 [`ProjectSearch`] 在后台
 //! 进行，结果按版本号增量更新到列表。替换前先在 [`ReplacePreview`] 中确认，再改写文件或已打开
@@ -109,9 +109,11 @@ impl ReplaceTally {
     }
 }
 
-/// 全局搜索面板的状态。
+/// 全局搜索弹窗的状态。
 #[derive(Default)]
 pub struct GlobalSearch {
+    /// 弹窗是否打开：打开时条件与结果浮在编辑区上方。
+    pub open: bool,
     /// 后台项目搜索引擎，同时保存搜索结果。
     pub engine: ProjectSearch,
     /// 查找输入框。
@@ -172,6 +174,12 @@ pub struct GlobalSearch {
     pub(crate) overflow: Option<ResultOverflow>,
     /// 各文件行名字随鼠标展开、收回的过渡，与文件树相同，按文件路径区分。
     pub(crate) names: crate::app::TreeLabels,
+    /// 卡片上次排版时的高度，以及当时的窗口大小。
+    pub(crate) height: Option<(f32, (f32, f32))>,
+    /// 卡片高度变化的过渡。
+    pub(in crate::app) card_motion: Option<crate::app::workspace::picker::PickerMotion>,
+    /// 卡片出现、消失的动画。
+    pub(crate) card: crate::app::animation::CardFx,
 }
 
 /// 搜索结果中写全名的文件行，见 [`GlobalSearch::overflow`]。
@@ -331,25 +339,53 @@ impl GlobalSearch {
 }
 
 impl App {
-    /// 返回搜索面板的位置：标题行连同下面的输入框和结果列表。
+    /// 返回全局搜索弹窗的位置：条件区加结果列表；弹窗没打开时为空矩形。
     pub(crate) fn panel_rect(&self) -> Rect {
-        self.panel_card(Panel::Search)
+        self.layout.search_card
     }
 
-    /// 返回搜索面板各部分的布局。
+    /// 返回搜索弹窗各部分的布局。
     pub(crate) fn panel_parts(&self) -> PanelParts {
         let g = &self.panels.global;
-        // 搜完了没有结果时不写统计行，结果列表里居中写「没有找到结果」（`draw_empty_state`）。
-        let summary =
-            (!g.query.text().is_empty() && !self.no_search_results()) || g.engine.error().is_some();
         let (replace, details) = (g.replace_share(), g.details_share());
         PanelParts::new(
             self.panel_rect(),
             replace,
             details,
-            summary,
+            self.search_summary_shown(),
             g.field_heights(),
         )
+    }
+
+    /// 结果统计行是否有内容：搜完了没有结果时不写统计行，结果列表里居中写「没有找到结果」
+    /// （`draw_empty_state`）；搜索出错时写明原因。
+    fn search_summary_shown(&self) -> bool {
+        let g = &self.panels.global;
+        (!g.query.text().is_empty() && !self.no_search_results()) || g.engine.error().is_some()
+    }
+
+    /// 返回卡片的目标高度（逻辑像素）：条件区的高度加上结果行的高度。
+    ///
+    /// 卡片最多占编辑区高度的 70%，放不下的只是结果列表：条件区始终完整地留在卡片里，
+    /// 否则输入框会画到卡片外，既看不见底色也点不到。
+    pub(crate) fn search_card_height(&mut self) -> f32 {
+        if !self.panels.global.open {
+            return 0.0;
+        }
+
+        // 结果行在绘制时才同步；这里先同步一次，卡片高度才与刚到的结果一致。
+        self.panels.global.sync_rows();
+
+        let g = &self.panels.global;
+        // 条件区按展开后的高度算：展开、收起动画途中卡片高度不动，只挪动里面的行。
+        let chrome = PanelParts::chrome(
+            if g.replace_open { 1.0 } else { 0.0 },
+            if g.details_open { 1.0 } else { 0.0 },
+            self.search_summary_shown(),
+            g.field_heights(),
+        );
+        let room = (self.layout.editor.h * 0.7 - chrome).max(0.0);
+        chrome + (g.rows().len() as f32 * TREE_ROW).min(room)
     }
 
     /// 记下查找、替换输入框折成的行数；变化时框高从当前高度过渡到新高度。
@@ -434,13 +470,26 @@ impl App {
             && g.engine.error().is_none()
     }
 
-    /// 搜索面板是否正在显示：侧栏当前是搜索视图，且侧栏可见。
-    pub(crate) fn panel_shown(&self) -> bool {
-        // 搜索面板在某一栏里就显示着（不论它是哪一栏、当前有没有焦点）。
-        self.panel_slot(Panel::Search).is_some()
+    /// 全局搜索弹窗是否打开。
+    pub(crate) fn search_open(&self) -> bool {
+        self.panels.global.open
     }
 
-    /// 把侧栏切换到视图 `view`（文件树或搜索）。
+    /// 焦点是否在全局搜索弹窗里：条件输入框或结果列表。
+    pub(crate) fn focus_in_search(&self) -> bool {
+        matches!(
+            self.focus,
+            Focus::GlobalQuery
+                | Focus::GlobalReplace
+                | Focus::GlobalInclude
+                | Focus::GlobalExclude
+                | Focus::Results
+        )
+    }
+
+    /// 把侧栏切换到视图 `view`（文件树或提交视图）。
+    ///
+    /// 全局搜索改用浮在编辑区上的弹窗，侧栏里没有搜索视图了。
     pub(in crate::app) fn set_sidebar_view(&mut self, view: Panel) {
         if self.panels.sidebar.view == view {
             return;
@@ -476,22 +525,18 @@ impl App {
         self.request_redraw();
     }
 
-    /// 把侧栏切换到搜索面板，并把焦点放进查找输入框（`⇧⌘F` / `⇧⌘H`）。
+    /// 打开全局搜索弹窗，并把焦点放进查找输入框（`⇧⌘F` / `⇧⌘H`）。
     ///
-    /// 有合适的选区（没有选区时为光标所在的词）时，用它作为查找内容。`replace` 为 `true` 时
-    /// 同时展开替换行；此时如果已有查找内容，焦点放进替换输入框。没有打开目录时在状态栏提示。
+    /// 弹窗浮在编辑区上方，侧栏不动：有合适的选区（没有选区时为光标所在的词）时，用它作为
+    /// 查找内容。`replace` 为 `true` 时同时展开替换行；此时如果已有查找内容，焦点放进替换
+    /// 输入框。没有打开目录时在状态栏提示。
     pub(in crate::app) fn open_global_search(&mut self, replace: bool) {
         if self.editor.workspace.is_none() {
             self.flash(t!("workspace-open-folder-first"));
             return;
         }
 
-        self.show_panel(Panel::Search);
-        self.set_sidebar_view(Panel::Search);
-
-        if !self.panels.sidebar.visible {
-            self.set_sidebar(true);
-        }
+        self.panels.global.open = true;
 
         if let Some(seed) = self.search_seed()
             && seed != self.panels.global.query.text()
@@ -517,6 +562,59 @@ impl App {
         self.relayout();
         self.reset_blink();
         self.request_redraw();
+    }
+
+    /// 开合全局搜索弹窗：已经开着时关掉它，没开时打开。
+    pub(in crate::app) fn toggle_global_search(&mut self, replace: bool) {
+        if self.search_open() {
+            self.close_global_search();
+            return;
+        }
+        self.open_global_search(replace);
+    }
+
+    /// 关闭全局搜索弹窗，焦点交还编辑区。
+    pub(in crate::app) fn close_global_search(&mut self) {
+        self.panels.global.open = false;
+        if self.focus_in_search() {
+            self.focus = Focus::Editor;
+        }
+        self.ime.field_preedit.clear();
+        self.relayout();
+        self.request_redraw();
+    }
+
+    /// 布局完成后调用：卡片的目标高度变化时，从当前高度滑向新高度。
+    ///
+    /// 结果陆续到达时卡片随之内长；`size` 为窗口尺寸。
+    pub(in crate::app) fn animate_search(&mut self, size: (f32, f32)) {
+        if !self.panels.global.open {
+            self.panels.global.height = None;
+            // 关掉弹窗时卡片高度的变化就此作废：留着它，重新打开时会按旧高度画。
+            self.panels.global.card_motion = None;
+            return;
+        }
+
+        let target = self.layout.search_card.h;
+        match self.panels.global.height {
+            Some((last, at)) if at == size && last != target => {
+                let motion = self.panels.global.card_motion;
+                self.panels.global.card_motion = self
+                    .clock(crate::app::animation::PICKER_ANIMATION)
+                    .map(|clock| {
+                        crate::app::workspace::picker::PickerMotion::toward(
+                            motion, last, target, clock,
+                        )
+                    });
+            }
+            Some((_, at)) if at != size => self.panels.global.card_motion = None,
+            _ => {}
+        }
+        self.panels.global.height = Some((target, size));
+
+        if let Some(motion) = self.panels.global.card_motion {
+            self.layout.search_card.h = motion.height();
+        }
     }
 
     /// 处理查找条件的变化：`now` 为 `true` 时立即搜索，否则等待 [`SEARCH_DELAY`] 之后再搜索。
@@ -623,7 +721,7 @@ impl App {
 
     /// `y` 是否在写全名的结果行的高度内：该行覆盖在滚动条和分隔条之上。
     pub(in crate::app) fn over_result_overflow_row(&self, y: f32) -> bool {
-        self.panel_shown()
+        self.search_open()
             && (self.panels.global.overflow)
                 .map(|o| self.result_row_rect(o.index))
                 .is_some_and(|row| (row.y..row.bottom()).contains(&y))
@@ -631,7 +729,7 @@ impl App {
 
     /// (`x`, `y`) 是否在写全名的结果行伸出侧栏的那一段内。
     pub(in crate::app) fn in_result_overflow(&self, x: f32, y: f32) -> bool {
-        self.panel_shown()
+        self.search_open()
             && (self.panels.global.overflow)
                 .and_then(|o| o.spill)
                 .is_some_and(|r| r.contains(x, y))
@@ -1103,7 +1201,7 @@ impl App {
                 let collapse = !self.panels.global.collapsed.contains(path);
                 self.set_result_collapsed(f, collapse);
             }
-            Some(&ResultRow::Match(..)) => self.open_result(index, double, double),
+            Some(&ResultRow::Match(..)) => self.open_result(index, double),
             None => {}
         }
 
@@ -1112,9 +1210,9 @@ impl App {
 
     /// 打开第 `index` 个结果行所在的文件；是匹配行时选中该处并滚动到中间。
     ///
-    /// `focus_editor` 为 `false` 时焦点留在结果列表。`keep` 为 `false` 且启用了预览标签时在预览
-    /// 标签中打开：逐条查看结果时复用同一个标签；双击、回车和菜单命令在普通标签中打开。
-    pub(in crate::app) fn open_result(&mut self, index: usize, focus_editor: bool, keep: bool) {
+    /// `keep` 为 `false` 且启用了预览标签时在预览标签中打开：逐条查看结果时复用同一个标签；
+    /// 双击、回车和菜单命令在普通标签中打开。弹窗开着时它留在屏幕上，焦点留在结果列表。
+    pub(in crate::app) fn open_result(&mut self, index: usize, keep: bool) {
         let Some(&row) = self.panels.global.rows().get(index) else {
             return;
         };
@@ -1147,17 +1245,34 @@ impl App {
             self.preview_path_then(&path, then);
         }
 
-        self.focus = if focus_editor {
-            Focus::Editor
-        } else {
+        // 弹窗开着时焦点留在结果列表：弹窗还盖着编辑区，焦点不能落到它下面去。
+        // 弹窗没开时结果列表不在屏幕上，焦点同样不能落进去，留在编辑区。
+        self.focus = if self.search_open() {
             Focus::Results
+        } else {
+            Focus::Editor
         };
         self.request_redraw();
     }
 
     /// 第 `line` 行不在可见范围内时，滚动到使它位于中间。
+    ///
+    /// 全局搜索弹窗浮在编辑区上方时，目标行要落在卡片下方的可见区域里，否则被卡片盖住；
+    /// 这时不再沿用「已经看得见就不滚动」的规则，卡片盖住的地方也算看不见。
     fn center_line(&mut self, line: usize) {
-        self.scroll_to_line(line, 0.5, true);
+        let (at, only_if_off) = if self.search_open() {
+            let editor = self.layout.editor;
+            let card = self.layout.search_card;
+            let below = (editor.bottom() - card.bottom()).max(0.0);
+            if below > editor.h * 0.2 {
+                (((card.bottom() - editor.y) + below / 2.0) / editor.h, false)
+            } else {
+                (0.5, true)
+            }
+        } else {
+            (0.5, true)
+        };
+        self.scroll_to_line(line, at.clamp(0.1, 0.9), only_if_off);
     }
 
     /// 在结果列表中移动选中的行，`delta` 为移动的行数（正数向下，负数向上），到两端后绕回。
@@ -1180,7 +1295,7 @@ impl App {
         self.scroll_result_into_view(index);
 
         if open && matches!(self.panels.global.rows()[index], ResultRow::Match(..)) {
-            self.open_result(index, false, false);
+            self.open_result(index, false);
         }
 
         self.request_redraw();
@@ -1236,7 +1351,7 @@ impl App {
         }
 
         if let Some(index) = self.panels.global.selected_row() {
-            self.open_result(index, false, false);
+            self.open_result(index, false);
         }
     }
 
@@ -1281,7 +1396,7 @@ impl App {
                 // 原位置可能是下一个文件的文件行。
                 match self.panels.global.selected_row() {
                     Some(i) if matches!(self.panels.global.rows()[i], ResultRow::Match(..)) => {
-                        self.open_result(i, false, false);
+                        self.open_result(i, false);
                     }
                     Some(_) => self.next_result(false),
                     None => {}
@@ -1308,7 +1423,7 @@ impl App {
             return;
         };
         match command {
-            MenuCommand::OpenFiles => self.open_result(index, true, true),
+            MenuCommand::OpenFiles => self.open_result(index, true),
             MenuCommand::CopyPath | MenuCommand::CopyRelativePath => {
                 self.copy_path(&path, command == MenuCommand::CopyRelativePath);
             }

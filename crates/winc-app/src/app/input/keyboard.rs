@@ -425,7 +425,8 @@ impl App {
         let shift = self.pointer.modifiers.shift_key();
 
         match &event.logical_key {
-            Key::Named(NamedKey::Escape) => self.leave_panel(),
+            // `Esc` 关掉弹窗：它浮在编辑区上方，关掉之后焦点回到编辑区。
+            Key::Named(NamedKey::Escape) => self.close_global_search(),
             // 替换输入框中 `↩` 执行替换；其余输入框中 `↩` 跳到下一处，`⇧↩` 跳到上一处。
             Key::Named(NamedKey::Enter) => {
                 if let Some(field) = self.focused_field() {
@@ -460,7 +461,8 @@ impl App {
         let row = selected.and_then(|i| self.panels.global.rows().get(i).copied());
 
         match key {
-            Key::Named(NamedKey::Escape) => self.focus = Focus::GlobalQuery,
+            // `Esc` 关掉弹窗。
+            Key::Named(NamedKey::Escape) => self.close_global_search(),
             Key::Named(NamedKey::ArrowUp) => self.step_result(-1, false),
             Key::Named(NamedKey::ArrowDown) => self.step_result(1, false),
             Key::Named(NamedKey::Home) => self.jump_result(0),
@@ -492,7 +494,7 @@ impl App {
                 (Some(ResultRow::Match(..)), Some(i)) => {
                     // 回车在普通标签中打开并进入编辑区；空格留在结果列表，按预览标签的设置打开。
                     let enter = matches!(key, Key::Named(NamedKey::Enter));
-                    self.open_result(i, enter, enter);
+                    self.open_result(i, enter);
                 }
                 _ => {}
             },
@@ -506,16 +508,6 @@ impl App {
         }
 
         self.request_redraw();
-    }
-
-    /// 处理 `Esc`：离开搜索面板，焦点回到编辑区；没有打开的文档时回到搜索输入框。
-    fn leave_panel(&mut self) {
-        self.ime.field_preedit.clear();
-        self.focus = if self.editor.active.is_some() {
-            Focus::Editor
-        } else {
-            Focus::GlobalQuery
-        };
     }
 
     /// 处理跳转条和文件树「输入名字」行中的按键。

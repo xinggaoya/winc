@@ -1,4 +1,4 @@
-//! 全局搜索面板的几何：工具按钮、查找和替换的输入框、结果行上的按钮、全部替换的确认卡片。
+//! 全局搜索弹窗的几何：工具按钮、查找和替换的输入框、结果行上的按钮、全部替换的确认卡片。
 
 use super::*;
 
@@ -67,7 +67,7 @@ pub const PANEL_TEXT: f32 = PANEL_LEFT + 18.0;
 /// 「展开替换」箭头和文件行箭头的中心（相对面板左边缘，逻辑像素）。
 pub const PANEL_CHEVRON: f32 = 20.0;
 
-/// 侧栏搜索面板的布局。
+/// 全局搜索弹窗的布局。
 ///
 /// 从上到下依次是：标题行（左边是项目和分支，右端是工具按钮）、查找（左端是展开替换的箭头，
 /// 右端是 Aa、ab、.* 三个开关和「过滤」按钮）、替换（展开时）、包含和排除（展开时）、结果统计
@@ -223,6 +223,35 @@ impl PanelParts {
             summary,
             results,
         }
+    }
+
+    /// 返回条件区（标题行到统计行）的高度（逻辑像素）。
+    ///
+    /// 与 [`PanelParts::new`] 里结果列表上沿相对于面板顶边的距离一致：全局搜索弹窗的
+    /// 高度按它算，卡片内部的几何也按同一套数算，两者不会打架。
+    pub fn chrome(
+        replace_shown: f32,
+        details_shown: f32,
+        summary: bool,
+        heights: (f32, f32),
+    ) -> f32 {
+        let replace = if replace_shown > 0.0 {
+            (PANEL_GAP + heights.1) * replace_shown.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let details = if details_shown > 0.0 {
+            2.0 * (PANEL_GAP + PANEL_FIELD) * details_shown.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        PANEL_HEADER
+            + SIDEBAR_FIRST
+            + heights.0
+            + replace
+            + details
+            + SIDEBAR_LIST_GAP
+            + if summary { 24.0 } else { 0.0 }
     }
 
     /// 返回面板中 `(x, y)` 处的按钮；没有时返回 `None`。

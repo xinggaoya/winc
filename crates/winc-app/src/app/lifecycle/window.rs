@@ -302,6 +302,7 @@ impl App {
         };
         let (panel, shown) = (self.panels.sidebar.width, self.sidebar_shown());
         let (left, right) = self.columns();
+        let search_height = self.search_card_height();
         self.layout = Layout::compute(
             w,
             h,
@@ -313,6 +314,7 @@ impl App {
             &right,
             rows,
             picker_rows,
+            search_height,
             self.gutter_width(),
             status_height,
         );
@@ -327,6 +329,8 @@ impl App {
         self.place_window_controls();
         self.place_panes();
         self.place_editor_parts();
+        // 全局搜索卡片的高度随结果数变化，从当前高度滑向新高度。
+        self.animate_search((w, h));
         // 依附于触发位置的浮层在终端、窗格都排好以后再放。
         self.place_places();
         self.place_git_picker();

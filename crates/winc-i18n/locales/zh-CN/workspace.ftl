@@ -298,7 +298,6 @@ workspace-tip-expand-unchanged = 展开所有未更改的内容
 workspace-tip-collapse-unchanged = 折叠未更改的内容
 workspace-tip-close-tab = 关闭
 workspace-tip-all-tabs = 显示所有标签页
-workspace-tip-commit-changes = 提交 · { $count } 个更改
 workspace-tip-log-go-to = 转到 { $commit } { $subject }
 workspace-tip-log-target-not-loaded = 目标提交尚未加载
 

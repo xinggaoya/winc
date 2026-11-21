@@ -10,29 +10,27 @@ use winc_pty::protocol::Decoder;
 impl App {
     /// 测试用：接上一个什么也不做的「辅助进程」，发出去的消息不处理，标签当作已经可以用了。
     pub(crate) fn attach_idle_helper(&mut self) {
-        self.terminal.client = Client::start(std::path::Path::new("/usr/bin/true"), || {}).ok();
+        self.terminal_client = Client::start(std::path::Path::new("/usr/bin/true"), || {}).ok();
         self.terminal.ready = true;
     }
 
     /// 测试用：连着辅助进程没有。
     pub(crate) fn terminal_connected(&self) -> bool {
-        self.terminal.client.is_some()
+        self.terminal_client.is_some()
     }
 
     /// 测试用：接上一个把收到的消息原样记进 `dir` 下的文件的「辅助进程」，标签当作已经可以用了。
     ///
-    /// 返回记下的文件，交给 [`App::sent_to_helper`] 读。测试直接放进来的标签（`show_terminal`）
-    /// 不占编号，这里补上，之后新建的标签不和它们重号。
+    /// 返回记下的文件，交给 [`App::sent_to_helper`] 读。辅助进程由整个窗口共用，标签的编号全局
+    /// 发号，之后新建的标签不和测试直接放进来的重号。
     pub(crate) fn attach_recording_helper(&mut self, dir: &Path) -> PathBuf {
         let log = dir.join("sent.bin");
         let script = dir.join("record.sh");
         let body = format!("#!/bin/sh\nexec cat > '{}'\n", log.display());
         winc_backend::testing::write_script(&script, &body);
         let client = Client::start(&script, || {});
-        self.terminal.client = Some(client.expect("启动记录消息的脚本"));
+        self.terminal_client = Some(client.expect("启动记录消息的脚本"));
         self.terminal.ready = true;
-        let t = &mut self.terminal;
-        t.next_id = t.tabs.iter().map(|tab| tab.id).fold(t.next_id, u16::max);
         log
     }
 
@@ -46,7 +44,7 @@ impl App {
         let mark = ToHelper::Clear {
             tab: MARKS.fetch_sub(1, Ordering::Relaxed),
         };
-        self.terminal.client.as_ref().unwrap().send(&mark);
+        self.terminal_client.as_ref().unwrap().send(&mark);
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             let mut decoder = Decoder::default();

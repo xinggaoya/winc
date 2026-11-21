@@ -223,6 +223,7 @@ impl App {
                 .row_at(y, self.overlays.picker.scroll)
                 .filter(|&i| i < self.overlays.picker.hits.len())
                 .map_or(Hover::None, Hover::PickerRow),
+            Target::GlobalSearch => self.search_hover_at(x, y).unwrap_or(Hover::None),
             Target::TreeMore => Hover::TreeMore,
             Target::Scrollbar(bar, _) => Hover::Scrollbar(bar),
             Target::Minimap => Hover::Minimap,
@@ -369,6 +370,11 @@ impl App {
         // 大纲标题行的上沿跨在文件树和大纲之间，先于两者判定。
         if self.outline_divider().contains(x, y) {
             return Target::OutlineDivider;
+        }
+        // 全局搜索弹窗浮在编辑区之上：写全名的结果行可以伸出卡片之外，那一段仍算在卡片里。
+        // 放在滚动条之后：结果列表右端的滚动条先于结果行判定。
+        if self.search_open() && (l.search_card.contains(x, y) || self.in_result_overflow(x, y)) {
+            return Target::GlobalSearch;
         }
         if let Some(hover) = self.panel_hover_at(x, y) {
             return Target::Panel(hover);
@@ -608,7 +614,7 @@ impl App {
         };
 
         // 搜索视图的结果列表与文件树占用侧栏中的同一区域，先判断结果列表。
-        if self.panel_shown() {
+        if self.search_open() {
             let results = self.panel_parts().results;
             if results.contains(x, y) && x >= results.right() - SCROLLBAR_HIT {
                 let content = (self.panels.global.rows().len() as f32 + 1.0) * TREE_ROW;
@@ -1007,10 +1013,12 @@ pub(super) enum Target {
     Conflict(crate::app::editor::conflict::ConflictAction),
     /// 快速打开面板内。
     Picker,
+    /// 全局搜索弹窗内。
+    GlobalSearch,
     TreeMore,
     /// 滚动条，以及按下时抓住滑块的位置。
     Scrollbar(Scrollbar, f32),
-    /// 侧栏中由视图切换、项目名、分支、搜索和提交面板处理的区域，参数为悬停目标。
+    /// 侧栏中由视图切换、项目名、分支和提交面板处理的区域，参数为悬停目标。
     Panel(Hover),
     /// PDF 预览缩略图栏中的一页，参数为点击后正文滚动到的位置（逻辑像素）。
     PdfThumb(f32),

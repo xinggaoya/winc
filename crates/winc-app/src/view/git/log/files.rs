@@ -14,7 +14,7 @@ use crate::app::git::log::{LogFileRow, PanelFold, RowName};
 use crate::app::{LabelCause, LabelView, TreeLabels};
 use crate::theme::TREE_INDENT;
 use crate::view::git::commit::{dir_parts, draw_name, file_parts, parts_width, shown_width};
-use crate::view::workspace::panel::over;
+use crate::view::controls::over;
 use crate::view::workspace::sidebar::{FADE_FROM, NAME_FADE};
 use winc_editor::git::CommitFile;
 

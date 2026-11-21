@@ -167,7 +167,8 @@ impl App {
         self.folder_opened();
         self.focus = match self.panels.sidebar.view {
             Panel::Files => Focus::Tree,
-            Panel::Search => Focus::GlobalQuery,
+            // 全局搜索改用弹窗，侧栏里没有搜索视图了。
+            Panel::Search => Focus::Editor,
             Panel::Commit => self.commit_view_focus(),
         };
 
@@ -217,14 +218,13 @@ impl App {
     ///
     /// 清除与上一个目录相关的状态，展开侧栏，把窗口标题改为目录名，并记入最近列表。不恢复标签。
     ///
-    /// 侧栏停在原来的视图上（在「搜索」里换目录还在「搜索」，查的内容不变、在新目录里重新搜），
+    /// 侧栏停在原来的视图上（在搜索弹窗里换目录还在搜索，查的内容不变、在新目录里重新搜），
     /// 不跳回文件树；新目录不是 Git 仓库时「提交」视图没有了，由 `git_folder_changed` 回到文件树。
     pub(super) fn folder_opened(&mut self) {
         self.reset_folder_views();
         self.watch_folder();
         self.set_sidebar(true);
-        if self.panels.sidebar.view == Panel::Search && !self.panels.global.query.text().is_empty()
-        {
+        if self.search_open() && !self.panels.global.query.text().is_empty() {
             self.run_global_search();
         }
         self.update_window_title();
@@ -238,6 +238,10 @@ impl App {
         // 窗口里没有工作区了：登记表也清空。
         self.workspaces.slots.clear();
         self.workspaces.active = 0;
+        // 没有目录可搜了：全局搜索弹窗关掉，别留在开始页上。
+        if self.search_open() {
+            self.close_global_search();
+        }
         // `last` 是别的 winc 进程写的（指向别的目录）时不动，该进程异常中止后仍需用它恢复。
         if let Some(root) = self.editor.root().map(Path::to_path_buf) {
             self.update_state(|state| {

@@ -107,6 +107,8 @@ pub struct Layout {
     pub minimap: Rect,
     /// 悬浮在编辑区右上角的查找条，展开替换时为两行高；关闭时尺寸为 0。
     pub search: Rect,
+    /// 全局搜索弹窗：浮在编辑区顶部的卡片，条件在上、结果在下；关闭时尺寸为 0。
+    pub search_card: Rect,
     /// 快速打开面板（⌘P）：输入框加结果列表；关闭时尺寸为 0。
     pub picker: Rect,
     /// 窗口底部的状态栏。
@@ -134,6 +136,7 @@ impl Layout {
     /// - `left_panels`、`right_panels`：两栏里各自的面板，顺序从上到下。
     /// - `search_rows`：查找条的行数，0 为关闭，1 为只有查找，2 为查找加替换。
     /// - `picker_rows`：快速打开面板的结果行数，0 为关闭。
+    /// - `search_height`：全局搜索弹窗的高度，0 为关闭。
     /// - `gutter_width`：行号栏的宽度。
     /// - `status_height`：窗口底部留给状态栏的高度。
     #[allow(clippy::too_many_arguments)]
@@ -148,6 +151,7 @@ impl Layout {
         right_panels: &[winc_config::Panel],
         search_rows: usize,
         picker_rows: usize,
+        search_height: f32,
         gutter_width: f32,
         status_height: f32,
     ) -> Layout {
@@ -278,6 +282,16 @@ impl Layout {
             Rect::default()
         };
 
+        // 全局搜索弹窗：浮在编辑区顶部居中，高度由内容决定（条件区加结果行）。
+        let search_card = if search_height > 0.0 {
+            let w = SEARCH_DIALOG_WIDTH.min(editor.w - 48.0).max(0.0);
+            let x = (editor.x + (editor.w - w) / 2.0).round();
+            let h = search_height.min((editor.h - 16.0).max(0.0));
+            Rect::new(x, editor.y + 8.0, w, h)
+        } else {
+            Rect::default()
+        };
+
         Layout {
             window,
             workspaces: Rect::default(),
@@ -306,6 +320,7 @@ impl Layout {
             text,
             minimap: Rect::default(),
             search,
+            search_card,
             picker,
             status,
             terminal: Rect::default(),

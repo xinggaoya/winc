@@ -6,6 +6,18 @@
 use super::*;
 use crate::layout::PanelSlot;
 
+/// 去掉两栏里不再显示的面板：全局搜索改用浮在编辑区上的弹窗，不再占侧栏的位置。
+///
+/// 配置里旧的 `"search"` 读进来时丢掉：它在两栏里没有位置，放进去只会让设置页列出
+/// 一个点不动的面板。
+pub(crate) fn without_search(panels: &[Panel]) -> Vec<Panel> {
+    panels
+        .iter()
+        .copied()
+        .filter(|panel| *panel != Panel::Search)
+        .collect()
+}
+
 impl App {
     /// 面板 `panel` 现在能不能显示。
     ///
@@ -97,9 +109,15 @@ impl App {
 
     /// 确保面板 `panel` 在某一栏里显示：现在没有显示时把它放到左栏末尾。
     ///
-    /// 用户可以把面板移到右栏或者藏起来；用命令打开某个面板时（查找、提交），面板没有地方
+    /// 用户可以把面板移到右栏或者藏起来；用命令打开某个面板时（提交），面板没有地方
     /// 放就重新放到左栏末尾，免得命令没有反应。
+    ///
+    /// 全局搜索不在两栏里：它改用浮在编辑区上的弹窗，不占侧栏的位置。
     pub(in crate::app) fn show_panel(&mut self, panel: Panel) {
+        if panel == Panel::Search {
+            return;
+        }
+
         let layout = &self.panels.layout;
         if layout.left.contains(&panel) || layout.right.contains(&panel) {
             return;
@@ -111,12 +129,19 @@ impl App {
     /// 把焦点交给面板 `panel`：展开它所在的栏，焦点落到面板里。
     ///
     /// 面板现在没有显示时（例如 Git 的提交视图，但目录不在仓库里）只记下焦点，面板不显示。
+    /// 全局搜索不在两栏里：它改用浮在编辑区上的弹窗，焦点给它就是打开弹窗。
     pub(in crate::app) fn focus_panel(&mut self, panel: Panel) {
+        if panel == Panel::Search {
+            self.open_global_search(false);
+            return;
+        }
+
         self.set_sidebar_view(panel);
         match panel {
             Panel::Files => self.focus = Focus::Tree,
-            Panel::Search => self.focus = Focus::GlobalQuery,
             Panel::Commit => self.focus = self.commit_view_focus(),
+            // 全局搜索已在上面返回。
+            Panel::Search => {}
         }
     }
 }

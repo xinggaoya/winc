@@ -1,4 +1,7 @@
-//! 侧栏顶部的「文件」「搜索」视图切换按钮，以及全局搜索面板的绘制。
+//! 全局搜索弹窗的绘制：条件区（查找、替换、包含、排除）和结果树。
+//!
+//! 弹窗是一张浮在编辑区上方的卡片：标题行连同工具按钮在最上面，下面依次是查找行、
+//! 替换行、包含与排除行、结果统计行和结果列表。
 
 use std::f32::consts::FRAC_PI_2;
 
@@ -6,11 +9,12 @@ use winc_i18n::t;
 use winc_render::{Frame, Rect};
 
 use super::*;
-use crate::app::{Focus, OutlineTarget, ResultRow, SyncState};
+use crate::app::{Focus, ResultRow};
 use crate::layout::{
     PANEL_CHEVRON, PANEL_LEFT, PANEL_TEXT, PanelButton, PanelParts, PanelTool, RowAction,
-    SearchButton, row_actions,
+    row_actions,
 };
+use crate::view::controls::over;
 use winc_config::Panel;
 
 mod overflow;
@@ -25,22 +29,16 @@ pub(in crate::view) use overflow::{
 /// 其下的文本在该区域内逐渐淡出，而不是被直接截断。
 const COVER_FADE: f32 = 20.0;
 
-/// 分段控件里凸起那一段的底色和细边：浅色配色是白底、淡黑边；深色配色是比底槽 `track` 亮一档的
-/// 灰、淡白边。
-///
-/// 都是不透明色，叠在底槽上不会透出下面。
-pub(in crate::view) fn segment_colors(p: &Palette, track: Color) -> (Color, Color) {
-    let white = Color::hex(0xFFFFFF);
-    if p.dark {
-        let raised = over(track, white.alpha(0.09));
-        (raised, over(track, white.alpha(0.14)))
-    } else {
-        (white, over(track, Color::hex(0x000000).alpha(0.08)))
+/// 绘制全局搜索弹窗，返回有焦点的输入框的光标矩形（供输入法候选框定位）。
+pub(in crate::view) fn draw_search_dialog(app: &mut App, frame: &mut Frame<'_>) -> Option<Rect> {
+    let card = app.layout.search_card;
+    if card.w <= 0.0 || card.h <= 0.0 {
+        return None;
     }
-}
 
-/// 绘制搜索面板，返回有焦点的输入框的光标矩形（供输入法候选框定位）。
-pub(super) fn draw_search_panel(app: &mut App, frame: &mut Frame<'_>) -> Option<Rect> {
+    // 卡片底色：浮层用浮层的底色，不透出下方的编辑区。
+    draw_card(frame, app.palette, card, RADIUS_BAR, app.palette.popup_bg);
+
     app.panels.global.sync_rows();
     // 查找、替换输入框随内容长高：先按框的宽度折好行（宽度和高度无关），框的高度按行数定，
     // 绘制时继续使用折好的行。
@@ -117,9 +115,9 @@ fn draw_panel_header(app: &App, frame: &mut Frame<'_>, parts: &PanelParts) {
     }
 }
 
-/// 侧栏里的输入框，见 [`field_box`]。
+/// 弹窗里的输入框，见 [`field_box`]。
 fn draw_field_box(app: &App, frame: &mut Frame<'_>, rect: Rect, focused: bool, error: bool) {
-    field_box(app, frame, rect, app.palette.sidebar_bg, focused, error);
+    field_box(app, frame, rect, app.palette.popup_bg, focused, error);
 }
 
 /// 绘制查找、替换、包含、排除四个输入框及其旁边的按钮，返回有焦点的输入框的光标矩形。
@@ -369,7 +367,7 @@ fn draw_results(app: &mut App, frame: &mut Frame<'_>, parts: &PanelParts) {
         draw_empty_state(
             app,
             frame,
-            (area, sidebar_span(app)),
+            (area, area),
             t!("workspace-search-no-results"),
             Some(if app.panels.global.include_ignored {
                 t!("workspace-search-no-results-hint")
@@ -512,7 +510,7 @@ fn draw_result_row(
     if let Some(background) = background {
         let left = replace_rect.map_or(dismiss_rect.x, |r| r.x) - 4.0;
         if moved.is_none() {
-            let solid = over(p.sidebar_bg, background);
+            let solid = over(p.popup_bg, background);
             let cover = Rect::new(left, pill.y, pill.right() - left, pill.h);
             let r = RADIUS_ROW;
             frame.rect_corners(cover, solid, [0.0, r, r, 0.0], area);
@@ -730,484 +728,3 @@ fn draw_match_row(
     ui_text(frame, app, x, row, after, p.text_muted, clip);
 }
 
-/// 返回 `fg` 叠在不透明的 `bg` 上得到的颜色，结果不透明。
-///
-/// 用于绘制与下层完全相同的底色，以遮盖其上的文本。
-pub(in crate::view) fn over(bg: Color, fg: Color) -> Color {
-    let mix = |b: f32, f: f32| b + (f - b) * fg.a;
-    Color {
-        r: mix(bg.r, fg.r),
-        g: mix(bg.g, fg.g),
-        b: mix(bg.b, fg.b),
-        a: 1.0,
-    }
-}
-
-/// 返回面板内按钮的悬停提示（按钮矩形和提示文本）；没有提示时返回 `None`。
-pub(in crate::view) fn tooltip(app: &App) -> Option<(Rect, String)> {
-    use crate::app::{CommitTarget, DiffTarget};
-    use crate::keymap::Action;
-    use crate::layout::with_key;
-    match app.pointer.hover {
-        Hover::TerminalHeader(hit @ crate::app::terminal::HeaderHit::New) => {
-            let rect = app.hits.terminal.iter().find(|(_, h)| *h == hit)?.0;
-            Some((rect, t!("terminal-new").to_owned()))
-        }
-        Hover::TerminalHeader(hit @ crate::app::terminal::HeaderHit::Tab(i))
-            if app.terminal_tab_list().is_some() =>
-        {
-            let rect = app.hits.terminal.iter().find(|(_, h)| *h == hit)?.0;
-            Some((rect, app.terminal.tabs.get(i)?.label().to_owned()))
-        }
-        Hover::TerminalHeader(hit @ crate::app::terminal::HeaderHit::ShellMenu) => {
-            let rect = app.hits.terminal.iter().find(|(_, h)| *h == hit)?.0;
-            Some((rect, t!("terminal-shell-select").to_owned()))
-        }
-        Hover::TerminalHeader(hit @ crate::app::terminal::HeaderHit::Find(part)) => {
-            use crate::app::terminal::FindPart;
-            let label = match part {
-                FindPart::Bar => return None,
-                FindPart::Previous => t!("cmd-find-previous"),
-                FindPart::Next => t!("cmd-find-next"),
-                FindPart::Close => t!("workspace-find-close"),
-                FindPart::Case => t!("workspace-find-match-case"),
-                FindPart::Word => t!("workspace-find-whole-word"),
-                FindPart::Regex => t!("workspace-find-use-regex"),
-            };
-            let rect = app.hits.terminal.iter().find(|(_, h)| *h == hit)?.0;
-            Some((rect, label.to_owned()))
-        }
-        Hover::TerminalHeader(hit @ crate::app::terminal::HeaderHit::Maximize) => {
-            let rect = app.hits.terminal.iter().find(|(_, h)| *h == hit)?.0;
-            let label = if app.terminal.maximized {
-                t!("terminal-restore-panel")
-            } else {
-                t!("terminal-maximize-panel")
-            };
-            Some((rect, with_key(label, Some(Action::MaximizeTerminal))))
-        }
-        Hover::TerminalHeader(hit @ crate::app::terminal::HeaderHit::Position) => {
-            let rect = app.hits.terminal.iter().find(|(_, h)| *h == hit)?.0;
-            let label = if app.terminal_right() {
-                t!("terminal-dock-bottom")
-            } else {
-                t!("terminal-dock-right")
-            };
-            Some((rect, label.to_owned()))
-        }
-        Hover::TerminalHeader(hit @ crate::app::terminal::HeaderHit::Hide) => {
-            let rect = app.hits.terminal.iter().find(|(_, h)| *h == hit)?.0;
-            Some((
-                rect,
-                with_key(t!("terminal-hide-panel"), Some(Action::ToggleTerminalPanel)),
-            ))
-        }
-        Hover::TerminalHeader(hit @ crate::app::terminal::HeaderHit::Run(button)) => {
-            use crate::app::terminal::run::RunButton;
-            let rect = app.hits.terminal.iter().find(|(_, h)| *h == hit)?.0;
-            let label = match button {
-                RunButton::Menu => t!("terminal-run-select").to_owned(),
-                RunButton::Start if app.run.list.is_empty() => t!("terminal-run-add").to_owned(),
-                RunButton::Start if app.run_config_running() => {
-                    with_key(t!("terminal-run-again"), Some(Action::RunConfiguration))
-                }
-                RunButton::Start => {
-                    with_key(t!("cmd-run-configuration"), Some(Action::RunConfiguration))
-                }
-                RunButton::Stop => with_key(
-                    t!("cmd-stop-configuration"),
-                    Some(Action::StopConfiguration),
-                ),
-            };
-            Some((rect, label))
-        }
-        Hover::Status(item @ crate::app::StatusItem::Terminal) => {
-            let rect = app.hits.status.iter().find(|(_, i)| *i == item)?.0;
-            let label = if app.terminal.open {
-                t!("terminal-hide-panel")
-            } else {
-                t!("terminal-show-panel")
-            };
-            Some((rect, with_key(label, Some(Action::ToggleTerminalPanel))))
-        }
-        Hover::Status(item @ crate::app::StatusItem::Remote) => {
-            let rect = app.hits.status.iter().find(|(_, i)| *i == item)?.0;
-            // 已打开远端目录时说明连着哪台主机。
-            let host = (app.editor.root())
-                .and_then(winc_backend::locate)
-                .map(|location| location.target);
-            let label = match host {
-                Some(host) if !winc_backend::remote::is_connected(&host) => {
-                    t!("workspace-remote-status-lost", host = host.as_str())
-                }
-                Some(host) if winc_backend::remote::is_stalled(&host) => {
-                    t!("workspace-remote-status-stalled", host = host.as_str())
-                }
-                Some(host) => t!("workspace-remote-status-connected", host = host.as_str()),
-                None => t!("workspace-start-remote").to_owned(),
-            };
-            Some((rect, with_key(&label, Some(Action::RemoteConnect))))
-        }
-        Hover::Status(item @ crate::app::StatusItem::ReadOnly) => {
-            let rect = app.hits.status.iter().find(|(_, i)| *i == item)?.0;
-            let label = with_key(t!("cmd-toggle-read-only"), Some(Action::ToggleReadOnly));
-            Some((rect, label))
-        }
-        Hover::Status(item @ crate::app::StatusItem::Update) => {
-            let rect = app.hits.status.iter().find(|(_, i)| *i == item)?.0;
-            Some((rect, crate::view::status::update_tooltip(app)?))
-        }
-        Hover::Status(item @ crate::app::StatusItem::Settings) => {
-            let rect = app.hits.status.iter().find(|(_, i)| *i == item)?.0;
-            Some((rect, with_key(t!("cmd-settings"), Some(Action::Settings))))
-        }
-        // 分支选择器的拉取、推送、获取：写明会做什么（和谁差几个提交、推到哪儿）；不能用时写原因。
-        Hover::PickerPart(
-            part @ (crate::app::PickerPart::Pull
-            | crate::app::PickerPart::Push
-            | crate::app::PickerPart::Fetch),
-        ) => {
-            let rect = app.hits.picker_parts.iter().find(|(_, p)| *p == part)?.0;
-            let command = app.picker_action_command(part);
-            let label = app.menu_label(command);
-            let tip = if app.git.remotes.is_empty() {
-                t!("git-push-no-remote").to_owned()
-            } else {
-                label.subtitle.unwrap_or(label.title)
-            };
-            Some((rect, tip))
-        }
-        // 提交按钮：无法提交时显示原因，可以提交时显示提交目标和快捷键；按住 ⌥ 时是提交并推送。
-        Hover::Commit(CommitTarget::Commit) => {
-            use winc_editor::git::{Head, Operation};
-            let parts = app.commit_parts();
-            let status = app.git.status.as_ref()?;
-            if app.git.commit.busy {
-                return None;
-            }
-            if let Some(reason) = app.commit_blocker(status) {
-                return Some((parts.commit, reason));
-            }
-            let name = match (status.operation, &status.head) {
-                (Some(Operation::Rebase), _) => t!("workspace-tip-continue-rebase").to_owned(),
-                (Some(op), _) => t!("workspace-tip-finish-operation", operation = op.label()),
-                (None, _) if app.git.commit.amend => t!("workspace-tip-amend").to_owned(),
-                (None, Some(Head::Branch(b))) if app.commit_pushes() => {
-                    t!("workspace-tip-commit-push-to", branch = b.as_str())
-                }
-                (None, Some(Head::Branch(b))) => t!("workspace-tip-commit-to", branch = b.as_str()),
-                (None, _) => t!("workspace-tip-commit").to_owned(),
-            };
-            let key = match (cfg!(target_os = "macos"), app.commit_pushes()) {
-                (true, true) => "⌥⌘↩",
-                (true, false) => "⌘↩",
-                (false, true) => "Ctrl+Alt+Enter",
-                (false, false) => "Ctrl+Enter",
-            };
-            Some((
-                parts.commit,
-                format!("{name}{}{key}", crate::layout::TIP_KEY),
-            ))
-        }
-        Hover::Commit(
-            target @ (CommitTarget::OpenFile(_)
-            | CommitTarget::RevertFile(_)
-            | CommitTarget::GroupRevert(_)),
-        ) => {
-            let rect = app.hits.commit.iter().find(|(_, t)| *t == target)?.0;
-            let label = match target {
-                CommitTarget::OpenFile(_) => t!("workspace-tip-open-file"),
-                CommitTarget::GroupRevert(_) => t!("menu-commit-roll-back"),
-                _ => t!("workspace-tip-revert-change"),
-            };
-            Some((rect, label.to_owned()))
-        }
-        Hover::Commit(
-            target @ (CommitTarget::StageFile(..)
-            | CommitTarget::GroupStage(_)
-            | CommitTarget::DirStage(..)),
-        ) => {
-            let rect = app.hits.commit.iter().find(|(_, t)| *t == target)?.0;
-            let unstage = matches!(
-                target,
-                CommitTarget::StageFile(_, false)
-                    | CommitTarget::DirStage(_, false)
-                    | CommitTarget::GroupStage(crate::app::CommitGroup::Staged)
-            );
-            let label = if unstage {
-                t!("menu-git-unstage")
-            } else {
-                t!("menu-git-stage")
-            };
-            Some((rect, label.to_owned()))
-        }
-        // 同步控件上没有文字，要做的事写在这里。
-        Hover::Commit(target @ CommitTarget::Sync) => {
-            let rect = app.hits.commit.iter().find(|(_, t)| *t == target)?.0;
-            let upstream = (app.git.branches.iter())
-                .find(|b| b.current)
-                .and_then(|b| b.upstream.as_deref())
-                .unwrap_or_default();
-            let label = match (app.git.branch.running.as_deref(), app.git_sync_state()) {
-                (Some(task), _) => t!("workspace-status-branch-running", task = task),
-                (None, SyncState::Publish) => t!("git-tip-publish").to_owned(),
-                (None, SyncState::InSync) => t!("git-tip-in-sync", upstream = upstream),
-                (None, SyncState::Push(count)) => {
-                    t!("git-tip-push", count = count, upstream = upstream)
-                }
-                (None, SyncState::Pull(count)) => {
-                    t!("git-tip-pull", count = count, upstream = upstream)
-                }
-                (None, SyncState::Both { ahead, behind }) => t!(
-                    "git-tip-both",
-                    ahead = ahead,
-                    behind = behind,
-                    upstream = upstream
-                ),
-                (None, SyncState::NoRemote | SyncState::Hidden) => t!("git-tip-fetch").to_owned(),
-            };
-            Some((rect, label))
-        }
-        Hover::MarkdownToc(target @ crate::app::preview::markdown::TocTarget::Pin) => {
-            let rect = app.hits.markdown_toc.iter().find(|(_, t)| *t == target)?.0;
-            let label = match app.state.markdown_toc_pinned {
-                true => t!("preview-markdown-toc-unpin"),
-                false => t!("preview-markdown-toc-pin"),
-            };
-            Some((rect, label.to_owned()))
-        }
-        Hover::Outline(target @ OutlineTarget::FoldAll) => {
-            let rect = app.hits.outline.iter().find(|(_, t)| *t == target)?.0;
-            let label = if app.outline_any_expanded() {
-                t!("workspace-outline-tool-collapse-all")
-            } else {
-                t!("workspace-outline-tool-expand-all")
-            };
-            Some((rect, label.to_owned()))
-        }
-        // 工作树一组收起时各行不可见：其他工作树有更改时在标题上提示。
-        Hover::Commit(target @ CommitTarget::Worktrees) if !app.git.commit.worktrees.open => {
-            let rect = app.hits.commit.iter().find(|(_, t)| *t == target)?.0;
-            let count = app.git_other_changes();
-            (count > 0).then(|| (rect, t!("git-tip-other-worktrees", count = count)))
-        }
-        Hover::Commit(target @ CommitTarget::WorktreeNew) => {
-            let rect = app.hits.commit.iter().find(|(_, t)| *t == target)?.0;
-            Some((rect, t!("git-branch-picker-new-worktree").to_owned()))
-        }
-        Hover::Commit(CommitTarget::Location) => None,
-        Hover::Commit(CommitTarget::CommitMenu) => Some((
-            app.commit_parts().commit_menu,
-            t!("workspace-tip-commit-menu").to_owned(),
-        )),
-        Hover::Commit(target) => {
-            let rect = app
-                .commit_parts()
-                .tools
-                .iter()
-                .find(|(_, t)| *t == target)?
-                .0;
-            if target == CommitTarget::Log {
-                return Some((
-                    rect,
-                    with_key(t!("workspace-tip-git-log"), Some(Action::GitShowLog)),
-                ));
-            }
-            if target == CommitTarget::Refresh {
-                return Some((rect, t!("workspace-tip-git-refresh").to_owned()));
-            }
-            Some((rect, t!("workspace-tip-more-actions").to_owned()))
-        }
-        Hover::Merge(target) => {
-            use crate::app::git::merge::MergeTarget;
-            let rect = app.hits.merge.iter().find(|(_, t)| *t == target)?.0;
-            let label = match target {
-                MergeTarget::Previous => with_key(
-                    t!("workspace-tip-previous-conflict"),
-                    Some(Action::PreviousDifference),
-                ),
-                _ => with_key(
-                    t!("workspace-tip-next-conflict"),
-                    Some(Action::NextDifference),
-                ),
-            };
-            Some((rect, label))
-        }
-        // 附属工作树：写明是哪个仓库的工作树、在哪里（项目名写的是工作树自己的目录名）。
-        Hover::ProjectName => {
-            let main = app.git.main_worktree()?;
-            let root = app.git.root.as_deref()?;
-            let name = crate::app::git::worktree::worktree_name(main);
-            let path = winc_editor::display_path(root, None);
-            let tip = t!("workspace-tip-worktree-of", name = name, path = path);
-            Some((app.hits.project, tip))
-        }
-        Hover::RulerChange(hunk) => app.ruler_tip(hunk),
-        Hover::Blame(line) => app.blame_tip(line),
-        Hover::LatexStatus => Some((app.hits.latex_status, app.latex_status_tip()?)),
-        Hover::LatexProblem(line) => app.latex_problem_tip(line),
-        Hover::Change(target) => {
-            use crate::app::ChangeTarget;
-            let rect = app.hits.changes.iter().find(|(_, t)| *t == target)?.0;
-            let label = match target {
-                ChangeTarget::Previous => with_key(
-                    t!("workspace-tip-previous-change"),
-                    Some(Action::PreviousDifference),
-                ),
-                ChangeTarget::Next => with_key(
-                    t!("workspace-tip-next-change"),
-                    Some(Action::NextDifference),
-                ),
-                ChangeTarget::Revert => with_key(
-                    t!("workspace-tip-revert-change"),
-                    Some(Action::GitRevertChange),
-                ),
-                ChangeTarget::ShowDiff => {
-                    with_key(t!("workspace-tip-open-diff"), Some(Action::GitShowChanges))
-                }
-                ChangeTarget::Close => t!("workspace-tip-close-esc").to_owned(),
-            };
-            Some((rect, label))
-        }
-        Hover::Diff(target) => {
-            let rect = app.hits.diff.iter().find(|(_, t)| *t == target)?.0;
-            let label = match target {
-                DiffTarget::Previous => with_key(
-                    t!("workspace-tip-previous-change"),
-                    Some(Action::PreviousDifference),
-                ),
-                DiffTarget::Next => with_key(
-                    t!("workspace-tip-next-change"),
-                    Some(Action::NextDifference),
-                ),
-                DiffTarget::PreviousFile => with_key(
-                    t!("workspace-tip-previous-file"),
-                    Some(Action::PreviousDiffFile),
-                ),
-                DiffTarget::NextFile => {
-                    with_key(t!("workspace-tip-next-file"), Some(Action::NextDiffFile))
-                }
-                DiffTarget::OpenFile => t!("workspace-tip-open-file").to_owned(),
-                DiffTarget::Blame(side, line) => app.diff_blame_tip(side, line)?,
-                DiffTarget::Layout if app.editor.diff_unified => {
-                    t!("workspace-tip-diff-side-by-side").to_owned()
-                }
-                DiffTarget::Layout => t!("workspace-tip-diff-inline").to_owned(),
-                DiffTarget::FilesToggle if app.log_files_open() => {
-                    t!("git-log-diff-hide-files").to_owned()
-                }
-                DiffTarget::FilesToggle => t!("git-log-diff-show-files").to_owned(),
-                DiffTarget::FilesLayout if app.diff_files_flat() => {
-                    t!("workspace-tip-show-as-tree").to_owned()
-                }
-                DiffTarget::FilesLayout => t!("workspace-tip-show-as-list").to_owned(),
-                // 文件栏里截短或改过名的文件：完整路径；其余文件不提示。
-                DiffTarget::File(i) => app.log_diff_file_tip(i)?,
-                DiffTarget::Revert(_) => with_key(
-                    t!("workspace-tip-revert-to-left"),
-                    Some(Action::GitRevertChange),
-                ),
-                DiffTarget::Include(_) => t!("workspace-tip-include-change").to_owned(),
-                DiffTarget::IncludeLine(..) => t!("workspace-tip-include-line").to_owned(),
-                _ if app.editor.active()?.diff.as_deref()?.collapses() => {
-                    t!("workspace-tip-expand-unchanged").to_owned()
-                }
-                _ => t!("workspace-tip-collapse-unchanged").to_owned(),
-            };
-            Some((rect, label))
-        }
-        // 标签提示显示完整名称和所在目录，便于确认被截短的文件名和历史差异的版本；
-        // 关闭按钮显示快捷键。按住或拖动标签时不显示提示。
-        Hover::Tab(index, close) => {
-            if app.tabs.drag.is_some() {
-                return None;
-            }
-            let hit = app.hits.tabs.iter().find(|h| h.index == index)?;
-            if close {
-                return Some((
-                    hit.close,
-                    with_key(t!("workspace-tip-close-tab"), Some(Action::CloseTab)),
-                ));
-            }
-            let doc = app.editor.documents.get(index)?;
-            let title = doc.name();
-            let path = (doc.path.as_deref()).or_else(|| {
-                doc.diff
-                    .as_deref()
-                    .and_then(winc_editor::diff_view::DiffView::file_path)
-            });
-            let label = match path.and_then(std::path::Path::parent) {
-                Some(dir) => format!("{title}\n{}", winc_editor::display_path(dir, None)),
-                // 没有对应文件的标签（未命名文件、日志等）只在名称被截短时提示完整名称。
-                None if hit.elided => title.into_owned(),
-                None => return None,
-            };
-            Some((hit.tab, label))
-        }
-        Hover::TabList => Some((app.tabs.list?, t!("workspace-tip-all-tabs").to_owned())),
-        Hover::Panel(PanelButton::Tool(tool)) => {
-            let parts = app.panel_parts();
-            let rect = parts.tools.iter().find(|(_, t)| *t == tool)?.0;
-            let label = match tool {
-                PanelTool::Refresh => t!("workspace-search-tool-refresh"),
-                PanelTool::Clear => t!("workspace-search-tool-clear"),
-                PanelTool::CollapseAll if app.panels.global.all_collapsed() => {
-                    t!("workspace-search-tool-expand-all")
-                }
-                PanelTool::CollapseAll => t!("workspace-search-tool-collapse-all"),
-            };
-            Some((rect, label.to_owned()))
-        }
-        Hover::Panel(
-            button @ (PanelButton::Expand
-            | PanelButton::Case
-            | PanelButton::Word
-            | PanelButton::Regex
-            | PanelButton::ReplaceAll),
-        ) => {
-            // 提示文本沿用查找条上对应按钮的文本。
-            let parts = app.panel_parts();
-            let (rect, same) = match button {
-                PanelButton::Expand => (parts.expand, SearchButton::Expand),
-                PanelButton::Case => (parts.case_toggle, SearchButton::Case),
-                PanelButton::Word => (parts.word_toggle, SearchButton::Word),
-                PanelButton::Regex => (parts.regex_toggle, SearchButton::Regex),
-                _ => (parts.replace_all, SearchButton::ReplaceAll),
-            };
-            Some((rect, same.label()))
-        }
-        Hover::Panel(PanelButton::Ignored) => Some((
-            app.panel_parts().ignored_toggle,
-            t!("workspace-search-include-ignored").to_owned(),
-        )),
-        Hover::Panel(PanelButton::Details) => {
-            let label = if app.panels.global.details_open {
-                t!("workspace-search-hide-filters")
-            } else {
-                t!("workspace-search-filter-files")
-            };
-            Some((app.panel_parts().details, label.to_owned()))
-        }
-        Hover::RowAction(index, action) => {
-            let (replace, dismiss) = app.result_actions(index);
-            let is_file = matches!(
-                app.panels.global.rows().get(index),
-                Some(ResultRow::File(_))
-            );
-            match action {
-                RowAction::Replace => {
-                    let label = if is_file {
-                        t!("workspace-search-row-replace-all")
-                    } else {
-                        t!("workspace-search-row-replace")
-                    };
-                    Some((replace?, label.to_owned()))
-                }
-                RowAction::Dismiss => {
-                    Some((dismiss, t!("workspace-search-row-dismiss").to_owned()))
-                }
-            }
-        }
-        _ => None,
-    }
-}

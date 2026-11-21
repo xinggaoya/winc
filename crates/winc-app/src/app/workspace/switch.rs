@@ -128,8 +128,9 @@ impl App {
             return;
         }
         let name = winc_editor::display_name(&target).into_owned();
-        // 新工作区沿用当前的查找内容：接着在新目录里找。
+        // 新工作区沿用当前的查找内容：接着在新目录里找。搜索弹窗开着时也一并开着。
         let query = self.panels.global.query.text().to_owned();
+        let searching = self.search_open();
         // 先把当前工作区的现场收进它自己的格子。
         self.stash_workspace();
         // 新开一个工作区：格子是空的，把它放到窗口里，再在里面打开目录。
@@ -141,6 +142,9 @@ impl App {
         self.workspaces.active = index;
         if !query.is_empty() {
             self.panels.global.query.set_text(&query);
+        }
+        if searching {
+            self.panels.global.open = true;
         }
         self.open_folder_now(&target);
     }

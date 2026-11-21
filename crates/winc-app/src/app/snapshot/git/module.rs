@@ -513,9 +513,9 @@ fn shoot_context_bar() {
         let project = app.hits.project;
         app.on_mouse_move(project.x + 4.0, project.y + 4.0);
         shoot(&mut app, name);
-        // 悬停提示：「名字 … 快捷键」两栏，快捷键是右边的淡色字。
-        let commit = app.sidebar_tabs()[2].0;
-        app.on_mouse_move(commit.x + 4.0, commit.y + 4.0);
+        // 悬停提示：提交面板标题行右端的「更多」按钮。
+        let more = app.commit_parts().tools[2].0;
+        app.on_mouse_move(more.x + 4.0, more.y + 4.0);
         app.overlays.tooltip.since = Some(
             std::time::Instant::now()
                 - crate::theme::TOOLTIP_DELAY
@@ -673,14 +673,11 @@ fn the_project_leads_the_second_row_and_git_context_sits_below_it() {
     let Some((mut app, root)) = git_app("git-context-bar", false) else {
         return;
     };
-    // 顶栏是侧栏开关和视图切换图标，第二行左边是项目名，三个视图里位置不变。
+    // 项目名在左栏的一行里，位置不随面板的焦点变。
     app.panels.sidebar.width = 400.0;
     paint(&mut app);
     let project = app.hits.project;
     assert!(project.y >= app.layout.sidebar_header.y);
-    let tabs = app.sidebar_tabs();
-    assert!(tabs[0].0.x > app.layout.sidebar_button.right());
-    assert!(tabs[0].0.bottom() <= app.layout.sidebar_header.y);
     app.run_action(Action::FindInFiles);
     paint(&mut app);
     assert_eq!(app.hits.project, project);
@@ -696,7 +693,8 @@ fn the_project_leads_the_second_row_and_git_context_sits_below_it() {
         parts.tools.map(|(_, t)| t),
         [CommitTarget::Log, CommitTarget::Refresh, CommitTarget::More]
     );
-    assert!(parts.tools[0].0.x >= project.right());
+    // Git 的上下文在右栏的提交面板里，不在项目名这一行。
+    assert!(parts.tools[0].0.x >= app.layout.right.x);
 
     // 一个仓库、一个工作树：只有分支行，它在改动列表上方。
     assert!(parts.location.is_none());
@@ -789,7 +787,7 @@ fn freeze_modules(app: &mut App, on: bool, at: std::time::Duration) {
     // 消失时宽度在内容淡出结束后才开始收起，`at` 从收起开始计时。
     let at = if on { at } else { at + EXIT_FADE };
     let fx = &mut app.motion.module_fx;
-    for p in [&mut fx.commit_tab, &mut fx.terminal, &mut fx.branch] {
+    for p in [&mut fx.terminal, &mut fx.branch] {
         p.track(!on, None);
         p.track(on, Some(Clock::frozen(at, MODULE_FADE)));
     }
@@ -808,7 +806,6 @@ fn switching_modules_off_fades_their_chrome_out() {
     app.settings_toggle(Setting::TerminalModule);
     paint(&mut app);
     assert!(app.motion.module_fx.branch_label.is_some());
-    let full = app.sidebar_tabs()[2].0;
     let hit = |app: &App, item| app.hits.status.iter().any(|h| h.1 == item);
     assert!(hit(&app, StatusItem::Branch) && hit(&app, StatusItem::Terminal));
 
@@ -817,10 +814,6 @@ fn switching_modules_off_fades_their_chrome_out() {
     freeze_modules(&mut app, false, MODULE_FADE / 3);
     assert!(app.animating());
     paint(&mut app);
-    let tabs = app.sidebar_tabs();
-    assert_eq!(tabs.len(), 3);
-    assert!(tabs[2].0.w > 0.0 && tabs[2].0.w < full.w);
-    assert_eq!(tabs[2].0.right(), full.right());
     assert!(app.motion.module_fx.branch_label.is_some());
     assert!(!hit(&app, StatusItem::Branch) && !hit(&app, StatusItem::Terminal));
 
@@ -828,7 +821,6 @@ fn switching_modules_off_fades_their_chrome_out() {
     app.track_modules();
     assert!(!app.motion.module_fx.moving());
     assert!(app.motion.module_fx.branch_label.is_none());
-    assert_eq!(app.sidebar_tabs().len(), 2);
     let _ = std::fs::remove_dir_all(&root);
 }
 

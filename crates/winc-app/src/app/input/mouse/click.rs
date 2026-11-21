@@ -178,6 +178,12 @@ impl App {
             self.preview.markdown.selection = None;
         }
 
+        // 全局搜索弹窗浮在编辑区上方：点它挡住的编辑区、标签栏等就是关掉它，这次点击
+        // 仍然生效（光标照常挪到点中的地方）。卡片里的点击由卡片自己处理。
+        if self.search_open() && !self.in_search_card(x, y) {
+            self.close_global_search();
+        }
+
         // 点击的目标由 `target_at` 决定（与悬停同一个顺序）；只有点击才有的规则写成前面的
         // 分支：快速打开面板开着时点其他位置关掉快速打开面板，正在输入名字时点其他位置
         // 先提交名字。
@@ -189,6 +195,9 @@ impl App {
             Target::Conflict(action) => self.resolve_conflict(action),
             Target::Picker => {
                 self.click_picker(x, y);
+            }
+            Target::GlobalSearch => {
+                self.click_global_search(x, y);
             }
             _ if self.overlays.picker.open => self.close_picker(),
             Target::Scrollbar(
