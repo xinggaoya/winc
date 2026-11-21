@@ -257,8 +257,8 @@ git merge upstream/dev              # bring the upstream changes in
 ## Contributing
 
 The upstream contribution guide is in [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md); the
-upstream project develops on the `dev` branch. The changes in this repository are described in the
-commit messages and in [CHANGELOG.md](./CHANGELOG.md).
+upstream project develops on the `dev` branch, this repository on `main`. The changes here are
+described in the commit messages and in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Contact
 

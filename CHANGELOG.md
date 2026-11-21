@@ -43,7 +43,7 @@ notes live in [upstream Releases](https://github.com/DEEIX-AI/Winc/releases) and
 | | |
 | --- | --- |
 | 上游 | <https://github.com/DEEIX-AI/Winc>（分支 `dev`） |
-| 本仓库 | <https://github.com/xinggaoya/winc>（分支 `dev`） |
+| 本仓库 | <https://github.com/xinggaoya/winc>（分支 `main`） |
 | 本次改动所基于的上游提交 | `16a7785f`（`Merge pull request #336 from DEEIX-AI/support_latex`） |
 
 本仓库保留了上游的完整历史，同步方式与冲突处理见 [UPSTREAM.md](./UPSTREAM.md)。

@@ -38,10 +38,11 @@ git remote set-url upstream https://github.com/DEEIX-AI/Winc.git
 
 | 分支 | 说明 |
 | --- | --- |
-| `dev` | 本仓库的主分支，与上游的 `dev` 一一对应，是日常开发与推送的分支 |
-| `upstream/dev` | 上游的 `dev`，由 `git fetch upstream` 更新，不直接提交 |
+| `main` | 本仓库的主分支，日常开发与推送都在这里 |
+| `upstream/dev` | 上游的 `dev`（上游的默认分支），由 `git fetch upstream` 更新，不直接提交 |
 
-上游还有 `main` 等分支，只在发布时使用，日常同步只关心 `dev`。
+上游在 `dev` 上开发、发布走 tag；本仓库改用自己的 `main`，与上游的 `dev` 一一对应地同步：
+上游的改动进到本仓库的 `main`，本仓库的改动不推回上游。
 
 ## 同步步骤 / How to sync
 
@@ -52,7 +53,7 @@ git merge upstream/dev                  # 并进来（本地有改动时先提�
 cargo fmt --all                         # 上游与本地都可能改动同一处，先统一格式
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace                  # 跑一遍全部测试
-git push origin dev                     # 推送
+git push origin main                    # 推送
 ```
 
 上游合并进来后若测试不过，多半是下面列出的高发区；逐处对照上游的改动修好再提交。
@@ -110,6 +111,6 @@ README.md / README.zh-CN.md
 
 ## 发布 / Releasing
 
-本仓库暂不自行发布：改动先并入 `dev`，验证通过后再按上游的发布流程走（见
+本仓库暂不自行发布：改动先并入 `main`，验证通过后再按上游的发布流程走（见
 `release/README.md`）。若要发布自己的版本，保留 `VERSION` 文件与上游的版本号序列，另起 tag
 （例如 `v0.1.900-winc.1`），避免与上游的 tag 混淆。

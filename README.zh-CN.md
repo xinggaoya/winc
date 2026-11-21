@@ -238,8 +238,8 @@ git merge upstream/dev              # 把上游的改动并进来
 
 ## 贡献
 
-上游的贡献指南见 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)，上游项目在 `dev` 分支上开发。
-本仓库的改动以提交信息说明，见 [CHANGELOG.md](./CHANGELOG.md)。
+上游的贡献指南见 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)：上游项目在 `dev` 分支上开发，
+本仓库在自己的 `main` 分支上开发。本仓库的改动以提交信息说明，见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 联系方式
 

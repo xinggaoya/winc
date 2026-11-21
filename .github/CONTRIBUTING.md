@@ -5,7 +5,7 @@ request needs before it can be merged.
 
 > **This repository is a secondary development of the upstream project**
 > (<https://github.com/DEEIX-AI/Winc>). The guide below is upstream's; our changes follow the same
-> conventions: the `dev` branch, Conventional Commits subjects, and the same checks before pushing.
+> conventions: the `main` branch, Conventional Commits subjects, and the same checks before pushing.
 > How the two repositories relate and how to sync with upstream is described in
 > [UPSTREAM.md](../UPSTREAM.md); the changes made here are listed in
 > [CHANGELOG.md](../CHANGELOG.md).
@@ -29,6 +29,9 @@ request needs before it can be merged.
 - `main` holds released code. Only maintainers merge `dev` into `main`, and a version change merged
   into `main` starts a release. Pull requests from contributors against `main` are retargeted to
   `dev` or closed.
+
+  In this secondary development repository the branches are renamed: `main` is the development
+  branch, and upstream's `dev` is fetched as `upstream/dev`.
 
 ## Setting Up
 
