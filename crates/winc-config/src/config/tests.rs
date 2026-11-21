@@ -392,6 +392,10 @@ fn round_trips_through_json() {
         )]),
         fix_on_save: Some(true),
         fix_commands: BTreeMap::from([("python".to_string(), "ruff check --fix -".to_string())]),
+        panels_left: Some(vec![Panel::Files, Panel::Search]),
+        panels_right: Some(vec![Panel::Commit]),
+        panel_right_width: Some(280.0),
+        multi_workspace: Some(false),
     };
 
     let (parsed, problems) = Config::parse(&config.to_json());

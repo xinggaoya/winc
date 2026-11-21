@@ -31,6 +31,28 @@ macro_rules! bool_field {
     };
 }
 
+/// 面板列表设置的 [`Field`]：键名和 [`Config`] 中对应的字段，读入规则见 [`read_panels`]。
+macro_rules! panels_field {
+    ($key:literal, $field:ident) => {
+        Field {
+            key: $key,
+            read: |config, value, name, problems| {
+                config.$field = read_panels(value, name, problems)
+            },
+            write: |config| {
+                config.$field.as_ref().map(|panels| {
+                    Json::Array(
+                        panels
+                            .iter()
+                            .map(|panel| Json::String(panel.key().to_owned()))
+                            .collect(),
+                    )
+                })
+            },
+        }
+    };
+}
+
 /// 字符串设置的 [`Field`]：键名和 [`Config`] 中对应的字段，读入规则见 [`read_string`]。
 macro_rules! string_field {
     ($key:literal, $field:ident) => {
@@ -65,6 +87,7 @@ pub(super) const SECTIONS: &[(&str, &[Field])] = &[
     ("editor", EDITOR),
     ("ui", UI),
     ("tree", TREE),
+    ("panels", PANELS),
     ("markdown", MARKDOWN),
     ("latex", LATEX),
     ("update", UPDATE),
@@ -103,6 +126,7 @@ pub(super) const TOP_LEVEL: &[Field] = &[
     },
     string_field!("lightTheme", light_theme),
     string_field!("darkTheme", dark_theme),
+    bool_field!("multiWorkspace", multi_workspace),
     Field {
         key: "language",
         read: |config, value, name, problems| {
@@ -307,6 +331,21 @@ const TREE: &[Field] = &[
     bool_field!("confirmDragAndDrop", confirm_drag_and_drop),
     bool_field!("compactFolders", compact_folders),
     bool_field!("previewOnClick", preview_on_click),
+];
+
+/// `panels` 一节：左右两栏里各放哪些面板，以及右栏的宽度。
+const PANELS: &[Field] = &[
+    panels_field!("left", panels_left),
+    panels_field!("right", panels_right),
+    Field {
+        key: "rightWidth",
+        read: |config, value, name, problems| {
+            let label = t!("config-label-panel-width");
+            config.panel_right_width =
+                read_number(value, name, Config::PANEL_WIDTH_RANGE, label, problems)
+        },
+        write: |config| config.panel_right_width.map(number),
+    },
 ];
 
 /// `markdown` 一节。
@@ -1028,6 +1067,30 @@ fn read_string(value: &Json, key: &str, problems: &mut Vec<String>) -> Option<St
             None
         }
     }
+}
+
+/// 读取面板列表设置：每一项是面板的种类（`files`、`search`、`commit`、`outline`）。
+///
+/// 类型不符时向 `problems` 记录问题并返回 `None`；不认识的面板种类跳过并记录，重复的面板
+/// 只保留第一个。
+fn read_panels(value: &Json, key: &str, problems: &mut Vec<String>) -> Option<Vec<Panel>> {
+    let Some(items) = value.as_array() else {
+        problems.push(t!("config-not-array", name = key));
+        return None;
+    };
+    let mut panels: Vec<Panel> = Vec::new();
+    for item in items {
+        let Some(name) = item.as_str() else {
+            problems.push(t!("config-not-string", name = key));
+            continue;
+        };
+        match Panel::from_key(name) {
+            Some(panel) if !panels.contains(&panel) => panels.push(panel),
+            Some(_) => {}
+            None => problems.push(t!("config-panel-invalid", name = key, value = name)),
+        }
+    }
+    Some(panels)
 }
 
 /// 读取布尔设置，类型不符时向 `problems` 记录问题并返回 `None`。

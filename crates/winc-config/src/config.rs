@@ -3,6 +3,7 @@
 //! 每一项设置的键名和读写规则由 `fields` 模块给出。
 
 mod fields;
+mod panels;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -10,6 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::files::{config_dir, write_atomic};
 use crate::json::{self, Json};
 use fields::*;
+pub use panels::Panel;
 use winc_i18n::{LocaleChoice, t};
 
 /// 用户配置。
@@ -266,6 +268,23 @@ pub struct Config {
     pub git_pull: Option<PullMode>,
     /// 新建工作树时复制过去的被忽略的文件（gitignore 写法的 glob，如 `.env*`），默认不复制。
     pub git_worktree_copy: Vec<String>,
+    /// 左栏里的面板，顺序从上到下。
+    ///
+    /// 没写时用默认的排法（见 [`Panel::DEFAULT_LEFT`]）。写在配置里的是面板的种类，
+    /// 如 `["files", "outline"]`。
+    pub panels_left: Option<Vec<Panel>>,
+    /// 右栏里的面板，顺序从上到下。
+    ///
+    /// 没写时用默认的排法（见 [`Panel::DEFAULT_RIGHT`]）。
+    pub panels_right: Option<Vec<Panel>>,
+    /// 右栏的宽度（逻辑像素）。
+    ///
+    /// 没写或超出范围时用 [`Config::PANEL_WIDTH_RANGE`] 里的默认值。
+    pub panel_right_width: Option<f32>,
+    /// 是否启用多工作区模式：同一个窗口里可以同时打开多个项目，随时切换，默认为是。
+    ///
+    /// 关闭后，打开另一个目录会替换当前目录（和以前一样）。
+    pub multi_workspace: Option<bool>,
     /// 保存时先格式化，默认为否。
     pub format_on_save: Option<bool>,
     /// 保存时不格式化的语言（语言的 id）；手动格式化（`⇧⌥F`）仍然生效。
@@ -574,6 +593,13 @@ impl Config {
     ///
     /// 上限 21 是 WCAG 对比度的最大值，即黑底白字之比。
     pub const CONTRAST_RANGE: std::ops::RangeInclusive<f32> = 0.0..=21.0;
+    /// 右栏宽度的合法范围（逻辑像素）。
+    ///
+    /// 下限是能放下一个文件名的宽度；上限保证中间的编辑区还剩下足够的空间。超出范围的值在
+    /// 读入时忽略并报告。
+    pub const PANEL_WIDTH_RANGE: std::ops::RangeInclusive<f32> = 180.0..=720.0;
+    /// 右栏的默认宽度（逻辑像素）。
+    pub const PANEL_RIGHT_WIDTH: f32 = 320.0;
 
     /// 读取用户级配置，返回配置和读取过程中发现的问题（可能有多条）。
     ///
