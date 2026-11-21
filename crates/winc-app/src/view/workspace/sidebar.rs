@@ -550,7 +550,7 @@ fn draw_tree_entry(
         draw_file_icon(frame, p, (x + 1.5, cy), &entry.name, clip);
     }
     if entry.symlink {
-        let bg = background.map_or(p.sidebar_bg, |c| panel::over(p.sidebar_bg, c));
+        let bg = background.map_or(p.sidebar_bg, |c| super::super::controls::over(p.sidebar_bg, c));
         icons::link_badge(frame, (x + 2.5, cy + 4.0), bg, p.text_muted, clip);
     }
 
@@ -618,7 +618,7 @@ fn draw_tree_entry(
     // 收回途中名字还连着编辑区上方那一段，到最后才淡出，名字不会先变暗、再缩回来。
     let reach = NAME_FADE * stage(view.progress, FADE_FROM, 1.0);
     if cut && !hovered && reach > 0.0 {
-        let solid = background.map_or(p.sidebar_bg, |c| panel::over(p.sidebar_bg, c));
+        let solid = background.map_or(p.sidebar_bg, |c| super::super::controls::over(p.sidebar_bg, c));
         let edge = Rect::new(text_right - reach, row.y, reach, row.h);
         frame.within(clip, |frame| fade(frame, edge, solid, false));
     }
@@ -715,7 +715,7 @@ fn draw_name_input(
     }
     // 用悬停的浅色而不是选中色：重命名时文件名主干是选中的，选中色底上看不出文字的选区。
     // 先和侧栏底色混合成不透明的颜色，盖住底下的红线。
-    let fill = super::panel::over(p.sidebar_bg, p.hover);
+    let fill = super::super::controls::over(p.sidebar_bg, p.hover);
     frame.rect_corners(pill, fill, radii, row_clip);
 
     // 缩进和图标按普通行的位置放置，与上下相邻的条目对齐。

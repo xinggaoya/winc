@@ -205,7 +205,7 @@ fn draw_nav_row(
     // 当前分类使用与顶栏视图切换相同的选中样式：凸起底色（深色配色亮一档）加一圈细边；
     // 悬停只铺浅色。两者仅靠底色深浅区分时难以辨认当前页，因此选中项额外加细边。
     if current {
-        let (raised, edge) = super::workspace::panel::segment_colors(p, p.sidebar_bg);
+        let (raised, edge) = super::controls::segment_colors(p, p.sidebar_bg);
         frame.rect_clipped(row, edge, RADIUS_ROW, layout.nav);
         frame.rect_clipped(row.inset(0.5, 0.5), raised, RADIUS_ROW - 0.5, layout.nav);
     } else if hovered {

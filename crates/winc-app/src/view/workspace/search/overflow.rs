@@ -172,7 +172,7 @@ pub(in crate::view) fn draw_result_overflow(app: &App, frame: &mut Frame<'_>) {
     let selected = app.panels.global.selected_row().map(|i| rows[i]) == Some(ResultRow::File(f));
     let focused = app.focus == Focus::Results;
     // 先垫一层侧栏底色，再叠半透明的悬停色，与列表里那一行的底色相同。
-    frame.rect_corners(band, p.sidebar_bg, radii, band);
+    frame.rect_corners(band, p.popup_bg, radii, band);
     if let Some(color) = row_color(p, selected, focused, true) {
         frame.rect_corners(band, color, radii, band);
     }
@@ -226,7 +226,7 @@ pub(in crate::view) fn draw_result_overflow_closing(app: &App, frame: &mut Frame
         let left = area.right() - SCROLLBAR_HIT;
         let rect = Rect::new(left, row.y + 1.0, right - left, row.h - 2.0);
         let radii = [0.0, RADIUS_ROW, RADIUS_ROW, 0.0];
-        frame.rect_corners(rect, p.sidebar_bg, radii, rect);
+        frame.rect_corners(rect, p.popup_bg, radii, rect);
         let chosen = selected == Some(ResultRow::File(f));
         if let Some(color) = retracting_color(p, chosen, focused, view.progress) {
             frame.rect_corners(rect, color, radii, rect);

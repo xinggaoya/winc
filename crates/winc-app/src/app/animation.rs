@@ -136,6 +136,8 @@ pub enum Card {
     Picker,
     /// 编辑区顶部的输入条（跳转到行、新建分支、储藏等）。
     Bar,
+    /// 全局搜索弹窗。
+    Search,
     /// 窗口正中的功能对话框（新建工作树）。
     Dialog,
     /// 窗口内绘制的提示框（平台没有系统提示框时使用）。
@@ -146,7 +148,7 @@ impl Card {
     /// 返回卡片的圆角半径：输入条和面板用较小的 `RADIUS_BAR`，对话框和提示框用 `RADIUS_CARD`。
     pub fn radius(self) -> f32 {
         match self {
-            Card::Picker | Card::Bar => crate::theme::RADIUS_BAR,
+            Card::Picker | Card::Bar | Card::Search => crate::theme::RADIUS_BAR,
             Card::Dialog | Card::Alert => crate::theme::RADIUS_CARD,
         }
     }
@@ -319,6 +321,7 @@ impl App {
         match card {
             Card::Picker => &mut self.overlays.picker.card,
             Card::Bar => &mut self.motion.bar_card,
+            Card::Search => &mut self.panels.global.card,
             Card::Dialog => &mut self.motion.dialog_card,
             Card::Alert => &mut self.motion.alert_card,
         }
@@ -418,6 +421,7 @@ impl App {
         }
         settle(&mut self.settings.motion, |m| m.1);
         self.overlays.picker.card.settle();
+        self.panels.global.card.settle();
         self.motion.bar_card.settle();
         self.motion.dialog_card.settle();
         self.motion.alert_card.settle();
@@ -539,6 +543,7 @@ impl App {
             || self.diff.pulse.is_some()
             || self.settings.motion.is_some()
             || self.overlays.picker.card.motion.is_some()
+            || self.panels.global.card.motion.is_some()
             || self.motion.bar_card.motion.is_some()
             || self.motion.dialog_card.motion.is_some()
             || self.motion.alert_card.motion.is_some()

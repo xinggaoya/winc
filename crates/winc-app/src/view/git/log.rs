@@ -491,7 +491,7 @@ fn draw_uncommitted(
         let inner = r - GRAPH_LINE;
         let hole = Rect::new(cx - inner, cy - inner, 2.0 * inner, 2.0 * inner);
         let bg = if hovered {
-            crate::view::workspace::panel::over(p.editor_bg, p.hover)
+            crate::view::controls::over(p.editor_bg, p.hover)
         } else {
             p.editor_bg
         };

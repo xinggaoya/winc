@@ -145,7 +145,7 @@ fn tree_context_menu_targets_the_clicked_row() {
     let at = tree_row_center(&app, src);
     right_click(&mut app, at);
     app.run_menu_command(MenuCommand::FindInFolder);
-    assert_eq!(app.panels.sidebar.view, Panel::Search);
+    assert!(app.search_open());
     assert_eq!(app.panels.global.include.text(), "./src");
     assert!(app.panels.global.details_open);
     assert_eq!(app.focus, Focus::GlobalQuery);

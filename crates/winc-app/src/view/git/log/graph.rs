@@ -138,12 +138,12 @@ pub(super) fn draw_graph_row(
     let lane_x = |lane: usize| x0 + lane.min(MAX_LANES - 1) as f32 * LANE + LANE / 2.0;
     let faded = |l: u32| line.is_some_and(|f| f != l);
     let row_bg = band.map_or(p.editor_bg, |band| {
-        crate::view::workspace::panel::over(p.editor_bg, band)
+        crate::view::controls::over(p.editor_bg, band)
     });
     let color = |c: u8, l: u32| {
         let ink = lane_color(p, c);
         if faded(l) {
-            crate::view::workspace::panel::over(row_bg, ink.alpha(ink.a * GRAPH_FADED))
+            crate::view::controls::over(row_bg, ink.alpha(ink.a * GRAPH_FADED))
         } else {
             ink
         }

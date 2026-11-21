@@ -178,6 +178,8 @@ pub struct GlobalSearch {
     pub(crate) height: Option<(f32, (f32, f32))>,
     /// 卡片高度变化的过渡。
     pub(in crate::app) card_motion: Option<crate::app::workspace::picker::PickerMotion>,
+    /// 卡片出现、消失的动画。
+    pub(crate) card: crate::app::animation::CardFx,
 }
 
 /// 搜索结果中写全名的文件行，见 [`GlobalSearch::overflow`]。

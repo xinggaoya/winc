@@ -74,14 +74,15 @@ fn pixel(app: &App, (x, y): (f32, f32)) -> u32 {
     image.pixels[y * image.width as usize + x]
 }
 
-/// ⌘P 面板、跳转条、新建工作树对话框和窗口中画出来的提示框出现时整张淡入并放大，关闭后按
-/// 关闭前的最后一帧淡出，与设置浮层共用同一套动画；淡出结束后丢弃保存的卡片。
+/// ⌘P 面板、跳转条、全局搜索弹窗、新建工作树对话框和窗口中画出来的提示框出现时整张淡入并
+/// 放大，关闭后按关闭前的最后一帧淡出，与设置浮层共用同一套动画；淡出结束后丢弃保存的卡片。
 #[test]
 fn dialogs_fade_in_and_out_like_settings() {
     let dir = sample_folder("dialog-motion");
     for (card, open) in [
         (Card::Picker, Action::QuickOpen),
         (Card::Bar, Action::GoToLine),
+        (Card::Search, Action::FindInFiles),
         (Card::Dialog, Action::GitNewWorktree),
         (Card::Alert, Action::GitNewWorktree),
     ] {
@@ -104,6 +105,7 @@ fn dialogs_fade_in_and_out_like_settings() {
         let r = match card {
             Card::Picker => app.layout.picker,
             Card::Bar => crate::layout::goto_bar(app.layout.editor, false),
+            Card::Search => app.layout.search_card,
             Card::Dialog => app.dialog_layout().card,
             Card::Alert => app.overlays.alert.as_ref().unwrap().parts.buttons[0],
         };
@@ -121,6 +123,7 @@ fn dialogs_fade_in_and_out_like_settings() {
         match card {
             Card::Picker => app.close_picker(),
             Card::Bar => app.close_prompt(),
+            Card::Search => app.close_global_search(),
             Card::Dialog => app.close_form_dialog(),
             Card::Alert => _ = app.alert_key(&Key::Named(NamedKey::Escape), false),
         }

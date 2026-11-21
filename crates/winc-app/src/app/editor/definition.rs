@@ -19,7 +19,6 @@ use winc_syntax::Language;
 
 use super::*;
 
-
 /// 一处定义的位置。
 #[derive(Debug, Clone)]
 pub struct Place {

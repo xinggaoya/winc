@@ -30,6 +30,28 @@ fn the_global_search_opens_a_dialog_over_the_editor() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// 弹窗里的输入框和结果列表都画在卡片内。
+#[test]
+fn the_dialog_draws_its_fields() {
+    let dir = search_folder("global-dialog-draw");
+    let mut app = app_with(&dir, false);
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    paint(&mut app);
+
+    // 查找输入框有焦点时，输入法光标落在框里。
+    assert!(app.ime.cursor.is_some());
+
+    // 卡片里的几何与卡片一致：结果列表不超出卡片。
+    let parts = app.panel_parts();
+    let card = app.layout.search_card;
+    assert!(parts.query.w > 0.0);
+    assert!(parts.results.bottom() <= card.bottom() + 1.0);
+    assert!(parts.results.right() <= card.right());
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 #[test]
 fn long_queries_and_replacements_grow_their_boxes() {
     let dir = search_folder("global-grow");
