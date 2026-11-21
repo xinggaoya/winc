@@ -389,6 +389,7 @@ fn hovering_a_long_change_name_shows_it_in_full_with_its_buttons_after_it() {
         return;
     }
     app.run_action(Action::ShowCommit);
+    commit_in_left_column(&mut app);
     paint(&mut app);
     let rows = app.commit_rows();
     let status = app.git.status.clone().unwrap();
@@ -671,6 +672,9 @@ fn switching_folders_keeps_the_commit_view_while_there_is_a_repository() {
 
     // 换到不是仓库的目录：没有提交视图了，回到文件树。
     app.switch_folder(&plain);
+    app.git_refresh();
+    app.poll_git();
+    paint(&mut app);
     assert_eq!(app.panels.sidebar.view, Panel::Files);
     assert_eq!(app.focus, Focus::Tree);
     for dir in [first, second, plain] {
@@ -875,6 +879,7 @@ fn the_full_name_row_covers_the_scrollbar_like_the_file_tree() {
         return;
     }
     app.run_action(Action::ShowCommit);
+    commit_in_left_column(&mut app);
     paint(&mut app);
     let status = app.git.status.clone().unwrap();
     let rows = app.commit_rows();
@@ -925,6 +930,7 @@ fn the_full_name_row_covers_the_splitter_like_the_file_tree() {
         return;
     }
     app.run_action(Action::ShowCommit);
+    commit_in_left_column(&mut app);
     paint(&mut app);
     let status = app.git.status.clone().unwrap();
     let rows = app.commit_rows();

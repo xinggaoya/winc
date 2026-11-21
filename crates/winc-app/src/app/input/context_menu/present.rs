@@ -188,7 +188,7 @@ impl App {
     /// 右键点在搜索面板的一个结果行上：选中这一行，焦点给结果列表，返回它（文件路径，第几处
     /// 匹配）。
     fn search_context_target(&mut self, x: f32, y: f32) -> Option<(PathBuf, Option<usize>)> {
-        if !self.panel_shown() {
+        if !self.search_open() {
             return None;
         }
         if !self.panel_parts().results.contains(x, y) || !self.panel_rect().contains(x, y) {

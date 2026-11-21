@@ -128,8 +128,11 @@ impl App {
             return;
         }
         let name = winc_editor::display_name(&target).into_owned();
-        // 新工作区沿用当前的查找内容：接着在新目录里找。
+        // 新工作区沿用当前的查找内容：接着在新目录里找。搜索弹窗开着时也一并开着。
         let query = self.panels.global.query.text().to_owned();
+        let searching = self.search_open();
+        // 终端面板开着时也一并开着：面板是窗口的样子，与目录无关。
+        let terminal_open = self.terminal.open;
         // 先把当前工作区的现场收进它自己的格子。
         self.stash_workspace();
         // 新开一个工作区：格子是空的，把它放到窗口里，再在里面打开目录。
@@ -142,7 +145,17 @@ impl App {
         if !query.is_empty() {
             self.panels.global.query.set_text(&query);
         }
+        if searching {
+            self.panels.global.open = true;
+        }
         self.open_folder_now(&target);
+        if terminal_open {
+            self.set_terminal_open(true);
+        }
+        // 新工作区里没有提交面板时，焦点回到文件树：否则键入的文字会进入看不见的输入框。
+        if !self.panel_available(self.panels.sidebar.view) {
+            self.set_sidebar_view(winc_config::Panel::Files);
+        }
     }
 
     /// 把窗口里的现场收进当前工作区的格子。

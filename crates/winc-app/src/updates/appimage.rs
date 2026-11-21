@@ -39,7 +39,7 @@ pub fn locate() -> Option<PathBuf> {
 pub fn prepare(
     item: &Item,
     appimage: &Path,
-    key: &VerifyingKey,
+    key: Option<&VerifyingKey>,
     progress: &dyn Fn(u8),
 ) -> Result<PathBuf, String> {
     let dir = appimage.parent().ok_or("AppImage 没有所在目录")?;

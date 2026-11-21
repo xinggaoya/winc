@@ -82,9 +82,9 @@ Write every commit subject, and every pull request title, in the form `type: sub
 - `type` is one of `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`,
   `style`, or `test`, in lowercase, followed by a colon and one space. There is no scope in
   parentheses.
-- `subject` describes the change in the imperative mood, in printable ASCII: English letters,
-  digits, spaces, and ASCII punctuation such as `,` `.` `;` `(` `)` `"`. Non-ASCII characters,
-  such as CJK text, full-width punctuation, or emoji, are rejected.
+- `subject` describes the change in the imperative mood. In this repository the subject may be
+  written in Chinese; the upstream requires printable ASCII, which is why the check in the Commits
+  workflow here allows any text after the type.
 - The body, if any, is free-form. Explain why the change is needed, and wrap it at 72 columns.
 
 Examples:
@@ -93,15 +93,16 @@ Examples:
 - `fix: keep the cursor column after undo`
 - `perf: reuse glyph caches across frames, halving redraw time`
 - `docs: explain the release workflow`
+- `feat: 三栏布局、可自定义的面板排布与多工作区模式`
 
-Pull requests are squash-merged into `dev`, so the pull request title becomes the commit message.
+Pull requests are merged into `main`, so the pull request title becomes the commit message.
 CI checks the title and the subject of every commit in the pull request, and the check fails until
 they match. Some subjects that Git and GitHub write themselves are exempt:
 
-- merge commits, for example after merging `dev` into your branch to resolve conflicts;
+- merge commits, for example after merging `main` into your branch to resolve conflicts;
 - reverts written by `git revert` or the GitHub Revert button (`Revert "feat: ..."`);
 - autosquash commits (`fixup! ...`, `squash! ...`, `amend! ...`);
-- for pull requests from `dev` into `main`, which are merged with a merge commit, titles that start
+- for pull requests into `main`, which are merged with a merge commit, titles that start
   with `Merge`.
 
 To fix a commit subject, reword it with `git commit --amend` or `git rebase -i`, then force-push

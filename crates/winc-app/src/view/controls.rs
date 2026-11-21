@@ -64,10 +64,36 @@ pub(in crate::view) fn segment_track(
     clip: Rect,
 ) {
     frame.rect_clipped(track, p.hover, RADIUS_ROW + 2.0, clip);
-    let track_bg = super::workspace::panel::over(under, p.hover);
-    let (raised, edge) = super::workspace::panel::segment_colors(p, track_bg);
+    let track_bg = super::controls::over(under, p.hover);
+    let (raised, edge) = super::controls::segment_colors(p, track_bg);
     if let Some(slot) = slot {
         frame.rect_clipped(slot, edge, RADIUS_ROW, clip);
         frame.rect_clipped(slot.inset(0.5, 0.5), raised, RADIUS_ROW - 0.5, clip);
+    }
+}
+/// 返回 `fg` 叠在不透明的 `bg` 上得到的颜色，结果不透明。
+///
+/// 用于绘制与下层完全相同的底色，以遮盖其上的文本。
+pub(in crate::view) fn over(bg: Color, fg: Color) -> Color {
+    let mix = |b: f32, f: f32| b + (f - b) * fg.a;
+    Color {
+        r: mix(bg.r, fg.r),
+        g: mix(bg.g, fg.g),
+        b: mix(bg.b, fg.b),
+        a: 1.0,
+    }
+}
+
+/// 分段控件里凸起那一段的底色和细边：浅色配色是白底、淡黑边；深色配色是比底槽 `track` 亮一档的
+/// 灰、淡白边。
+///
+/// 都是不透明色，叠在底槽上不会透出下面。
+pub(in crate::view) fn segment_colors(p: &Palette, track: Color) -> (Color, Color) {
+    let white = Color::hex(0xFFFFFF);
+    if p.dark {
+        let raised = over(track, white.alpha(0.09));
+        (raised, over(track, white.alpha(0.14)))
+    } else {
+        (white, over(track, Color::hex(0x000000).alpha(0.08)))
     }
 }

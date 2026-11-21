@@ -11,6 +11,7 @@ fn refreshing_the_log_keeps_the_selection_and_its_details() {
     };
     history_repo(&root, 10);
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
     paint(&mut app);
     app.select_log_row(4);
@@ -588,6 +589,7 @@ fn a_long_file_name_in_the_diff_file_panel_shows_in_full_while_hovered() {
     git_in(&root, &["add", "."]);
     git_in(&root, &["commit", "-q", "-m", "Two files"]);
     app.git_refresh();
+    widen(&mut app);
     app.run_action(Action::GitShowLog);
     app.update_state(|state| state.diff_files_tree = Some(false));
     paint(&mut app);

@@ -163,9 +163,9 @@ zoomed image to pan, and double-click to fit it again. This also works in the SV
 The portable ZIP keeps settings and state in the `data` folder beside `winc.exe`; delete that
 folder to keep them in the user profile instead.
 
-winc is developed and tested mainly on macOS. Download it from
-[winc.si](https://winc.si/#download); all versions are on
-[GitHub Releases](https://github.com/DEEIX-AI/Winc/releases).
+winc is developed and tested mainly on macOS. This repository publishes its own releases: every
+version is on [GitHub Releases](https://github.com/xinggaoya/winc/releases), and the release notes
+are taken from the commit log.
 
 ## Command Line
 
@@ -191,7 +191,9 @@ cargo run --release                 # build and run
 cargo run --release -- <path>       # open a file or folder
 ```
 
-For versioning, signing configuration and release workflows, see [Releasing winc](release/README.md).
+For versioning, signing configuration and release workflows, see [Releasing winc](release/README.md);
+for how this repository releases (raise `VERSION`, tag, push the tag) and how it syncs with the
+upstream, see [UPSTREAM.md](./UPSTREAM.md).
 
 ## Development
 

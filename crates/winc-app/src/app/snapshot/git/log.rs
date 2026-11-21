@@ -218,6 +218,7 @@ fn a_history_diff_lists_its_files_beside_the_diff_and_keeps_the_sidebar() {
     git_in(&root, &["commit", "-q", "-m", "Add nested files"]);
     std::fs::write(root.join("untracked.txt"), "working tree only\n").unwrap();
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
     let log_index = app.editor.active.unwrap();
     app.set_sidebar_view(Panel::Commit);
@@ -288,6 +289,7 @@ fn each_file_list_keeps_its_own_layout_and_the_panel_folds_and_resizes() {
     git_in(&root, &["add", "a.txt", "src/b.txt"]);
     git_in(&root, &["commit", "-q", "-m", "Two files"]);
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
     app.update_state(|state| {
         state.commit_tree = false;
@@ -401,6 +403,7 @@ fn uncommitted_changes_sit_above_head_in_the_log() {
     };
     history_repo(&root, 5);
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
     paint(&mut app);
     let list = app.log_parts().list;
@@ -536,6 +539,7 @@ fn log_spills_long_subjects_on_hover_and_drags_the_divider() {
         return;
     };
     history_repo(&root, 10);
+    widen(&mut app);
     let long = long_subject_row(&mut app, &root);
 
     // 悬停在说明无法完整显示的行上：作者、时间两列让出位置，说明向右展开后仍显示不全时记入

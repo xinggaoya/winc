@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { releaseAssets, releasePlatforms, requireFile } from "./collect-assets.mjs";
+import { notes } from "./notes.mjs";
 import { workspaceVersion } from "./version.mjs";
 
 // SHA256SUMS uses the GNU coreutils format (`sha256sum -c SHA256SUMS`; on Windows compare with
@@ -58,17 +59,17 @@ async function assembleRelease(options) {
   return [...files, CHECKSUMS_FILE];
 }
 
-function existingDraft(releases, tag) {
+function existingRelease(releases, tag) {
   const matches = releases.filter((release) => release.tag_name === tag);
-  if (matches.length > 1) throw new Error(`${tag} has multiple releases; remove the duplicate drafts before retrying`);
-  if (matches[0] && !matches[0].draft) throw new Error(`${tag} is already published; refusing to replace its assets`);
+  if (matches.length > 1) throw new Error(`${tag} has multiple releases; remove the duplicate releases before retrying`);
   return matches[0];
 }
 
-function releaseNotes(version) {
+// The body of the release: the download table, then the changes taken from the commit log.
+function releaseNotes(version, tag) {
   const stem = `Winc-${version}`;
   const arch = releaseAssets("linux-x64", version).find((asset) => asset.directory === "arch");
-  return `### ⏬ Download
+  const download = `### ⏬ Download
 
 | Platform | Download |
 | --- | --- |
@@ -81,6 +82,8 @@ ${arch ? `| Arch Linux · x86_64 | \`${arch.name}\` |\n` : ""}| Windows · x86_6
 
 Checksums are in \`SHA256SUMS\`. The signed \`appcast-*.xml\` files are the in-app update feeds deployed to winc.si.
 `;
+  const changes = notes(tag);
+  return changes ? `${download}\n## Changes\n\n${changes}` : download;
 }
 
 async function main() {
@@ -106,23 +109,28 @@ async function main() {
   const commit = JSON.parse(gh(["api", `repos/${repository}/commits/${encodeURIComponent(`refs/tags/${tag}`)}`]));
   if (commit.sha !== sha) throw new Error(`${tag} moved since the build started (${sha} -> ${commit.sha})`);
   const pages = JSON.parse(gh(["api", `repos/${repository}/releases?per_page=100`, "--paginate", "--slurp"]));
-  let release = existingDraft(pages.flat(), tag);
+  let release = existingRelease(pages.flat(), tag);
   const unexpected = (release?.assets ?? []).filter(({ name }) => !files.includes(name));
   if (unexpected.length) {
-    throw new Error(`draft contains assets outside this build; remove or reconcile them before retrying: ${unexpected.map(({ name }) => name).join(", ")}`);
+    throw new Error(`release contains assets outside this build; remove or reconcile them before retrying: ${unexpected.map(({ name }) => name).join(", ")}`);
   }
   if (!release) {
     // The tag already exists and was verified above. An explicit target_commitish
     // can require workflow-write permission, which GITHUB_TOKEN cannot grant.
     release = JSON.parse(gh(["api", "--method", "POST", `repos/${repository}/releases`, "--input", "-"], JSON.stringify({
-      tag_name: tag, name: tag, draft: true,
-      prerelease: version.includes("-"), body: releaseNotes(version),
+      tag_name: tag, name: tag, draft: false,
+      prerelease: version.includes("-"), body: releaseNotes(version, tag),
     })));
+  } else {
+    // The release is already there (a retry): refresh the notes, which come from the commit log.
+    gh(["api", "--method", "PATCH", `repos/${repository}/releases/${release.id}`, "--input", "-"], JSON.stringify({
+      body: releaseNotes(version, tag),
+    }));
   }
   gh(["release", "upload", tag, ...files.map((name) => join(directory, name)), "--repo", repository, "--clobber"]);
-  console.log(`Draft release ready: ${release.html_url}`);
+  console.log(`Release ready: ${release.html_url}`);
   if (process.env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Draft release: ${release.html_url}\n\nBuilt from ${sha}; uploaded ${files.length} files.\n`);
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Release: ${release.html_url}\n\nBuilt from ${sha}; uploaded ${files.length} files.\n`);
   }
 }
 

@@ -1,15 +1,15 @@
 # Build checks: rustfmt, and clippy (warnings fail), the tests, and the documentation build
-# (warnings fail) on macOS, Linux, and Windows, for pull requests into `dev` and for every push to
-# `dev`. Pull requests that change only documentation or repository templates skip the builds.
+# (warnings fail) on macOS, Linux, and Windows, for pull requests into `main` and for every push to
+# `main`. Pull requests that change only documentation or repository templates skip the builds.
 #
-# Pull requests into `main` come only from `dev`, so they are not built again: a required check is
-# matched on the pull request's head commit, and the push to `dev` already checked that commit.
+# `main` is the development branch of this repository: every change lands there, and the release
+# is cut from it by pushing a tag.
 #
 # Clippy with the documentation build, and the tests, run as separate jobs on each platform, so
 # that neither waits for the other.
 #
-# Caches: a pull request can read caches saved by its own branch or by `dev`, but not by other pull
-# requests. Pushes to `dev` save the dependency cache and pull requests only restore it, so they
+# Caches: a pull request can read caches saved by its own branch or by `main`, but not by other pull
+# requests. Pushes to `main` save the dependency cache and pull requests only restore it, so they
 # recompile little more than the workspace crates. Each job keeps its own cache: Clippy and the
 # documentation build need only the metadata of the dependencies, the tests need them compiled.
 #
@@ -20,9 +20,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [dev]
+    branches: [main]
   push:
-    branches: [dev]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -50,7 +50,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Any change outside the paths listed below counts as code. Pushes to `dev` and manual runs
+      # Any change outside the paths listed below counts as code. Pushes to `main` and manual runs
       # always build, so that the cache stays current.
       - name: Changed files
         id: diff
@@ -113,7 +113,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/dev' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -153,7 +153,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/dev' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # The terminal tests start the installed shells (zsh and fish are skipped when missing); the
       # font tests need a monospace font and a CJK font.

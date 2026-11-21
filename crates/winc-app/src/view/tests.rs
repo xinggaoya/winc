@@ -4,9 +4,9 @@ use winc_render::Renderer;
 
 use super::*;
 
-/// 返回鼠标所在元素的提示（提示所依附的区域与文字）；见 `workspace::panel::tooltip`。
+/// 返回鼠标所在元素的提示（提示所依附的区域与文字）；见 `tooltip::tooltip`。
 pub(crate) fn tooltip(app: &App) -> Option<(Rect, String)> {
-    workspace::panel::tooltip(app)
+    tooltip::tooltip(app)
 }
 
 pub(crate) use super::settings::draw_cached as settings_draw_cached;

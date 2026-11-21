@@ -104,7 +104,7 @@ pub(super) fn moved_back(actions: (Option<Rect>, Rect), lag: f32) -> (Option<Rec
 /// 按钮移到全名之后，超出窗口时向左移回，名字在按钮之前截断。名字放得下、侧栏在开合、正在
 /// 拖动或文件正在折叠时返回 `None`。
 pub(in crate::view) fn result_overflow(app: &App, frame: &mut Frame<'_>) -> Option<ResultOverflow> {
-    if !app.panel_shown() || !app.idle_pointer() || app.panels.global.motion.is_some() {
+    if !app.search_open() || !app.idle_pointer() || app.panels.global.motion.is_some() {
         return None;
     }
     let index = match app.pointer.hover {
@@ -172,7 +172,7 @@ pub(in crate::view) fn draw_result_overflow(app: &App, frame: &mut Frame<'_>) {
     let selected = app.panels.global.selected_row().map(|i| rows[i]) == Some(ResultRow::File(f));
     let focused = app.focus == Focus::Results;
     // 先垫一层侧栏底色，再叠半透明的悬停色，与列表里那一行的底色相同。
-    frame.rect_corners(band, p.sidebar_bg, radii, band);
+    frame.rect_corners(band, p.popup_bg, radii, band);
     if let Some(color) = row_color(p, selected, focused, true) {
         frame.rect_corners(band, color, radii, band);
     }
@@ -194,7 +194,7 @@ pub(in crate::view) fn draw_result_overflow(app: &App, frame: &mut Frame<'_>) {
 /// 底色和列表里的那一段一起淡出（[`retracting_color`]），与文件树相同。
 pub(in crate::view) fn draw_result_overflow_closing(app: &App, frame: &mut Frame<'_>) {
     let global = &app.panels.global;
-    if !app.panel_shown() || global.motion.is_some() || !global.names.moving() {
+    if !app.search_open() || global.motion.is_some() || !global.names.moving() {
         return;
     }
     let p = app.palette;
@@ -226,7 +226,7 @@ pub(in crate::view) fn draw_result_overflow_closing(app: &App, frame: &mut Frame
         let left = area.right() - SCROLLBAR_HIT;
         let rect = Rect::new(left, row.y + 1.0, right - left, row.h - 2.0);
         let radii = [0.0, RADIUS_ROW, RADIUS_ROW, 0.0];
-        frame.rect_corners(rect, p.sidebar_bg, radii, rect);
+        frame.rect_corners(rect, p.popup_bg, radii, rect);
         let chosen = selected == Some(ResultRow::File(f));
         if let Some(color) = retracting_color(p, chosen, focused, view.progress) {
             frame.rect_corners(rect, color, radii, rect);

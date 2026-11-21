@@ -146,8 +146,9 @@ winc 以 Rust 与自研渲染引擎构建：0.1 秒启动，十万行代码仅�
 
 绿色版 ZIP 把设置与状态放在 `winc.exe` 旁边的 `data` 目录里；删掉该目录即改回存到用户目录。
 
-winc 主要在 macOS 上开发与测试。发行版见 [winc.si](https://winc.si/#download)，历史版本在
-[GitHub Releases](https://github.com/DEEIX-AI/Winc/releases)。
+winc 主要在 macOS 上开发与测试。本仓库自行发布：版本在
+[GitHub Releases](https://github.com/xinggaoya/winc/releases)，发布说明由两次发布之间的提交记录
+生成。
 
 ## 命令行
 
@@ -175,7 +176,8 @@ cargo run --release                 # 构建并运行
 cargo run --release -- <path>       # 打开文件或目录
 ```
 
-版本号、签名配置与发布流程见 [Releasing winc](release/README.md)。
+版本号、签名配置与发布流程见 [Releasing winc](release/README.md)；本仓库的发布办法（抬高
+`VERSION`、打 tag、推送 tag）与上游同步办法见 [UPSTREAM.md](UPSTREAM.md)。
 
 ## 开发
 

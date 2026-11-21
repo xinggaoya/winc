@@ -115,7 +115,7 @@ fn the_newest_item_for_this_architecture_wins() {
         (item.version.as_str(), item.url.as_str(), item.length),
         ("0.1.10", "https://x/10", 20)
     );
-    assert_eq!(item.signature, [1; 64]);
+    assert_eq!(item.proof, Proof::Signature([1; 64]));
     assert_eq!(newest(&xml, "aarch64").unwrap().version, "0.2.0");
     assert_eq!(newest(&xml, "riscv64"), None);
     // 签名长度不对、没有 `sparkle:os`、不是 XML：都不算。
@@ -214,7 +214,7 @@ fn release_appcast_matches_packages() {
         assert_eq!(item.version, winc_version::VERSION);
         let name = format!("Winc-{}-{suffix}", winc_version::VERSION);
         let payload = std::fs::read(bundle.join(directory).join(name)).unwrap();
-        verify(&item, &payload, &key)
+        verify(&item, &payload, Some(&key))
             .expect("release payload signature matches the embedded public key");
     }
 }
@@ -240,7 +240,7 @@ fn a_verified_download_replaces_the_appimage() {
         version: "9.9.9".into(),
         url: file_url(&new),
         length: bytes.len() as u64,
-        signature: key.sign(&bytes).to_bytes(),
+        proof: Proof::Signature(key.sign(&bytes).to_bytes()),
     };
     let leftovers = || {
         std::fs::read_dir(&dir)
@@ -257,25 +257,26 @@ fn a_verified_download_replaces_the_appimage() {
 
     // 别的密钥签的、长度不对的：报错，原文件不动。
     let other = SigningKey::from_bytes(&[9; 32]).verifying_key();
-    let error = appimage::prepare(&item, &appimage, &other, &|_| {}).unwrap_err();
+    let error = appimage::prepare(&item, &appimage, Some(&other), &|_| {}).unwrap_err();
     assert!(error.contains("签名"), "{error}");
     let long = Item {
         length: 999,
         ..item.clone()
     };
-    assert!(appimage::prepare(&long, &appimage, &key.verifying_key(), &|_| {}).is_err());
+    assert!(appimage::prepare(&long, &appimage, Some(&key.verifying_key()), &|_| {}).is_err());
     let missing = Item {
         url: file_url(&dir.join("missing")),
         ..item.clone()
     };
-    assert!(appimage::prepare(&missing, &appimage, &key.verifying_key(), &|_| {}).is_err());
+    assert!(appimage::prepare(&missing, &appimage, Some(&key.verifying_key()), &|_| {}).is_err());
     assert_eq!(std::fs::read(&appimage).unwrap(), b"old version");
     assert_eq!(leftovers(), 0);
 
     // 下载期间报告的百分比不超过 100，也不倒退。
     let reported = std::cell::RefCell::new(Vec::new());
     let progress = |percent: u8| reported.borrow_mut().push(percent);
-    let program = appimage::prepare(&item, &appimage, &key.verifying_key(), &progress).unwrap();
+    let program =
+        appimage::prepare(&item, &appimage, Some(&key.verifying_key()), &progress).unwrap();
     let reported = reported.into_inner();
     assert!(reported.windows(2).all(|w| w[0] <= w[1]), "{reported:?}");
     assert!(reported.iter().all(|&p| p <= 100), "{reported:?}");
@@ -358,4 +359,70 @@ fn demo_feed() {
         "WINC_UPDATE_PUBLIC_KEY={}",
         encode_base64(key.verifying_key().as_bytes())
     );
+}
+
+/// GitHub 的发布订阅源：里面是最近的发布标签，从新到旧。
+#[test]
+fn the_release_feed_lists_the_tags_newest_first() {
+    let feed = r#"<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry><title>v0.1.400</title></entry>
+  <entry><title>v0.1.399</title></entry>
+  <entry><title>not a tag</title></entry>
+</feed>"#;
+    assert_eq!(github::tags(feed), ["v0.1.400", "v0.1.399"]);
+    // 不是 XML 时没有发布。
+    assert!(github::tags("not xml at all").is_empty());
+}
+
+/// 附件的地址由仓库、标签和文件名拼出。
+#[test]
+fn the_download_address_comes_from_the_repository_and_the_tag() {
+    assert_eq!(
+        github::feed("xinggaoya/winc"),
+        "https://github.com/xinggaoya/winc/releases.atom"
+    );
+    assert_eq!(
+        github::download("xinggaoya/winc", "v0.1.400", "SHA256SUMS"),
+        "https://github.com/xinggaoya/winc/releases/download/v0.1.400/SHA256SUMS"
+    );
+}
+
+/// 校验和清单是 GNU `sha256sum` 的格式：按文件名找出这一份的校验值。
+#[test]
+fn the_checksum_of_a_file_is_read_from_the_manifest() {
+    let digest = "a".repeat(64);
+    let other = "b".repeat(64);
+    let sums = format!("{digest}  Winc-0.1.400-linux-x64.AppImage\n{other}  other.bin\n");
+    let expected =
+        std::array::from_fn(|n| u8::from_str_radix(&digest[n * 2..n * 2 + 2], 16).unwrap());
+    assert_eq!(
+        github::checksum(&sums, "Winc-0.1.400-linux-x64.AppImage"),
+        Some(expected)
+    );
+    // 别的文件、没有这一份、校验值写错了：都取不到。
+    assert_eq!(github::checksum(&sums, "missing.bin"), None);
+    assert_eq!(github::checksum("not a manifest", "other.bin"), None);
+    assert_eq!(
+        github::checksum(&format!("{}  other.bin\n", "z".repeat(64)), "other.bin"),
+        None
+    );
+}
+
+/// 从 GitHub 的发布里找到的更新包：核对用的是校验值，不是签名。
+#[test]
+fn a_release_update_is_verified_by_its_checksum() {
+    let bytes = b"the new version".to_vec();
+    let digest = sha2::Sha256::digest(&bytes);
+    let item = Item {
+        version: "9.9.9".into(),
+        url: "https://example.invalid/winc".into(),
+        length: 0,
+        proof: Proof::Checksum(digest.into()),
+    };
+    // 内容一样时核对通过，改了一个字节就不通过；没有公钥也不影响。
+    assert!(verify(&item, &bytes, None).is_ok());
+    let mut other = bytes.clone();
+    other[0] = b'T';
+    assert!(verify(&item, &other, None).is_err());
 }

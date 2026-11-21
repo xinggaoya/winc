@@ -124,7 +124,7 @@ pub fn draw(app: &mut App, frame: &mut Frame<'_>) {
     frame.base(&base(app));
     let layout = app.layout;
     app.panels.tree.overflow = tree_overflow(app, frame);
-    app.panels.global.overflow = workspace::panel::result_overflow(app, frame);
+    app.panels.global.overflow = workspace::search::result_overflow(app, frame);
     let before = app.git.commit.overflow.map(|o| o.row);
     app.git.commit.overflow = git::commit::commit_overflow(app, frame);
     app.track_commit_actions(before);
@@ -173,8 +173,8 @@ pub fn draw(app: &mut App, frame: &mut Frame<'_>) {
     draw_tree_overflow(app, frame);
     git::commit::draw_commit_overflow_closing(app, frame);
     git::commit::draw_commit_overflow(app, frame);
-    workspace::panel::draw_result_overflow_closing(app, frame);
-    workspace::panel::draw_result_overflow(app, frame);
+    workspace::search::draw_result_overflow_closing(app, frame);
+    workspace::search::draw_result_overflow(app, frame);
     git::changes::draw_change_popup(app, frame);
 
     if layout.search.h > 0.0 {
@@ -184,14 +184,25 @@ pub fn draw(app: &mut App, frame: &mut Frame<'_>) {
     // 位置浮窗显示在名称旁边，有独立的动画（滑出、淡出）。
     let bar_open = app.bars.goto_input.is_some() && !app.bars.prompt_kind.is_vim();
     let picker_open = app.overlays.picker.open && app.overlays.picker.places.is_none();
+    let search_open = app.search_open();
     app.track_card(Card::Bar, bar_open);
     app.track_card(Card::Picker, picker_open);
+    app.track_card(Card::Search, search_open);
     // 先绘制正在淡出的卡片：在 ⌘P 面板中按 ⌃G 时，跳转条绘制在淡出的面板之上。
     draw_card_ghost(app, frame, Card::Bar);
     draw_card_ghost(app, frame, Card::Picker);
+    draw_card_ghost(app, frame, Card::Search);
     if bar_open {
         let rect = app.prompt_bar();
         draw_moving_card(app, frame, Card::Bar, rect, draw_goto);
+    }
+    if search_open {
+        let rect = app.layout.search_card;
+        draw_moving_card(app, frame, Card::Search, rect, |app, frame| {
+            if let Some(caret) = workspace::search::draw_search_dialog(app, frame) {
+                app.ime.cursor = Some(caret);
+            }
+        });
     }
     if picker_open {
         let rect = app.layout.picker;
@@ -511,7 +522,7 @@ fn field_box(
             frame.rounded(inner.inset(-ring, -ring), color, RADIUS_ROW + ring);
             frame.rounded(inner, p.editor_bg, RADIUS_ROW);
         }
-        None => frame.rounded(rect, workspace::panel::over(base, p.hover), RADIUS_ROW),
+        None => frame.rounded(rect, controls::over(base, p.hover), RADIUS_ROW),
     }
 }
 

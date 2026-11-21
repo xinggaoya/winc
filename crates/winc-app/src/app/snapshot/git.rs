@@ -181,6 +181,35 @@ fn git_app_in(name: &str, long: bool, dark: bool) -> Option<(App, PathBuf)> {
     Some((app, root))
 }
 
+/// 把提交面板挪到左栏：写全名要伸到面板外面，左栏的右边还有编辑区，右栏的右边就是窗口边。
+fn commit_in_left_column(app: &mut App) {
+    use winc_config::Panel;
+    let layout = &mut app.panels.layout;
+    layout.right.retain(|panel| *panel != Panel::Commit);
+    layout.left.retain(|panel| *panel != Panel::Files);
+    layout.left.insert(0, Panel::Commit);
+    layout.right.insert(0, Panel::Files);
+    app.relayout();
+}
+
+/// 把窗口改宽：Git 的日志与三栏合并都在中间那栏里，两侧的栏各占去一截，窗口不够宽时放不下。
+fn widen(app: &mut App) {
+    resize(app, 1800.0, SIZE.1);
+}
+
+/// 把窗口改矮：右栏里的面板与窗口一样高，窗口矮时面板里的列表放不下几行。
+fn shorten(app: &mut App) {
+    resize(app, SIZE.0, 460.0);
+}
+
+/// 把离屏界面的窗口改为 `size`（逻辑像素）并重新布局。
+fn resize(app: &mut App, width: f32, height: f32) {
+    app.frame.renderer =
+        Some(Renderer::offscreen(width, height, SCALE, app.palette.frame_bg, None, None).unwrap());
+    app.relayout();
+    app.clamp_scroll();
+}
+
 /// 打开 Git 日志并改为显示全部分支，返回是否执行了打开日志的操作。
 ///
 /// 日志默认只显示当前分支；使用本函数的测试检查包括其他分支在内的提交图。

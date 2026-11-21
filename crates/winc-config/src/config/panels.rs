@@ -20,7 +20,10 @@ pub enum Panel {
 
 impl Panel {
     /// 全部面板种类，顺序为配置里列出的默认顺序。
-    pub const ALL: [Panel; 3] = [Panel::Files, Panel::Search, Panel::Commit];
+    ///
+    /// 全局搜索不在其中：它改用浮在编辑区上的弹窗，不再占侧栏的位置。但配置里旧的
+    /// `"search"` 仍要读得出（见 [`Panel::from_key`]），故保留 [`Panel::Search`] 变体。
+    pub const ALL: [Panel; 2] = [Panel::Files, Panel::Commit];
 
     /// 左栏的默认排法：文件树。
     pub const DEFAULT_LEFT: [Panel; 1] = [Panel::Files];

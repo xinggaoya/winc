@@ -82,6 +82,7 @@ cargo xtask test --all
 | `crates/winc-app/src/app/git/commit.rs`、`view/git/commit/**` | 提交面板改用自己所在栏的卡片 | 提交视图上游改动频繁，冲突时逐处确认裁剪区域 |
 | `crates/winc-app/src/app/input/mouse/target.rs` | 标题栏控件登记为客户区 | 上游若新增顶栏控件，同样要登记，否则在 Windows 上点不动 |
 | `crates/winc-editor/src/lib.rs` | 文档编号改为进程内全局唯一 | 与上游的 `next_id` 冲突时保留全局计数器 |
+| `crates/winc-app/src/updates.rs`、`updates/github.rs` | 自动更新改用 GitHub 的发布 | 上游若改动 appcast 的解析，两边都要保留 |
 | `crates/winc-config/src/config/panels.rs`、`config/fields.rs` | 面板种类与 `panels` 一节的配置 | 上游若新增配置节，追加到 `SECTIONS` 表即可 |
 | `crates/winc-i18n/locales/**` | 新增文案 | 上下游的文案 id 可能撞车，加前缀或换措辞 |
 
@@ -111,6 +112,31 @@ README.md / README.zh-CN.md
 
 ## 发布 / Releasing
 
-本仓库暂不自行发布：改动先并入 `main`，验证通过后再按上游的发布流程走（见
-`release/README.md`）。若要发布自己的版本，保留 `VERSION` 文件与上游的版本号序列，另起 tag
-（例如 `v0.1.900-winc.1`），避免与上游的 tag 混淆。
+本仓库自行发布：改动并入 `main`、验证通过后，抬高 `VERSION` 文件里的版本号，打一个 tag
+（例如 `v0.1.900`），推送 tag。推送 tag 会触发 Release 工作流：
+
+1. `release.yml` 收到 tag，取出源码并算出这次发布要用的版本号。
+2. 四个平台各自构建：macOS（Apple silicon 与 Intel）、Linux（x86_64）、Windows（x86_64）。
+3. 四个平台的产物都通过核对后，`release.yml` 把它们、校验和清单 `SHA256SUMS` 与发布说明一起
+   上传到 GitHub 的 Release（直接发布，不再是草稿）。
+
+发布说明由 Git 日志生成：`release/common/notes.mjs` 读上一次 tag 到这次 tag 之间的提交，
+按约定的提交类型（`feat`、`fix`、`docs` 等）分组，每条提交一行，附在下载表格后面。
+
+签名与公证按上游的做法，需要仓库的密钥：没有配置时 macOS 只做临时签名、Windows 不签名，
+构建照常完成。应用内更新的签名密钥是仓库的机密 `WINC_UPDATE_PRIVATE_KEY`（Sparkle 的
+Ed25519 种子，base64）。
+
+程序内更新直接用 GitHub 的 Release：应用问仓库的发布订阅源（`releases.atom`）要最新的版本号，
+从发布里下载附件，用 `SHA256SUMS` 里的校验值核对。appcast 通道仍在，取不到发布时退回它。
+
+```bash
+# 发一个版本
+echo 0.1.900 > VERSION
+git add VERSION && git commit -m "chore: 发布 0.1.900"
+git tag -a v0.1.900 -m "Release v0.1.900"
+git push origin main v0.1.900     # 推送 tag 即开始构建与发布
+```
+
+tag 必须是 `v<版本号>`，且与 `VERSION` 文件里的版本号一致，否则发布脚本会拒绝（见
+`release/README.md`）。若想让工作流代替你打 tag，手动运行 “Release Tag” 工作流即可。

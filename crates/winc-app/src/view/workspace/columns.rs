@@ -34,8 +34,9 @@ fn draw_column(app: &mut App, frame: &mut Frame<'_>, column: Column) {
     for slot in &slots[..count] {
         match slot.panel {
             Some(Panel::Files) => sidebar::draw_files_panel(app, frame, *slot),
-            Some(Panel::Search) => caret = panel::draw_search_panel(app, frame),
             Some(Panel::Commit) => caret = git::commit::draw_commit_panel(app, frame),
+            // 全局搜索改用浮在编辑区上的弹窗，不在两栏里绘制。
+            Some(Panel::Search) => {}
             None => {}
         }
     }

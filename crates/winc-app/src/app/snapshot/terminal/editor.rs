@@ -911,6 +911,7 @@ fn switching_folders_swaps_the_terminals() {
 
     // 新目录没有记下终端：原来的标签关掉，面板开着，在新目录里开一个。
     app.switch_folder(&second);
+    wait_terminal(&mut app, |app| !app.terminal.want.is_empty());
     assert!(app.terminal.tabs.is_empty());
     assert_eq!(app.terminal.want, [Vec::<u8>::new()]);
     assert!(app.terminal.open);
@@ -1236,20 +1237,35 @@ fn the_program_hears_when_the_terminal_loses_focus() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// 等辅助进程回话：终端的标签由它建出来，回话之前看不到。
+fn wait_terminal(app: &mut App, ready: impl Fn(&App) -> bool) {
+    for _ in 0..300 {
+        app.poll_terminal();
+        if ready(app) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
 #[test]
 fn code_sent_to_an_exited_shell_starts_it_again() {
     let dir = sample_folder("terminal-send-exited");
     let mut app = app_with(&dir.join("short.rs"), false);
     show_terminal(&mut app, "$ exit");
     let log = app.attach_recording_helper(&dir);
+    let exited = app.terminal.tabs[0].id;
     app.terminal.tabs[0].ended = Some(TabEnd::Exited(0));
     app.focus = Focus::Editor;
 
     // ⌃⇧↩：标签重开，光标那一行等新的 shell 启动后送出，不会丢弃。
     app.send_to_terminal();
+    wait_terminal(&mut app, |app| {
+        app.terminal.tab().is_some_and(|tab| tab.id != exited)
+    });
     let tab = app.terminal.tab().unwrap();
     assert!(tab.ended.is_none());
-    assert_ne!(tab.id, 1);
+    assert_ne!(tab.id, exited);
     assert_eq!(app.input_sent_to(&log, tab.id), b"fn main() {\r");
     assert_eq!(app.focus, Focus::Editor);
 

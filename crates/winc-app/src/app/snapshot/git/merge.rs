@@ -249,6 +249,8 @@ fn three_way_app_with(name: &str, base: &str, side: &str, main: &str) -> Option<
     if git_unusable(&app) {
         return None;
     }
+    // 三栏合并要编辑区放得下三栏，两侧的栏各占去的地方不算。
+    widen(&mut app);
     app.open_path(&file);
     paint(&mut app);
     Some((app, file))

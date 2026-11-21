@@ -31,6 +31,8 @@ fn other_repositories_are_listed_after_the_current_one_and_a_click_switches() {
         return;
     };
     app.run_action(Action::ShowCommit);
+    app.git_refresh();
+    app.poll_git();
     paint(&mut app);
     assert_eq!(app.git.root.as_ref(), Some(&a));
 
@@ -64,7 +66,7 @@ fn other_repositories_are_listed_after_the_current_one_and_a_click_switches() {
     ];
     assert_eq!(app.commit_other_rows(), listed);
     assert_eq!(app.commit_rows_before(), 1);
-    app.layout.sidebar.h = 200.0;
+    shorten(&mut app);
     assert!(app.commit_max_scroll() > alone);
     app.relayout();
     paint(&mut app);
