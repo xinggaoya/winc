@@ -371,8 +371,8 @@ impl App {
                 }
                 self.press_search_button(SearchButton::Filter);
             }
-            FindInFiles => self.open_global_search(false),
-            ReplaceInFiles => self.open_global_search(true),
+            FindInFiles => self.toggle_global_search(false),
+            ReplaceInFiles => self.toggle_global_search(true),
             ReplaceAllInFiles => self.ask_replace_all(),
             NextResult => self.next_result(false),
             PreviousResult => self.next_result(true),

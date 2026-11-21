@@ -561,6 +561,15 @@ impl App {
         self.request_redraw();
     }
 
+    /// 开合全局搜索弹窗：已经开着时关掉它，没开时打开。
+    pub(in crate::app) fn toggle_global_search(&mut self, replace: bool) {
+        if self.search_open() {
+            self.close_global_search();
+            return;
+        }
+        self.open_global_search(replace);
+    }
+
     /// 关闭全局搜索弹窗，焦点交还编辑区。
     pub(in crate::app) fn close_global_search(&mut self) {
         eprintln!("DEBUG close_global_search");

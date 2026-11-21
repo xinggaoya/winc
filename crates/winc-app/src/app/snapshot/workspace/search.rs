@@ -30,6 +30,28 @@ fn the_global_search_opens_a_dialog_over_the_editor() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// `Esc` 关掉弹窗，⌘⇧F 再按一次也关掉。
+#[test]
+fn escape_closes_the_dialog_and_the_shortcut_toggles_it() {
+    let dir = search_folder("global-dialog-keys");
+    let mut app = app_with(&dir, false);
+    paint(&mut app);
+
+    app.run_action(Action::FindInFiles);
+    assert!(app.search_open());
+    app.run_action(Action::FindInFiles);
+    assert!(!app.search_open());
+
+    app.run_action(Action::FindInFiles);
+    assert!(app.search_open());
+    // 结果列表里的 `Esc`：关掉弹窗，焦点回到编辑区。
+    app.results_key(&Key::Named(NamedKey::Escape));
+    assert!(!app.search_open());
+    assert_eq!(app.focus, Focus::Editor);
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 /// 弹窗里的输入框和结果列表都画在卡片内。
 #[test]
 fn the_dialog_draws_its_fields() {
