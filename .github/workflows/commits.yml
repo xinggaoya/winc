@@ -1,8 +1,10 @@
 # Pull request rules that need no build:
 # - "Commit messages": the title and the subject of every commit use `type: subject` in printable
 #   ASCII. The rules are in "Commit Messages" in CONTRIBUTING.md.
-# - "Source branch": a pull request into `main` comes from `dev` of this repository.
-# - "Release version": a pull request into `main` carries a version that is not released yet.
+# - "Source branch": a pull request into `main` comes from a branch of this repository.
+#
+# The release is cut from `main` by pushing a tag (see the Release workflow), so merging does not
+# need to carry a version.
 
 name: Commits
 
@@ -69,37 +71,20 @@ jobs:
           fi
           exit "${status}"
 
-  # `main` holds released code: only `dev` of this repository merges into it. The job also runs
-  # when a pull request is retargeted, because that raises the `edited` event.
+  # `main` is the development branch of this repository: only branches of this repository merge
+  # into it. The job also runs when a pull request is retargeted, because that raises the
+  # `edited` event.
   source:
     name: Source branch
     if: github.base_ref == 'main'
     runs-on: ubuntu-24.04
     steps:
-      - name: Only dev merges into main
+      - name: Only branches of this repository merge into main
         env:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
-          if [[ "${HEAD_REPO}" != "${GITHUB_REPOSITORY}" || "${GITHUB_HEAD_REF}" != dev ]]; then
-            echo "::error::Only ${GITHUB_REPOSITORY}:dev can be merged into main." \
-              "Open the pull request against dev instead."
+          if [[ "${HEAD_REPO}" != "${GITHUB_REPOSITORY}" ]]; then
+            echo "::error::Only branches of ${GITHUB_REPOSITORY} can be merged into main." \
+              "Fork the repository and open the pull request from the fork if that is intended."
             exit 1
           fi
-
-  # Every merge into `main` is a release, so its version must not be released yet.
-  version:
-    name: Release version
-    if: github.base_ref == 'main'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Version is not released yet
-        run: |
-          version="$(node release/common/version.mjs)"
-          if git ls-remote --exit-code --tags origin "refs/tags/v${version}" >/dev/null; then
-            echo "::error::v${version} is already released. Raise the version in VERSION" \
-              "on dev before merging into main."
-            exit 1
-          fi
-          echo "Merging releases v${version}." | tee -a "$GITHUB_STEP_SUMMARY"

@@ -84,16 +84,19 @@ jobs:
     secrets: inherit
 
   publish:
-    name: Assemble draft release
+    name: Publish release
     needs: [prepare, macos-arm64, macos-x64, linux-x64, windows-x64]
     if: needs.prepare.outputs.release-tag != ''
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
+      # The full history and the tags: the release notes are taken from the commit log between the
+      # previous tag and this one.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
       - name: Verify publication source
         env:
           SOURCE_SHA: ${{ needs.prepare.outputs.source-sha }}
@@ -109,8 +112,9 @@ jobs:
           pattern: release-assets-*
           path: release-assets
           merge-multiple: true
-      # One writer creates the draft and SHA256SUMS only after all four targets pass
-      # verification. Publishing the draft, and deploying it to winc.si, remain human steps.
+      # One writer creates the release and SHA256SUMS only after all four targets pass
+      # verification. The notes come from the commit log; deploying the release to winc.si remains
+      # a human step.
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

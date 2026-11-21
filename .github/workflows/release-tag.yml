@@ -1,19 +1,18 @@
 name: Release Tag
 
-# Every merge into main is a release: tag the version in the VERSION file as
-# `v<version>` and start the Release workflow, which opens a draft release. Publishing the draft is
-# still a human step. A push whose version is already tagged fails, because the version was not
-# raised; the "Release version" check on pull requests into main stops that before the merge.
-# A manual run with the version already tagged does nothing, so a failed release can be retried by
-# running the Release workflow on the existing tag.
+# A release is cut from `main` by pushing a tag: the tag itself starts the Release workflow, which
+# builds every platform and publishes the release with the notes taken from the commit log.
+#
+# This workflow is the manual counterpart: it tags the version in the VERSION file as `v<version>`
+# and starts the Release workflow on that tag. Use it when the tag should be created for you; a
+# version that is already tagged does nothing, so a failed release can be retried by running the
+# Release workflow on the existing tag.
 #
 # The tag is pushed with GITHUB_TOKEN, and events raised that way do not start
 # other workflows, so they are started explicitly via workflow_dispatch (the
 # documented exception).
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -43,11 +42,6 @@ jobs:
           version="$(node release/common/version.mjs)"
           tag="v${version}"
           if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-              echo "::error::${tag} is already released." \
-                "Raise the version in VERSION for a new release."
-              exit 1
-            fi
             echo "${tag} already exists; nothing to do"
             echo "created=false" >> "$GITHUB_OUTPUT"
             exit 0
