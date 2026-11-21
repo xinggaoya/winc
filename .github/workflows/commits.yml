@@ -1,6 +1,6 @@
 # Pull request rules that need no build:
-# - "Commit messages": the title and the subject of every commit use `type: subject` in printable
-#   ASCII. The rules are in "Commit Messages" in CONTRIBUTING.md.
+# - "Commit messages": the title and the subject of every commit use `type: subject`. The rules are
+#   in "Commit Messages" in CONTRIBUTING.md.
 # - "Source branch": a pull request into `main` comes from a branch of this repository.
 #
 # The release is cut from `main` by pushing a tag (see the Release workflow), so merging does not
@@ -26,12 +26,14 @@ jobs:
     env:
       # In the C locale, [[:graph:]] and [[:print:]] match printable ASCII only.
       LC_ALL: C
-      PATTERN: '^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test): [[:graph:]][[:print:]]*$'
+      # The subject is "type: text". The text may be in any language: this repository writes its
+      # commit messages in Chinese, unlike the upstream.
+      PATTERN: '^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test): .+$'
       # Subjects that Git and GitHub write themselves: reverts and autosquash commits.
       EXEMPT: '^(Revert "|fixup! |squash! |amend! )'
       HINT: >-
-        Use "type: subject" in printable ASCII, for example "fix: keep the cursor column after
-        undo". Types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test.
+        Use "type: subject", for example "fix: keep the cursor column after undo". Types: build,
+        chore, ci, docs, feat, fix, perf, refactor, revert, style, test.
     steps:
       - uses: actions/checkout@v7
         with:
