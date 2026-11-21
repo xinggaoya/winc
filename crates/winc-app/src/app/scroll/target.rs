@@ -121,7 +121,7 @@ impl App {
             ScrollTarget::Commit
         } else if self.outline_shown() && self.outline_list().contains(x, y) {
             ScrollTarget::Outline
-        } else if self.panel_shown() && self.panel_card(winc_config::Panel::Search).contains(x, y) {
+        } else if self.search_open() && self.panel_card(winc_config::Panel::Search).contains(x, y) {
             ScrollTarget::Results
         } else if l.sidebar.contains(x, y) || self.in_tree_overflow(x, y) {
             ScrollTarget::Tree

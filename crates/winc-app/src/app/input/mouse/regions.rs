@@ -47,7 +47,7 @@ impl App {
             self.panels.sidebar.visible && self.layout.splitter.contains(x, y) && !over_overflow;
         let in_panel = panel.contains(x, y) || self.in_result_overflow(x, y);
 
-        if !self.panel_shown() || !in_panel || on_splitter {
+        if !self.search_open() || !in_panel || on_splitter {
             return None;
         }
 
@@ -332,7 +332,7 @@ impl App {
         }
 
         let search = self.panel_card(Panel::Search);
-        if !self.panel_shown() || !(search.contains(x, y) || self.in_result_overflow(x, y)) {
+        if !self.search_open() || !(search.contains(x, y) || self.in_result_overflow(x, y)) {
             return false;
         }
 
@@ -388,7 +388,7 @@ impl App {
         });
         let terminal_find =
             (self.terminal.find.as_ref()).map(|f| (Focus::TerminalFind, true, &f.field));
-        let shown = self.panel_shown();
+        let shown = self.search_open();
         let g = &self.panels.global;
         let panel = [
             (Focus::GlobalQuery, shown, &g.query),

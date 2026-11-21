@@ -109,9 +109,15 @@ impl App {
 
     /// 确保面板 `panel` 在某一栏里显示：现在没有显示时把它放到左栏末尾。
     ///
-    /// 用户可以把面板移到右栏或者藏起来；用命令打开某个面板时（查找、提交），面板没有地方
+    /// 用户可以把面板移到右栏或者藏起来；用命令打开某个面板时（提交），面板没有地方
     /// 放就重新放到左栏末尾，免得命令没有反应。
+    ///
+    /// 全局搜索不在两栏里：它改用浮在编辑区上的弹窗，不占侧栏的位置。
     pub(in crate::app) fn show_panel(&mut self, panel: Panel) {
+        if panel == Panel::Search {
+            return;
+        }
+
         let layout = &self.panels.layout;
         if layout.left.contains(&panel) || layout.right.contains(&panel) {
             return;
@@ -127,7 +133,7 @@ impl App {
         self.set_sidebar_view(panel);
         match panel {
             Panel::Files => self.focus = Focus::Tree,
-            Panel::Search => self.focus = Focus::GlobalQuery,
+            Panel::Search => self.open_global_search(false),
             Panel::Commit => self.focus = self.commit_view_focus(),
         }
     }

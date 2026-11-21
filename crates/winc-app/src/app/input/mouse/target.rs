@@ -608,7 +608,7 @@ impl App {
         };
 
         // 搜索视图的结果列表与文件树占用侧栏中的同一区域，先判断结果列表。
-        if self.panel_shown() {
+        if self.search_open() {
             let results = self.panel_parts().results;
             if results.contains(x, y) && x >= results.right() - SCROLLBAR_HIT {
                 let content = (self.panels.global.rows().len() as f32 + 1.0) * TREE_ROW;

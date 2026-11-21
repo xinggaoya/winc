@@ -18,7 +18,7 @@ use winc_i18n::t;
 use winc_syntax::Language;
 
 use super::*;
-use winc_config::Panel;
+
 
 /// 一处定义的位置。
 #[derive(Debug, Clone)]
@@ -700,7 +700,7 @@ impl App {
 
     /// 查找引用（`⇧F12`）：对光标所在的名字做全字匹配、区分大小写的全局搜索。
     ///
-    /// 结果显示在侧栏的搜索面板中。没有打开目录时在状态栏提示。
+    /// 结果显示在浮在编辑区上方的全局搜索弹窗中。没有打开目录时在状态栏提示。
     pub(in crate::app) fn find_references(&mut self) {
         if self.editor.workspace.is_none() {
             self.flash(t!("editor-open-folder-first"));
@@ -715,10 +715,7 @@ impl App {
         self.panels.global.regex = false;
         self.panels.global.query.remember();
         self.panels.global.query.set_text(&name);
-        self.set_sidebar_view(Panel::Search);
-        if !self.panels.sidebar.visible {
-            self.set_sidebar(true);
-        }
+        self.panels.global.open = true;
         self.global_changed(true);
         self.focus = Focus::Results;
         self.relayout();

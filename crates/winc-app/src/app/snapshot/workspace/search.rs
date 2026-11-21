@@ -1,17 +1,41 @@
-//! 侧栏全局搜索面板与查找条行筛选的测试：搜索与结果行、单个与全部替换、「只显示匹配的
-//! 行」、结果菜单、滚动条，以及悬停与按下的目标一致。
+//! 全局搜索弹窗与查找条行筛选的测试：搜索与结果行、单个与全部替换、「只显示匹配的行」、
+//! 结果菜单、滚动条，以及悬停与按下的目标一致。
 
 use winit::keyboard::{Key, NamedKey};
 
 use super::*;
 use crate::keymap::{Action, Context};
 
+/// 全局搜索浮在编辑区上方：侧栏不动，卡片在编辑区里。
+#[test]
+fn the_global_search_opens_a_dialog_over_the_editor() {
+    let dir = search_folder("global-dialog");
+    let mut app = app_with(&dir, false);
+    paint(&mut app);
+
+    // ⌘⇧F 打开弹窗：侧栏仍停在文件树，焦点在查找输入框。
+    app.run_action(Action::FindInFiles);
+    assert!(app.search_open());
+    assert_eq!(app.panels.sidebar.view, Panel::Files);
+    assert_eq!(app.focus, Focus::GlobalQuery);
+
+    // 卡片浮在编辑区上方，不超出编辑区。
+    paint(&mut app);
+    let card = app.layout.search_card;
+    assert!(card.h > 0.0);
+    assert!(card.y >= app.layout.editor.y);
+    assert!(card.x >= app.layout.editor.x);
+    assert!(card.right() <= app.layout.editor.right());
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 #[test]
 fn long_queries_and_replacements_grow_their_boxes() {
     let dir = search_folder("global-grow");
     let mut app = app_with(&dir, false);
     paint(&mut app);
-    app.set_sidebar_view(Panel::Search);
+    app.open_global_search(false);
     app.panels.global.replace_open = true;
     settle_search(&mut app);
     let one = app.panel_parts();
@@ -71,7 +95,7 @@ fn the_exclude_field_toggles_searching_ignored_files() {
     std::fs::write(dir.join("dist/out.js"), "ignoredneedle\n").unwrap();
     let mut app = app_with(&dir, false);
     paint(&mut app);
-    app.set_sidebar_view(Panel::Search);
+    app.open_global_search(false);
     app.panels.global.details_open = true;
     app.panels.global.query.insert("ignoredneedle");
     app.global_changed(true);
@@ -1028,7 +1052,7 @@ fn search_results_open_in_the_preview_tab_until_double_clicked() {
     let dir = search_folder("global-preview");
     let mut app = app_with(&dir, false);
     app.config.preview_on_click = Some(true);
-    app.set_sidebar_view(Panel::Search);
+    app.open_global_search(false);
     app.relayout();
     paint(&mut app);
     app.focus = Focus::GlobalQuery;
@@ -1174,7 +1198,7 @@ fn shoot_long_result_file() {
     let mut app = app_with(&dir, false);
     app.panels.sidebar.width = 260.0;
     app.relayout();
-    app.set_sidebar_view(Panel::Search);
+    app.open_global_search(false);
     app.panels.global.query.set_text("config");
     app.run_global_search();
     finish_search(&mut app);

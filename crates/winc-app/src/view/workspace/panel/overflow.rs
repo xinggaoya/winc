@@ -104,7 +104,7 @@ pub(super) fn moved_back(actions: (Option<Rect>, Rect), lag: f32) -> (Option<Rec
 /// 按钮移到全名之后，超出窗口时向左移回，名字在按钮之前截断。名字放得下、侧栏在开合、正在
 /// 拖动或文件正在折叠时返回 `None`。
 pub(in crate::view) fn result_overflow(app: &App, frame: &mut Frame<'_>) -> Option<ResultOverflow> {
-    if !app.panel_shown() || !app.idle_pointer() || app.panels.global.motion.is_some() {
+    if !app.search_open() || !app.idle_pointer() || app.panels.global.motion.is_some() {
         return None;
     }
     let index = match app.pointer.hover {
@@ -194,7 +194,7 @@ pub(in crate::view) fn draw_result_overflow(app: &App, frame: &mut Frame<'_>) {
 /// 底色和列表里的那一段一起淡出（[`retracting_color`]），与文件树相同。
 pub(in crate::view) fn draw_result_overflow_closing(app: &App, frame: &mut Frame<'_>) {
     let global = &app.panels.global;
-    if !app.panel_shown() || global.motion.is_some() || !global.names.moving() {
+    if !app.search_open() || global.motion.is_some() || !global.names.moving() {
         return;
     }
     let p = app.palette;
