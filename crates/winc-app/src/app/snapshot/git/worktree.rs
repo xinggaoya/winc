@@ -770,7 +770,10 @@ fn the_location_row_names_the_worktree() {
     app.open_worktree(1, false);
     app.git_refresh();
     assert_eq!(app.git_location_label(), (name(&linked), None));
-    assert_eq!(app.workspace_name(0), name(&linked));
+    // 换到附属工作树：多工作区模式下它是另一个工作区，单工作区模式下它换掉了当前目录；
+    // 两种情况下当前工作区的名字都是它自己的。
+    let active = app.workspaces.active;
+    assert_eq!(app.workspace_name(active), name(&linked));
     let _ = std::fs::remove_dir_all(&linked);
     let _ = std::fs::remove_dir_all(&root);
 }
