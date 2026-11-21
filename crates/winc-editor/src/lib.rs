@@ -93,6 +93,11 @@ pub struct Editor {
     /// 各类可预览的文件读取完成时采用的显示方式（[`Editor::finish_load`]），按
     /// [`PreviewKind::ALL`] 的顺序；默认为源代码。
     pub preview_defaults: [PreviewMode; PreviewKind::ALL.len()],
+    /// 测试用：这个编辑器从哪个编号开始发号。
+    ///
+    /// 正常情况下编号在整个进程里发号，测试里从 1 开始编号，断言才好写。
+    #[cfg(test)]
+    test_id_base: Option<u64>,
 }
 
 /// 文档编号的计数器：整个进程共用一个。
@@ -114,6 +119,8 @@ impl Default for Editor {
             bookmarks: BookmarkMap::new(),
             folds: FoldMap::new(),
             preview_defaults: [PreviewMode::Source; PreviewKind::ALL.len()],
+            #[cfg(test)]
+            test_id_base: None,
         }
     }
 }
@@ -658,7 +665,22 @@ impl Editor {
     }
 
     fn allocate_id(&mut self) -> DocumentId {
+        // 测试里从给定的编号开始发号，断言里的编号才是稳定的。
+        #[cfg(test)]
+        if let Some(next) = self.test_id_base {
+            self.test_id_base = Some(next + 1);
+            return DocumentId(next);
+        }
         DocumentId(NEXT_ID.fetch_add(1, Ordering::Relaxed))
+    }
+
+    /// 测试用：这个编辑器从 `base` 开始发文档编号。
+    #[cfg(test)]
+    pub(crate) fn with_id_base(base: u64) -> Editor {
+        Editor {
+            test_id_base: Some(base),
+            ..Editor::default()
+        }
     }
 }
 
