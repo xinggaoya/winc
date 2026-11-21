@@ -572,7 +572,6 @@ impl App {
 
     /// 关闭全局搜索弹窗，焦点交还编辑区。
     pub(in crate::app) fn close_global_search(&mut self) {
-        eprintln!("DEBUG close_global_search");
         self.panels.global.open = false;
         if self.focus_in_search() {
             self.focus = Focus::Editor;
