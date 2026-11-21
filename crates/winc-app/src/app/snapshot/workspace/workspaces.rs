@@ -455,3 +455,22 @@ fn the_workspace_tabs_hide_with_the_left_column() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 起了名字的工作区：切走再切回来，标签上还是新名字。
+#[test]
+fn a_renamed_workspace_keeps_its_name_in_the_tab() {
+    let a = search_folder("workspace-rename-a");
+    let b = search_folder("workspace-rename-b");
+    let mut app = app_with(&a, false);
+    app.rename_group("新名字");
+    open_workspace(&mut app, &b);
+    paint(&mut app);
+
+    // 切回去：标签上还是起过的名字。
+    app.switch_workspace(0);
+    paint(&mut app);
+    assert_eq!(app.workspace_name(0), "新名字");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
