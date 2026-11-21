@@ -1,4 +1,4 @@
-//! 侧栏的全局搜索面板：条件输入、后台搜索、结果列表和跨文件替换。
+//! 全局搜索弹窗：条件输入、后台搜索、结果列表和跨文件替换。
 //!
 //! [`GlobalSearch`] 保存输入框、选项、折叠状态和选中的行；搜索交给 [`ProjectSearch`] 在后台
 //! 进行，结果按版本号增量更新到列表。替换前先在 [`ReplacePreview`] 中确认，再改写文件或已打开
@@ -366,7 +366,8 @@ impl App {
 
     /// 返回卡片的目标高度（逻辑像素）：条件区的高度加上结果行的高度。
     ///
-    /// 结果多到放不下时按编辑区高度的 70% 截断，超出的部分在结果列表里滚动。
+    /// 卡片最多占编辑区高度的 70%，放不下的只是结果列表：条件区始终完整地留在卡片里，
+    /// 否则输入框会画到卡片外，既看不见底色也点不到。
     pub(crate) fn search_card_height(&mut self) -> f32 {
         if !self.panels.global.open {
             return 0.0;
@@ -383,8 +384,8 @@ impl App {
             self.search_summary_shown(),
             g.field_heights(),
         );
-        let rows = g.rows().len() as f32 * TREE_ROW;
-        (chrome + rows).min(self.layout.editor.h * 0.7)
+        let room = (self.layout.editor.h * 0.7 - chrome).max(0.0);
+        chrome + (g.rows().len() as f32 * TREE_ROW).min(room)
     }
 
     /// 记下查找、替换输入框折成的行数；变化时框高从当前高度过渡到新高度。
@@ -486,7 +487,9 @@ impl App {
         )
     }
 
-    /// 把侧栏切换到视图 `view`（文件树或搜索）。
+    /// 把侧栏切换到视图 `view`（文件树或提交视图）。
+    ///
+    /// 全局搜索改用浮在编辑区上的弹窗，侧栏里没有搜索视图了。
     pub(in crate::app) fn set_sidebar_view(&mut self, view: Panel) {
         if self.panels.sidebar.view == view {
             return;
@@ -587,7 +590,8 @@ impl App {
     pub(in crate::app) fn animate_search(&mut self, size: (f32, f32)) {
         if !self.panels.global.open {
             self.panels.global.height = None;
-            self.panels.global.motion = None;
+            // 关掉弹窗时卡片高度的变化就此作废：留着它，重新打开时会按旧高度画。
+            self.panels.global.card_motion = None;
             return;
         }
 
@@ -1197,7 +1201,7 @@ impl App {
                 let collapse = !self.panels.global.collapsed.contains(path);
                 self.set_result_collapsed(f, collapse);
             }
-            Some(&ResultRow::Match(..)) => self.open_result(index, double, double),
+            Some(&ResultRow::Match(..)) => self.open_result(index, double),
             None => {}
         }
 
@@ -1206,9 +1210,9 @@ impl App {
 
     /// 打开第 `index` 个结果行所在的文件；是匹配行时选中该处并滚动到中间。
     ///
-    /// `focus_editor` 为 `false` 时焦点留在结果列表。`keep` 为 `false` 且启用了预览标签时在预览
-    /// 标签中打开：逐条查看结果时复用同一个标签；双击、回车和菜单命令在普通标签中打开。
-    pub(in crate::app) fn open_result(&mut self, index: usize, focus_editor: bool, keep: bool) {
+    /// `keep` 为 `false` 且启用了预览标签时在预览标签中打开：逐条查看结果时复用同一个标签；
+    /// 双击、回车和菜单命令在普通标签中打开。弹窗开着时它留在屏幕上，焦点留在结果列表。
+    pub(in crate::app) fn open_result(&mut self, index: usize, keep: bool) {
         let Some(&row) = self.panels.global.rows().get(index) else {
             return;
         };
@@ -1241,18 +1245,13 @@ impl App {
             self.preview_path_then(&path, then);
         }
 
-        // 打开成普通标签：弹窗关掉，焦点交给编辑区，用户接着改文件。
-        // 只在预览标签中打开时弹窗留着，焦点仍在结果列表，可以接着看下一处。
-        if focus_editor && self.search_open() {
-            self.close_global_search();
-            self.focus = Focus::Editor;
+        // 弹窗开着时焦点留在结果列表：弹窗还盖着编辑区，焦点不能落到它下面去。
+        // 弹窗没开时结果列表不在屏幕上，焦点同样不能落进去，留在编辑区。
+        self.focus = if self.search_open() {
+            Focus::Results
         } else {
-            self.focus = if focus_editor {
-                Focus::Editor
-            } else {
-                Focus::Results
-            };
-        }
+            Focus::Editor
+        };
         self.request_redraw();
     }
 
@@ -1296,7 +1295,7 @@ impl App {
         self.scroll_result_into_view(index);
 
         if open && matches!(self.panels.global.rows()[index], ResultRow::Match(..)) {
-            self.open_result(index, false, false);
+            self.open_result(index, false);
         }
 
         self.request_redraw();
@@ -1352,7 +1351,7 @@ impl App {
         }
 
         if let Some(index) = self.panels.global.selected_row() {
-            self.open_result(index, false, false);
+            self.open_result(index, false);
         }
     }
 
@@ -1397,7 +1396,7 @@ impl App {
                 // 原位置可能是下一个文件的文件行。
                 match self.panels.global.selected_row() {
                     Some(i) if matches!(self.panels.global.rows()[i], ResultRow::Match(..)) => {
-                        self.open_result(i, false, false);
+                        self.open_result(i, false);
                     }
                     Some(_) => self.next_result(false),
                     None => {}
@@ -1424,7 +1423,7 @@ impl App {
             return;
         };
         match command {
-            MenuCommand::OpenFiles => self.open_result(index, true, true),
+            MenuCommand::OpenFiles => self.open_result(index, true),
             MenuCommand::CopyPath | MenuCommand::CopyRelativePath => {
                 self.copy_path(&path, command == MenuCommand::CopyRelativePath);
             }

@@ -67,7 +67,7 @@ fn opening_a_result_scrolls_it_below_the_dialog() {
         _ => unreachable!(),
     };
     let line = app.panels.global.engine.results[file].matches[m].line;
-    app.open_result(index, false, false);
+    app.open_result(index, false);
     paint(&mut app);
 
     let doc = app.editor.active().unwrap();
@@ -136,6 +136,153 @@ fn the_dialog_narrows_with_the_editor() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// 重新打开弹窗时，卡片高度按当前内容算，不沿用上一次的高度。
+#[test]
+fn reopening_the_dialog_uses_the_current_content_height() {
+    let dir = search_folder("global-dialog-height");
+    let mut app = app_with(&dir, false);
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    app.panels.global.query.set_text("config");
+    app.run_global_search();
+    finish_search(&mut app);
+    let tall = app.layout.search_card.h;
+    assert!(tall > 200.0, "结果多时卡片应当更高：{tall}");
+
+    // 关掉弹窗：卡片高度动画不能留着，否则重新打开时按旧高度画。
+    app.panels.global.card_motion = Some(PickerMotion {
+        from: 300.0,
+        to: 300.0,
+        clock: crate::app::animation::Clock::frozen(
+            std::time::Duration::from_millis(100),
+            std::time::Duration::from_millis(50),
+        ),
+    });
+    app.close_global_search();
+    paint(&mut app);
+    assert!(
+        app.panels.global.card_motion.is_none(),
+        "关闭后还留着卡片高度动画"
+    );
+    app.run_action(Action::FindInFiles);
+    app.panels.global.query.set_text("zzzz");
+    app.run_global_search();
+    finish_search(&mut app);
+    paint(&mut app);
+    let short = app.layout.search_card.h;
+    assert!(short < tall, "卡片高度没有跟着内容变：{short}（上一次 {tall}）");
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// 没打开目录时按 ⌘⇧F：状态栏提示，不弹出空弹窗。
+#[test]
+fn the_dialog_needs_an_open_folder() {
+    let mut app = app_with(&PathBuf::from("nonexistent"), false);
+    paint(&mut app);
+    app.status.message = None;
+
+    app.run_action(Action::FindInFiles);
+    assert!(!app.search_open());
+    assert!(
+        app.status.message.is_some(),
+        "没有提示先打开目录"
+    );
+
+    std::fs::remove_dir_all("nonexistent").ok();
+}
+
+/// 点卡片外的编辑区：弹窗关掉，这次点击仍然落在编辑区（光标挪到点中的那一行）。
+#[test]
+fn clicking_outside_the_dialog_reaches_the_editor() {
+    let dir = search_folder("global-dialog-outside");
+    let mut app = app_with(&dir.join("Cargo.toml"), false);
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    paint(&mut app);
+
+    let text = app.layout.text;
+    let at = (text.x + 40.0, text.y + 3.0 * app.fonts.line_height);
+    app.on_mouse_move(at.0, at.1);
+    app.on_mouse_down(MouseButton::Left);
+    app.on_mouse_up(MouseButton::Left);
+    paint(&mut app);
+
+    assert!(!app.search_open());
+    assert_eq!(app.focus, Focus::Editor);
+    let doc = app.editor.active().unwrap();
+    // 光标落在点中的那一行：这次点击没有被弹窗吞掉。
+    assert_eq!(doc.text().pos_to_line_col(doc.selection.head).0, 2);
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// ⌘⇧H 是「打开替换」：弹窗已经开着时展开替换行，不是把它关掉。
+#[test]
+fn the_replace_shortcut_expands_the_open_dialog() {
+    let dir = search_folder("global-dialog-replace");
+    let mut app = app_with(&dir.join("Cargo.toml"), false);
+    paint(&mut app);
+
+    app.run_action(Action::FindInFiles);
+    assert!(app.search_open());
+    app.panels.global.query.set_text("config");
+    app.run_action(Action::ReplaceInFiles);
+    assert!(app.search_open(), "⌘⇧H 把弹窗关掉了");
+    assert!(app.panels.global.replace_open, "替换行没有展开");
+    assert_eq!(app.focus, Focus::GlobalReplace);
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// 弹窗没开时用「下一处匹配」，焦点留在编辑区：结果列表不在屏幕上，焦点不能落进去。
+#[test]
+fn navigating_results_without_the_dialog_keeps_the_focus_in_the_editor() {
+    let dir = search_folder("global-dialog-next");
+    let mut app = app_with(&dir, false);
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    app.panels.global.query.set_text("config");
+    app.run_global_search();
+    finish_search(&mut app);
+    app.close_global_search();
+    paint(&mut app);
+
+    app.run_action(Action::NextResult);
+    assert_eq!(app.focus, Focus::Editor);
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// 编辑区很矮时条件区仍要完整地画在卡片里：放不下的只是结果列表。
+#[test]
+fn the_conditions_stay_inside_the_card_when_the_editor_is_short() {
+    let dir = search_folder("global-dialog-short");
+    let mut app = app_with(&dir, false);
+    // 终端占掉一大截，编辑区变矮。
+    app.terminal.height = 320.0;
+    app.set_terminal_open(true);
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    // 查找与替换都折成多行：条件区比留给卡片的高度还高。
+    let long = "word ".repeat(300);
+    app.panels.global.query.set_text(&long);
+    app.panels.global.replace.set_text(&long);
+    app.panels.global.replace_open = true;
+    app.panels.global.details_open = true;
+    app.run_global_search();
+    finish_search(&mut app);
+    paint(&mut app);
+
+    let card = app.layout.search_card;
+    let parts = app.panel_parts();
+    assert!(parts.query.bottom() <= card.bottom(), "查找框画到卡片外了");
+    assert!(parts.replace.bottom() <= card.bottom(), "替换框画到卡片外了");
+    assert!(parts.exclude.bottom() <= card.bottom(), "排除框画到卡片外了");
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 /// 弹窗里的输入框和结果列表都画在卡片内。
 #[test]
 fn the_dialog_draws_its_fields() {
@@ -161,7 +308,7 @@ fn the_dialog_draws_its_fields() {
 /// 点卡片外关闭弹窗：弹窗浮在编辑区上方，点它挡住的编辑区就是关掉它。
 #[test]
 fn clicking_outside_the_dialog_closes_it() {
-    let dir = search_folder("global-dialog-outside");
+    let dir = search_folder("global-dialog-outside-2");
     let mut app = app_with(&dir.join("Cargo.toml"), false);
     paint(&mut app);
     app.run_action(Action::FindInFiles);
@@ -856,7 +1003,7 @@ fn right_clicking_a_search_result_offers_its_menu() {
         Some("    let config = load_config();")
     );
 
-    // 打开：打开文件并选中这一处。文件成为普通标签，弹窗关掉，焦点到编辑区。
+    // 打开：打开文件并选中这一处。文件成为普通标签，弹窗留着，焦点仍在结果列表。
     click_row(&mut app, found);
     app.run_menu_command(OpenFiles);
     let doc = app.editor.active().unwrap();
@@ -865,12 +1012,11 @@ fn right_clicking_a_search_result_offers_its_menu() {
         doc.text_range(doc.selection.from(), doc.selection.to()),
         Some("config".to_owned())
     );
-    assert_eq!(app.focus, Focus::Editor);
-    assert!(!app.search_open());
+    assert_eq!(app.focus, Focus::Results);
+    assert!(app.search_open());
 
     // 「从结果中移除」只修改结果列表，不修改文件，效果与行上的 ✕ 按钮相同。
     let total = app.panels.global.engine.total();
-    app.open_global_search(false);
     click_row(&mut app, found);
     app.run_menu_command(DismissResult);
     assert_eq!(app.panels.global.engine.total(), total - 1);
@@ -1239,13 +1385,12 @@ fn search_results_open_in_the_preview_tab_until_double_clicked() {
     assert_eq!(app.editor.documents.len(), opened);
     assert_eq!(app.preview_index(), app.editor.active);
 
-    // 双击：成为普通标签，弹窗收起，焦点进入编辑区；此后单击其他结果新开预览标签。
+    // 双击：成为普通标签，弹窗留着，焦点仍在结果列表；此后单击其他结果新开预览标签。
     app.on_mouse_down(MouseButton::Left);
     app.on_mouse_up(MouseButton::Left);
     assert_eq!(app.preview_index(), None);
-    assert_eq!(app.focus, Focus::Editor);
-    assert!(!app.search_open());
-    app.open_global_search(false);
+    assert_eq!(app.focus, Focus::Results);
+    assert!(app.search_open());
     press(&mut app, ResultRow::Match(1, 0));
     assert_eq!(app.editor.documents.len(), opened + 1);
     assert_eq!(app.preview_index(), app.editor.active);
@@ -1310,6 +1455,13 @@ fn long_result_files_unfold_under_the_mouse() {
 
     // 伸出的那一段同样是这一行，按钮照常响应。
     let y = row.y + row.h / 2.0;
+    // 写全名这一行的按钮挪到了卡片右边缘上：它盖住那里的滚动条。
+    app.on_mouse_move(results.right() - 3.0, y);
+    assert_eq!(
+        app.pointer.hover,
+        Hover::RowAction(long, RowAction::Dismiss),
+        "写全名那一行没有盖住右边缘的滚动条"
+    );
     app.on_mouse_move(spill.x + 10.0, y);
     assert_eq!(
         app.pointer.hover,

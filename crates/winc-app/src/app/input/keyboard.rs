@@ -494,7 +494,7 @@ impl App {
                 (Some(ResultRow::Match(..)), Some(i)) => {
                     // 回车在普通标签中打开并进入编辑区；空格留在结果列表，按预览标签的设置打开。
                     let enter = matches!(key, Key::Named(NamedKey::Enter));
-                    self.open_result(i, enter, enter);
+                    self.open_result(i, enter);
                 }
                 _ => {}
             },

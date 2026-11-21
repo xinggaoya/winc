@@ -129,12 +129,19 @@ impl App {
     /// 把焦点交给面板 `panel`：展开它所在的栏，焦点落到面板里。
     ///
     /// 面板现在没有显示时（例如 Git 的提交视图，但目录不在仓库里）只记下焦点，面板不显示。
+    /// 全局搜索不在两栏里：它改用浮在编辑区上的弹窗，焦点给它就是打开弹窗。
     pub(in crate::app) fn focus_panel(&mut self, panel: Panel) {
+        if panel == Panel::Search {
+            self.open_global_search(false);
+            return;
+        }
+
         self.set_sidebar_view(panel);
         match panel {
             Panel::Files => self.focus = Focus::Tree,
-            Panel::Search => self.open_global_search(false),
             Panel::Commit => self.focus = self.commit_view_focus(),
+            // 全局搜索已在上面返回。
+            Panel::Search => {}
         }
     }
 }

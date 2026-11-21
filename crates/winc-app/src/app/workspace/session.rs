@@ -238,6 +238,10 @@ impl App {
         // 窗口里没有工作区了：登记表也清空。
         self.workspaces.slots.clear();
         self.workspaces.active = 0;
+        // 没有目录可搜了：全局搜索弹窗关掉，别留在开始页上。
+        if self.search_open() {
+            self.close_global_search();
+        }
         // `last` 是别的 winc 进程写的（指向别的目录）时不动，该进程异常中止后仍需用它恢复。
         if let Some(root) = self.editor.root().map(Path::to_path_buf) {
             self.update_state(|state| {
