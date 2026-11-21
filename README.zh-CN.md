@@ -51,7 +51,8 @@
 一个窗口里同时打开多个项目，每个项目是一份独立的"现场"：打开的标签、文件树的展开状态、Git 状态、
 终端会话都各自保留，切过去时原样还在。
 
-- 顶栏左侧列出当前打开的各个项目，点一下就切过去；末尾的文件夹按钮打开新项目。
+- 当前打开的各个项目是左栏顶部的一排标签：当前打开的那个填实底，其余淡一些；点一下就切过去，
+  鼠标移上去可以关掉它，按住可以拖动调整顺序。
 - 切换目录不再关闭原来的目录，而是把它留成另一个工作区（可在设置里关闭该模式，恢复旧行为）。
 - 关闭项目时只关这一个，其余工作区不受影响。
 - 快捷键：`⌘⌃→` / `⌘⌃←` 切换下一个、上一个工作区，`⌘⌃W` 关闭当前工作区
@@ -63,9 +64,11 @@
 
 | 栏 | 内容 |
 | --- | --- |
-| 左栏 | 文件树等面板，顶部是项目名与项目菜单 |
+| 左栏 | 文件树等面板，顶部是工作区标签与项目菜单 |
 | 中间（固定） | 标签栏、编辑区、终端 |
 | 右栏 | Git 提交视图等面板 |
+
+- 三张卡片两侧的间距一致：左栏与中间一栏之间、中间一栏与右栏之间都隔同样宽。
 
 - 右栏可用窗口右上角的面板按钮收起或展开，按钮位置固定，收起后仍在原地。
 - 右栏左边缘的分隔条可以拖动调整宽度。
@@ -222,7 +225,7 @@ cargo xtask bench                   # 对照预算测启动、内存与滚动
 | `crates/winc-app/src/app/workspace/columns.rs` | 面板属于哪一栏、焦点与右栏开关 |
 | `crates/winc-app/src/app/workspace/workspaces.rs` | 工作区登记表与各自的现场 |
 | `crates/winc-app/src/app/workspace/switch.rs` | 工作区的切换、关闭与新增 |
-| `crates/winc-app/src/app/workspace/bar.rs` | 顶栏里的工作区切换条 |
+| `crates/winc-app/src/app/workspace/bar.rs` | 左栏顶部的工作区标签条 |
 | `crates/winc-app/src/app/settings/panels.rs` | 「面板」设置页的操作 |
 | `crates/winc-app/src/layout/settings/panels.rs` | 「面板」设置页的几何 |
 | `crates/winc-app/src/view/workspace/columns.rs` | 左右两栏的绘制 |

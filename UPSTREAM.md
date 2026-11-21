@@ -77,7 +77,7 @@ cargo xtask test --all
 | `crates/winc-app/src/layout.rs` | 三栏布局：左右两栏的矩形、各面板的槽位、右栏分隔条 | 以我们的布局为准，同时保留上游新增的布局字段 |
 | `crates/winc-app/src/app/workspace/columns.rs` | 面板属于哪一栏、焦点、右栏开关 | 保留上游新增的字段，其余按我们的模型改 |
 | `crates/winc-app/src/app/workspace/switch.rs`、`workspaces.rs` | 工作区登记表与切换逻辑 | 上游若新增与目录相关的状态，记得一并纳入 `WorkspaceSlot` |
-| `crates/winc-app/src/app/workspace/bar.rs`、`place.rs` | 顶栏的工作区切换条 | 上游若改动标签栏的起点，两处都要跟着改 |
+| `crates/winc-app/src/app/workspace/bar.rs`、`place.rs` | 左栏顶部的工作区标签条 | 上游若改动侧栏头部的位置，两处都要跟着改 |
 | `crates/winc-app/src/app/settings/panels.rs`、`layout/settings/panels.rs` | 「面板」设置页 | 上游若新增设置项或改设置页布局，两边都要对齐 |
 | `crates/winc-app/src/app/git/commit.rs`、`view/git/commit/**` | 提交面板改用自己所在栏的卡片 | 提交视图上游改动频繁，冲突时逐处确认裁剪区域 |
 | `crates/winc-app/src/app/input/mouse/target.rs` | 标题栏控件登记为客户区 | 上游若新增顶栏控件，同样要登记，否则在 Windows 上点不动 |

@@ -56,7 +56,7 @@ fn shoot_the_three_columns() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// 截图：顶栏里有两个工作区时的切换条（`shot-workspaces-*`）。
+/// 截图：左栏顶部有两个工作区时的标签条（`shot-workspaces-*`）。
 #[test]
 #[ignore]
 fn shoot_the_workspace_bar() {
@@ -66,6 +66,12 @@ fn shoot_the_workspace_bar() {
     app.open_path(&b);
     paint(&mut app);
     shoot(&mut app, "shot-workspaces");
+
+    // 鼠标停在标签上：右端出现关闭按钮。
+    let chip = app.workspace_bar.chips[1];
+    app.on_mouse_move(chip.rect.x + chip.rect.w / 2.0, chip.rect.y + 4.0);
+    paint(&mut app);
+    shoot(&mut app, "shot-workspaces-hover");
 
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);

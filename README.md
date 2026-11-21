@@ -58,8 +58,8 @@ Several projects live in one window at the same time. Each one keeps its own sta
 expanded state of the file tree, the Git status, and the terminal session — and switching back finds
 everything as it was.
 
-- The projects open in the window are listed at the left of the top bar; click one to switch. The
-  folder button at the end opens another project.
+- The projects open in the window are tabs at the top of the left column; the open one is filled and
+  the others are muted. Click a tab to switch, hover it to close it, drag it to reorder.
 - Opening a folder no longer closes the previous one: it stays as another workspace (turn the mode
   off in the settings to get the old behaviour back).
 - Closing a project closes only that one; the others keep running.
@@ -72,9 +72,12 @@ The window is split into three columns:
 
 | Column | Contents |
 | --- | --- |
-| Left | The file tree and other panels, with the project name and menu on top |
+| Left | The file tree and other panels, with the workspace tabs and the project menu on top |
 | Middle (fixed) | The tab bar, the editor, and the terminal |
 | Right | The Git commit view and other panels |
+
+- The three cards are spaced the same on both sides: the gap between the left column and the editor
+  matches the one between the editor and the right column.
 
 - The panel button at the top right of the window collapses and expands the right column. The button
   stays where it is, so it can be pressed again to bring the column back.
@@ -239,7 +242,7 @@ The secondary development is concentrated in these places:
 | `crates/winc-app/src/app/workspace/columns.rs` | Which column a panel is in, the focus, and the right column's switch |
 | `crates/winc-app/src/app/workspace/workspaces.rs` | The workspace registry and the state of each workspace |
 | `crates/winc-app/src/app/workspace/switch.rs` | Switching, closing, and adding workspaces |
-| `crates/winc-app/src/app/workspace/bar.rs` | The workspace switcher in the top bar |
+| `crates/winc-app/src/app/workspace/bar.rs` | The workspace tabs at the top of the left column |
 | `crates/winc-app/src/app/settings/panels.rs` | The actions of the Panels settings page |
 | `crates/winc-app/src/layout/settings/panels.rs` | The geometry of the Panels settings page |
 | `crates/winc-app/src/view/workspace/columns.rs` | Drawing the two side columns |
