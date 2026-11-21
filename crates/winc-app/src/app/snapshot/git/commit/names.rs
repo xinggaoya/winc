@@ -554,6 +554,8 @@ fn names_that_only_make_room_for_the_buttons_slide_the_buttons_out() {
         return;
     }
     app.git.commit.names.animate_without_window = true;
+    // 提交面板挪到左栏：它的宽度与上游的侧栏一样，名字与按钮的相对位置才与原来一致。
+    commit_in_left_column(&mut app);
     app.run_action(Action::ShowCommit);
     paint(&mut app);
     let status = app.git.status.clone().unwrap();
