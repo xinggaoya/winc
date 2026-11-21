@@ -1219,6 +1219,7 @@ impl App {
     fn drop_drags(&mut self) {
         self.cancel_tree_drag();
         self.cancel_tab_drag();
+        self.release_workspace();
         self.pointer.drag = Drag::None;
         self.pointer.close_pressed = None;
         self.pointer.control_pressed = None;

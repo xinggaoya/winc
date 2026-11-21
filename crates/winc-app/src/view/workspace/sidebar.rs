@@ -38,6 +38,15 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
     for chip in &app.workspace_bar.chips {
         let index = chip.index;
         let rect = chip.rect;
+        // 拖动中的标签跟着鼠标走，位置限制在标签滚动区内。
+        let rect = match app.workspace_bar.drag.filter(|d| d.moving) {
+            Some(d) if d.index == index => {
+                let view = app.workspace_bar.view;
+                let x = (app.mouse().0 - d.grab).clamp(view.x, (view.right() - rect.w).max(view.x));
+                Rect::new(x, rect.y, rect.w, rect.h)
+            }
+            _ => rect,
+        };
         if rect.right() < clip.x || rect.x > clip.right() {
             continue;
         }

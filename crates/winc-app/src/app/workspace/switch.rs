@@ -175,6 +175,29 @@ impl App {
         swap_slot(self, index);
     }
 
+    /// 把第 `from` 号工作区移到第 `to` 号的位置；`to` 是把它移除之后的下标。
+    ///
+    /// 当前工作区跟着走：被移的正是当前工作区时它落到新位置上，其余时候下标相应前移或后移。
+    pub(in crate::app) fn move_workspace(&mut self, from: usize, to: usize) {
+        let count = self.workspaces.slots.len();
+        if from >= count || to >= count || from == to {
+            return;
+        }
+        let slot = self.workspaces.slots.remove(from);
+        self.workspaces.slots.insert(to, slot);
+        let active = self.workspaces.active;
+        self.workspaces.active = if active == from {
+            to
+        } else if from < active && to >= active {
+            active - 1
+        } else if from > active && to < active {
+            active + 1
+        } else {
+            active
+        };
+        self.request_redraw();
+    }
+
     /// 关闭第 `index` 号工作区；关掉的是当前工作区时切到相邻的一个。
     pub(in crate::app) fn close_workspace(&mut self, index: usize) {
         if index >= self.workspaces.slots.len() {

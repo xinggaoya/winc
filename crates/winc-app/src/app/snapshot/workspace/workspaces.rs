@@ -319,3 +319,39 @@ fn closing_the_current_workspace_switches_to_the_neighbour() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 拖动工作区标签可以调整顺序：被拖的工作区跟着当前项走。
+#[test]
+fn dragging_a_workspace_tab_reorders_the_workspaces() {
+    // 名字短，两个标签都能放进左栏顶部那一行。
+    let a = search_folder("wa");
+    let b = search_folder("wb");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    paint(&mut app);
+
+    let name_a = app.workspaces.slots[0].name.clone();
+    let name_b = app.workspaces.slots[1].name.clone();
+    let chips = app.workspace_bar.chips.clone();
+    assert!(chips[0].rect.x >= 0.0, "两个标签都要在可见范围内");
+
+    // 按住第一个标签往右拖，越过第二个标签的中线。
+    app.on_mouse_move(chips[0].rect.x + 4.0, chips[0].rect.y + 4.0);
+    app.on_mouse_down(MouseButton::Left);
+    assert!(app.tabs.drag.is_none(), "与文件标签的拖动互不干扰");
+    app.on_mouse_move(
+        chips[1].rect.x + chips[1].rect.w / 2.0 + 8.0,
+        chips[0].rect.y + 4.0,
+    );
+    app.on_mouse_up(MouseButton::Left);
+    paint(&mut app);
+
+    // 顺序换过来，当前工作区跟着被拖的那个走。
+    assert_eq!(app.workspaces.slots[0].name, name_b);
+    assert_eq!(app.workspaces.slots[1].name, name_a);
+    assert_eq!(app.workspaces.active, 1);
+    assert_eq!(root(&app), winc_config::files::canonicalize(&a).unwrap());
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}

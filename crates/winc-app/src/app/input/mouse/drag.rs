@@ -92,6 +92,9 @@ impl App {
         if self.tabs.drag.is_some() {
             self.drag_tab((x, y));
         }
+        if self.workspace_bar.drag.is_some() {
+            self.drag_workspace((x, y));
+        }
         self.drag_terminal_tab(self.terminal.strip.along((x, y)));
 
         let hover = self.hover_here(x, y);

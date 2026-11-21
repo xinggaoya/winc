@@ -248,8 +248,11 @@ impl App {
                 };
             }
             Target::RightButton => self.toggle_right_column(),
-            // 左栏顶部的工作区标签：点了切到那个工作区。
-            Target::Workspace(index) => self.switch_workspace(index),
+            // 左栏顶部的工作区标签：点了切到那个工作区，并记下拖动的起点。
+            Target::Workspace(index) => {
+                self.switch_workspace(index);
+                self.press_workspace(index, (x, y));
+            }
             // 标签上的关闭按钮：只关掉这一个工作区。
             Target::WorkspaceClose(index) => self.close_workspace(index),
             // 「打开项目」：弹出打开目录的对话框。

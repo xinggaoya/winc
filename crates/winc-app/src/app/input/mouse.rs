@@ -48,6 +48,7 @@ impl App {
         if button == MouseButton::Left {
             self.release_tree_item();
             self.release_tab();
+            self.release_workspace();
         }
 
         if matches!(button, MouseButton::Left | MouseButton::Middle)
