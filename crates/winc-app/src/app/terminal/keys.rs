@@ -8,7 +8,7 @@ impl App {
     /// 画完。
     pub(in crate::app) fn terminal_input(&mut self, bytes: Vec<u8>) {
         let t = &mut self.terminal;
-        let (Some(client), Some(tab)) = (&t.client, t.tabs.get_mut(t.active)) else {
+        let (Some(client), Some(tab)) = (&self.terminal_client, t.tabs.get_mut(t.active)) else {
             return;
         };
         if tab.ended.is_some() || bytes.is_empty() {
@@ -96,7 +96,7 @@ impl App {
                 let id = tab.id;
                 tab.clear_after_copy |= clear;
                 if !t.waiting(id, Request::Copy) {
-                    t.request(id, range, Request::Copy);
+                    t.request(self.terminal_client.as_ref(), id, range, Request::Copy);
                 }
             }
         }
@@ -158,7 +158,7 @@ impl App {
 
     /// ⌘K：清掉屏幕和回滚缓冲，提示符留在第一行。
     pub(in crate::app) fn clear_terminal(&mut self) {
-        if let (Some(client), Some(tab)) = (&self.terminal.client, self.terminal.tab()) {
+        if let (Some(client), Some(tab)) = (&self.terminal_client, self.terminal.tab()) {
             client.send(&ToHelper::Clear { tab: tab.id });
         }
     }

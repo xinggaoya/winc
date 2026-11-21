@@ -61,7 +61,7 @@ use super::unusable;
 use crate::app::input::context_menu::{MenuButton, MenuCommand, MenuTarget, menu_below};
 use crate::app::{AlertButton, App, Focus, GitAnchor, UserEvent};
 use crate::field::TextField;
-use crate::theme::{BUTTON_GAP, SIDEBAR_GAP, SIDEBAR_HEADER, SIDEBAR_LIST_GAP, TOP_BAR_END};
+use crate::theme::{BUTTON_GAP, SIDEBAR_GAP, SIDEBAR_HEADER, SIDEBAR_LIST_GAP};
 
 /// 列表一行的高度（逻辑像素），取侧栏列表统一的行高。
 pub(crate) const COMMIT_ROW: f32 = 24.0;
@@ -1015,55 +1015,6 @@ impl Default for CommitState {
 }
 
 impl App {
-    /// 当前能用的侧栏视图：文件、搜索，Git 模块开着且目录在仓库里时再加提交。
-    pub(crate) fn sidebar_views(&self) -> Vec<crate::layout::SidebarView> {
-        let mut views = crate::layout::BASE_VIEWS.to_vec();
-        if self.git.root.is_some() {
-            views.push(crate::layout::SidebarView::Commit);
-        }
-        views
-    }
-
-    /// 顶栏里各视图切换图标的位置。
-    ///
-    /// 「提交」一段出现、消失途中按比例变窄，消失途中也还在。
-    pub(crate) fn sidebar_tabs(&self) -> Vec<(Rect, crate::layout::SidebarView)> {
-        use crate::layout::SidebarView;
-        let mut views = self.sidebar_views();
-        if !views.contains(&SidebarView::Commit) && self.view_tab_share(SidebarView::Commit) > 0.0 {
-            views.push(SidebarView::Commit);
-        }
-        let views: Vec<_> = views
-            .into_iter()
-            .map(|v| (v, self.view_tab_share(v)))
-            .collect();
-        crate::layout::view_tabs(self.layout.sidebar_button, self.layout.sidebar, &views)
-    }
-
-    /// 视图 `view` 那一段的显示比例：「提交」一段出现、消失途中小于 1。
-    pub(crate) fn view_tab_share(&self, view: crate::layout::SidebarView) -> f32 {
-        match view {
-            crate::layout::SidebarView::Commit => self
-                .motion
-                .module_fx
-                .commit_tab
-                .share(self.git.root.is_some()),
-            _ => 1.0,
-        }
-    }
-
-    /// 侧栏视图切换中 `view` 一段图标的不透明度，0 到 1；只有「提交」一段会出现、消失。
-    pub(crate) fn view_tab_opacity(&self, view: crate::layout::SidebarView) -> f32 {
-        match view {
-            crate::layout::SidebarView::Commit => self
-                .motion
-                .module_fx
-                .commit_tab
-                .opacity(self.git.root.is_some()),
-            _ => 1.0,
-        }
-    }
-
     /// 「提交」视图图标角上的改动文件数；没有改动、还没读到状态时为 `None`。
     pub(crate) fn commit_count_text(&self) -> Option<String> {
         let n = self.git.status.as_ref()?.entries.len();
@@ -1076,8 +1027,8 @@ impl App {
 
     /// 提交视图是否正在显示。
     pub(crate) fn commit_shown(&self) -> bool {
-        self.panels.sidebar.view == crate::layout::SidebarView::Commit
-            && self.layout.sidebar.right() > 0.0
+        // 提交面板在某一栏里就显示着（不论它是哪一栏、当前有没有焦点）。
+        self.panel_slot(winc_config::Panel::Commit).is_some()
     }
 
     /// 是否显示提交卡片：有改动、有进行中的合并或变基、开着「修改上一次提交」或正在提交时显示。
@@ -1361,14 +1312,15 @@ impl App {
             if !self.panels.sidebar.visible {
                 self.set_sidebar(true);
             }
-            self.set_sidebar_view(crate::layout::SidebarView::Commit);
+            self.set_sidebar_view(winc_config::Panel::Commit);
             self.request_redraw();
             return;
         }
         if !self.panels.sidebar.visible {
             self.set_sidebar(true);
         }
-        self.set_sidebar_view(crate::layout::SidebarView::Commit);
+        self.show_panel(winc_config::Panel::Commit);
+        self.set_sidebar_view(winc_config::Panel::Commit);
         self.git_refresh();
         self.focus = self.commit_view_focus();
         self.request_redraw();

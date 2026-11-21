@@ -206,7 +206,7 @@ fn click_diff(app: &mut App, target: crate::app::DiffTarget) {
 fn a_history_diff_lists_its_files_beside_the_diff_and_keeps_the_sidebar() {
     use crate::app::DiffTarget;
     use crate::app::git::log::LogTarget;
-    use crate::layout::SidebarView;
+    use winc_config::Panel;
 
     let Some((mut app, root)) = git_app("git-log-file-panel", false) else {
         return;
@@ -220,13 +220,13 @@ fn a_history_diff_lists_its_files_beside_the_diff_and_keeps_the_sidebar() {
     app.git_refresh();
     show_all_log(&mut app);
     let log_index = app.editor.active.unwrap();
-    app.set_sidebar_view(SidebarView::Commit);
+    app.set_sidebar_view(Panel::Commit);
     app.press_log(LogTarget::File(0));
     app.poll_log();
     paint(&mut app);
 
     // 侧栏没换：仍是提交视图里工作区的改动（未跟踪的文件在其中）。
-    assert_eq!(app.panels.sidebar.view, SidebarView::Commit);
+    assert_eq!(app.panels.sidebar.view, Panel::Commit);
     assert!(app.commit_shown());
     let entries = app.git.status.as_ref().unwrap().entries.iter();
     assert!(

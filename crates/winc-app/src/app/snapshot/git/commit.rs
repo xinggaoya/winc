@@ -353,7 +353,7 @@ fn switching_the_module_off_takes_focus_out_of_the_commit_view() {
     app.run_action(Action::ShowCommit);
     assert_eq!(app.focus, Focus::CommitMessage);
     app.settings_toggle(Setting::GitModule);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Files);
+    assert_eq!(app.panels.sidebar.view, Panel::Files);
     assert_eq!(app.focus, Focus::Editor);
     // 键入的字符不会进入已隐藏的提交信息。
     app.edit_field(|f| f.insert("x"));
@@ -725,7 +725,7 @@ fn the_sidebar_keeps_one_width_across_views() {
     // 切到文件树、搜索还是这个宽度。
     app.show_files();
     assert_eq!(app.panels.sidebar.width, dragged);
-    app.set_sidebar_view(SidebarView::Search);
+    app.set_sidebar_view(Panel::Search);
     assert_eq!(app.panels.sidebar.width, dragged);
 
     // 文件树里拖动，切回提交视图也是拖过的宽度。

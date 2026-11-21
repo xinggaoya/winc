@@ -128,7 +128,7 @@ impl PanelParts {
         summary: bool,
         heights: (f32, f32),
     ) -> PanelParts {
-        let header = Rect::new(panel.x, panel.y, panel.w, SIDEBAR_HEADER);
+        let header = Rect::new(panel.x, panel.y, panel.w, PANEL_HEADER);
         let right = header.right() - 8.0;
         let count = PanelTool::ALL.len();
         let tools =

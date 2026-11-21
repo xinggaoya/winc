@@ -72,6 +72,10 @@ impl App {
         if l.tabs.right() > end {
             l.tabs.w = (end - l.tabs.x).max(0.0);
         }
+        // 右栏开关也在右上角：让到窗口按钮左边。
+        if l.right_button.w > 0.0 {
+            l.right_button.x = end - BUTTON;
+        }
     }
 
     /// 每个窗口按钮的位置。

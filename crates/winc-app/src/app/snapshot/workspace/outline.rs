@@ -10,7 +10,7 @@ use super::*;
 use crate::app::workspace::outline::{OUTLINE_DELAY, OUTLINE_HEADER};
 use crate::app::{OutlineEmpty, OutlineTarget};
 use crate::keymap::Action;
-use crate::layout::SidebarView;
+use winc_config::Panel;
 
 /// 一个类带两个方法，后面是两个顶层函数；方法的行号分别是 1、4，函数是 8、12。
 const PYTHON: &str = "class Path:
@@ -64,7 +64,7 @@ fn the_outline_opens_below_the_file_tree_and_resizes() {
 
     app.run_action(Action::ShowOutline);
     paint(&mut app);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Files);
+    assert_eq!(app.panels.sidebar.view, Panel::Files);
     assert_eq!(app.focus, Focus::Outline);
     assert_eq!(app.outline_list().h, 10.0 * TREE_ROW);
     assert_eq!(

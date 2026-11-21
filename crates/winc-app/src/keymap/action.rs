@@ -205,6 +205,12 @@ pub enum Action {
     FocusSidebar,
     ShowFiles,
     ShowOutline,
+    /// 切到下一个工作区（多工作区模式）。
+    NextWorkspace,
+    /// 切到上一个工作区（多工作区模式）。
+    PreviousWorkspace,
+    /// 关闭当前工作区（多工作区模式）。
+    CloseWorkspace,
     IncreaseFontSize,
     DecreaseFontSize,
     ResetFontSize,
@@ -556,6 +562,9 @@ impl Action {
             FocusSidebar => t!("cmd-focus-sidebar"),
             ShowFiles => t!("cmd-show-files"),
             ShowOutline => t!("cmd-show-outline"),
+            NextWorkspace => t!("cmd-next-workspace"),
+            PreviousWorkspace => t!("cmd-previous-workspace"),
+            CloseWorkspace => t!("cmd-close-workspace"),
             IncreaseFontSize => t!("cmd-increase-font-size"),
             DecreaseFontSize => t!("cmd-decrease-font-size"),
             ResetFontSize => t!("cmd-reset-font-size"),
@@ -798,6 +807,9 @@ impl Action {
             | FocusSidebar
             | ShowFiles
             | ShowOutline
+            | NextWorkspace
+            | PreviousWorkspace
+            | CloseWorkspace
             | IncreaseFontSize
             | DecreaseFontSize
             | ResetFontSize
@@ -1306,6 +1318,9 @@ pub const ACTIONS: &[Action] = {
         FocusSidebar,
         ShowFiles,
         ShowOutline,
+        NextWorkspace,
+        PreviousWorkspace,
+        CloseWorkspace,
         IncreaseFontSize,
         DecreaseFontSize,
         ResetFontSize,

@@ -66,6 +66,7 @@ impl App {
         let l = &self.layout;
         let mut client = vec![
             l.sidebar_button,
+            l.right_button,
             self.tabs.new_tab,
             l.terminal_divider,
             l.split_divider,
@@ -84,7 +85,6 @@ impl App {
                 .iter()
                 .map(|h| h.tab.intersect(self.tabs.view)),
         );
-        client.extend(self.sidebar_tabs().iter().map(|(r, _)| *r));
         client.extend(self.hits.tree_tools.iter().map(|(r, _)| *r));
         client.extend(self.hits.terminal.iter().map(|(r, _)| *r));
         client.extend(self.hits.merge.iter().map(|(r, _)| *r));
@@ -111,6 +111,12 @@ impl App {
         if self.browser_page().is_some() {
             client.push(l.browser);
         }
+        if l.right_splitter.w > 0.0 {
+            client.push(l.right_splitter);
+        }
+        // 顶栏里的工作区按钮和「打开项目」按钮。
+        client.extend(self.workspace_bar.chips.iter().map(|(r, _)| *r));
+        client.push(self.workspace_bar.add);
         client.retain(|r| r.w > 0.0 && r.h > 0.0 && r.y < TOP_BAR_END && r.bottom() > 0.0);
         client
     }
@@ -170,6 +176,7 @@ impl App {
             Target::Scrollbar(..)
                 | Target::Minimap
                 | Target::Splitter
+                | Target::RightSplitter
                 | Target::TerminalDivider
                 | Target::OutlineDivider
                 | Target::SplitDivider
@@ -224,6 +231,10 @@ impl App {
                 .button_at(x, y)
                 .map_or(Hover::None, Hover::Search),
             Target::Splitter => Hover::Splitter,
+            Target::RightSplitter => Hover::RightSplitter,
+            Target::RightButton => Hover::RightButton,
+            Target::Workspace(index) => Hover::Workspace(index),
+            Target::AddWorkspace => Hover::AddWorkspace,
             Target::TreeTool(tool) => Hover::TreeTool(tool),
             Target::ProjectName => Hover::ProjectName,
             Target::SidebarButton => Hover::SidebarButton,
@@ -377,6 +388,21 @@ impl App {
         let over_any = over_row || over_commit_row || over_result_row;
         if self.panels.sidebar.visible && !over_any && l.splitter.contains(x, y) {
             return Target::Splitter;
+        }
+        if l.right_splitter.w > 0.0 && l.right_splitter.contains(x, y) {
+            return Target::RightSplitter;
+        }
+        if l.right_button.contains(x, y) {
+            return Target::RightButton;
+        }
+        // 顶栏里的工作区按钮和「打开项目」按钮。
+        for (rect, index) in &self.workspace_bar.chips {
+            if rect.contains(x, y) {
+                return Target::Workspace(*index);
+            }
+        }
+        if self.workspace_bar.add.contains(x, y) {
+            return Target::AddWorkspace;
         }
         if let Some(tool) = hit(&self.hits.tree_tools, x, y) {
             return Target::TreeTool(tool);
@@ -912,6 +938,7 @@ impl App {
         } else if matches!(
             self.pointer.drag,
             Drag::Splitter { .. }
+                | Drag::RightSplitter { .. }
                 | Drag::LogDivider { .. }
                 | Drag::LogBranches { .. }
                 | Drag::DiffFiles { .. }
@@ -920,6 +947,7 @@ impl App {
         ) || matches!(
             self.pointer.hover,
             Hover::Splitter
+                | Hover::RightSplitter
                 | Hover::SplitDivider
                 | Hover::Log(crate::app::git::log::LogTarget::Divider)
                 | Hover::Log(crate::app::git::log::LogTarget::BranchesEdge)
@@ -998,6 +1026,14 @@ pub(super) enum Target {
     Prompt,
     Search,
     Splitter,
+    /// 编辑区和右栏之间的分隔条。
+    RightSplitter,
+    /// 右栏开关按钮。
+    RightButton,
+    /// 顶栏里的工作区按钮，参数是工作区的下标。
+    Workspace(usize),
+    /// 顶栏里的「打开项目」按钮。
+    AddWorkspace,
     TreeTool(crate::layout::TreeTool),
     ProjectName,
     SidebarButton,

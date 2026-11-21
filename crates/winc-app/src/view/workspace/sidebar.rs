@@ -16,82 +16,32 @@ use crate::app::animation::stage;
 use crate::app::{DropZone, Focus, LabelCause, LabelView, NameInput, TreeMotion};
 use crate::icons::Direction;
 use crate::layout::{
-    SidebarView, TREE_NAME_MIN, TreeTool, folding_tools, hscrollbar_thumb, tree_row_slot,
-    tree_tools,
+    PanelSlot, TreeTool, folding_tools, hscrollbar_thumb, tree_row_slot, tree_tools,
 };
 use crate::theme::SCROLLBAR_HIT;
+use winc_config::Panel;
 
-/// 绘制侧栏：
+/// 绘制左栏的项目名一行：项目、徽章和下拉箭头。
 ///
-/// - 顶栏（窗口按钮和侧栏开关右边）：视图切换图标（文件、搜索、提交），见
-///   [`panel::draw_view_tabs`]；
-/// - 第二行：左边是项目和分支的上下文栏（[`draw_context_bar`]，三个视图都一样），
-///   右端是当前视图的工具按钮；
-/// - 下面是当前视图：文件树（底部是可以展开的大纲，见 [`outline::draw_outline`]）、全局搜索
-///   面板或提交视图。
-pub(in crate::view) fn draw_sidebar(app: &mut App, frame: &mut Frame<'_>) {
-    panel::draw_view_tabs(app, frame);
-
-    if app.panels.sidebar.view == SidebarView::Search {
-        let right = app.panel_parts().tools[0].0.x - 4.0;
-        let bar = ContextBar::new(app, frame);
-        draw_context_bar(app, frame, &bar, right);
-        if let Some(caret) = panel::draw_panel(app, frame) {
-            app.ime.cursor = Some(caret);
-        }
-
-        return;
-    }
-
-    if app.panels.sidebar.view == SidebarView::Commit {
-        draw_commit_view(app, frame);
-        return;
-    }
-
-    draw_project_header(app, frame);
-    draw_tree(app, frame);
-    outline::draw_outline(app, frame);
-}
-
-/// 绘制提交视图：标题行左边是上下文栏，右端是工具按钮，下面是工作区的改动。
-fn draw_commit_view(app: &mut App, frame: &mut Frame<'_>) {
-    // 项目栏的右端在工具按钮之前；上下文栏自己会在右边留出 4 的间距。
-    let right = app.commit_parts().tools[0].0.x - 4.0;
-    let bar = ContextBar::new(app, frame);
-    draw_context_bar(app, frame, &bar, right);
-    if let Some(caret) = git::commit::draw_commit(app, frame) {
-        app.ime.cursor = Some(caret);
-    }
-}
-
-/// 绘制文件视图的第二行：左边是上下文栏（项目、当前分支），右端是文件树工具栏。
-fn draw_project_header(app: &mut App, frame: &mut Frame<'_>) {
+/// 点了项目名弹项目菜单（最近的目录、打开目录、关闭目录）。这一行只在左栏有，右栏不重复。
+pub(in crate::view) fn draw_project_header(app: &mut App, frame: &mut Frame<'_>) {
     let header = app.layout.sidebar_header;
     let bar = ContextBar::new(app, frame);
+    draw_context_bar(app, frame, &bar, header.right() - 8.0);
+}
 
-    // 侧栏变窄时先收工具栏、后截名字：为完整的项目名留出宽度（分支不占宽度：放不下时不再绘制，
-    // 状态栏里始终显示），工具栏放不下时从右向左把按钮收进「⋯」菜单；只剩「⋯」时才截短名字，
-    // 项目名截到最小宽度（`TREE_NAME_MIN`）为止，它是切换目录的入口，必须始终可点击。
-    (app.hits.tree_tools, app.hits.tree_more) = if bar.opened {
-        let only_more = header.right() - 8.0 - BUTTON_SMALL - 4.0;
-        let name_right = (bar.left + bar.project_full() + 8.0)
-            .min(only_more)
-            .max(bar.left + bar.name_offset() + TREE_NAME_MIN);
-        tree_tools(header, name_right)
-    } else {
-        (Vec::new(), None)
-    };
+/// 绘制文件面板：标题行左边是「文件」，右端是文件树工具栏，下面是文件树和底部的大纲。
+pub(in crate::view) fn draw_files_panel(app: &mut App, frame: &mut Frame<'_>, slot: PanelSlot) {
+    let header = slot.header;
+    let title_right = columns::draw_panel_title(app, frame, header, Panel::Files);
+
+    // 侧栏变窄时工具栏放不下，从右向左把按钮收进「⋯」菜单；标题右边留出位置。
+    (app.hits.tree_tools, app.hits.tree_more) = tree_tools(header, title_right + 8.0);
     app.step_tool_fold();
-    let right = app
-        .hits
-        .tree_tools
-        .first()
-        .map(|(button, _)| button.x)
-        .or(app.hits.tree_more.map(|more| more.x))
-        .map_or(header.right() - 8.0, |x| x - 4.0);
+    draw_tree_tools(app, frame, header);
 
-    draw_context_bar(app, frame, &bar, right);
-    draw_tree_tools(app, frame);
+    draw_tree(app, frame);
+    outline::draw_outline(app, frame);
 }
 
 /// 文件树中目录有 Git 改动时，右端圆点的直径（逻辑像素）。
@@ -251,11 +201,9 @@ fn draw_badge(app: &App, frame: &mut Frame<'_>, rect: Rect, project: &str, heade
 ///
 /// 按收起动画的进度排布（`folding_tools`）：收起的按钮滑进「⋯」并淡出，展开时反过来；
 /// 动画途中压到项目名上的部分不绘制。
-fn draw_tree_tools(app: &App, frame: &mut Frame<'_>) {
+fn draw_tree_tools(app: &App, frame: &mut Frame<'_>, header: Rect) {
     let p = app.palette;
-    let header = app.layout.sidebar_header;
-    let left = app.hits.project.right() + BUTTON_GAP;
-    let clip = Rect::new(left, header.y, (header.right() - left).max(0.0), header.h);
+    let clip = Rect::new(header.x, header.y, header.w, header.h);
     let (shown, more_shown) = app.motion.tool_fold.eased();
     let (tools, more) = folding_tools(header, &shown, more_shown);
 
@@ -944,7 +892,7 @@ pub(in crate::view) fn draw_tree_overflow(app: &App, frame: &mut Frame<'_>) {
 /// 绘制鼠标移开后正在收回的名字：不响应点击，收回到侧栏边缘时消失。
 pub(in crate::view) fn draw_tree_overflow_closing(app: &App, frame: &mut Frame<'_>) {
     // 文件树不在显示时不画：动画途中隐藏了侧栏或切换到其他视图。
-    if !app.sidebar_open() || app.panels.sidebar.view != SidebarView::Files {
+    if !app.sidebar_open() || app.panels.sidebar.view != Panel::Files {
         return;
     }
     let Some(ws) = &app.editor.workspace else {

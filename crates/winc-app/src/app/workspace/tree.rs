@@ -313,9 +313,9 @@ impl App {
     pub(in crate::app) fn toggle_sidebar(&mut self) {
         self.set_sidebar(!self.panels.sidebar.visible);
         self.focus = match (self.panels.sidebar.visible, self.panels.sidebar.view) {
-            (true, SidebarView::Files) => Focus::Tree,
-            (true, SidebarView::Search) => Focus::GlobalQuery,
-            (true, SidebarView::Commit) => self.commit_view_focus(),
+            (true, Panel::Files) => Focus::Tree,
+            (true, Panel::Search) => Focus::GlobalQuery,
+            (true, Panel::Commit) => self.commit_view_focus(),
             (false, _) if self.focus == Focus::Terminal => Focus::Terminal,
             (false, _) => Focus::Editor,
         };
@@ -613,7 +613,7 @@ impl App {
         let depth = ws.selected.map(|index| ws.rows()[index].depth);
 
         // 侧栏显示搜索时文件树不在屏幕上，只展开、选中，切回文件树时再滚动到该处。
-        if self.panels.sidebar.view == SidebarView::Search {
+        if self.panels.sidebar.view == Panel::Search {
             return;
         }
 

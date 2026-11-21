@@ -416,7 +416,6 @@ impl App {
         if self.diff.pulse.is_some_and(|c| c.done()) {
             self.diff.pulse = None;
         }
-        settle(&mut self.panels.sidebar.view_slide, |s| s.1);
         settle(&mut self.settings.motion, |m| m.1);
         self.overlays.picker.card.settle();
         self.motion.bar_card.settle();
@@ -538,7 +537,6 @@ impl App {
             || (self.notice.action.as_ref()).is_some_and(|action| action.in_progress())
             || self.diff.fade.is_some()
             || self.diff.pulse.is_some()
-            || self.panels.sidebar.view_slide.is_some()
             || self.settings.motion.is_some()
             || self.overlays.picker.card.motion.is_some()
             || self.motion.bar_card.motion.is_some()

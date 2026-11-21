@@ -387,9 +387,9 @@ fn snapshot_global_search() {
         app.on_mouse_move(row.x + 80.0, row.y + row.h / 2.0);
         shoot(&mut app, &format!("global-replace-{tag}"));
 
-        // 顶部：当前视图是搜索，鼠标停在「文件」上。
-        let (files_tab, _) = app.sidebar_tabs()[0];
-        app.on_mouse_move(files_tab.x + 4.0, files_tab.y + 4.0);
+        // 顶部：当前视图是搜索，鼠标停在项目名上。
+        let project = app.hits.project;
+        app.on_mouse_move(project.x + 4.0, project.y + 4.0);
         app.overlays.tooltip.since = None;
         shoot(&mut app, &format!("global-top-{tag}"));
 

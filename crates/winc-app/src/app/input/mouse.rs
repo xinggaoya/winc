@@ -23,8 +23,8 @@ use crate::app::{
     resize_cursor, tree_max_scroll,
 };
 use crate::layout::{
-    RowAction, Scrollbar, SearchParts, SettingControl, SettingsPart, SidebarView, hit,
-    hscrollbar_thumb, scroll_for_thumb, scrollbar_thumb, settings_thumb, settings_track,
+    RowAction, Scrollbar, SearchParts, SettingControl, SettingsPart, hit, hscrollbar_thumb,
+    scroll_for_thumb, scrollbar_thumb, settings_thumb, settings_track,
 };
 use crate::theme::*;
 
@@ -88,6 +88,13 @@ impl App {
         }
         if button == MouseButton::Left && matches!(self.pointer.drag, Drag::MarkdownText) {
             self.offer_selection_toolbar();
+        }
+        // 「面板」页中拖动的一行：松手时放到落点。
+        if button == MouseButton::Left && matches!(self.pointer.drag, Drag::PanelRow { .. }) {
+            let layout = self.panels_layout();
+            self.drop_panel(&layout);
+            self.settings.panel_drag = None;
+            self.request_redraw();
         }
         self.pointer.drag = Drag::None;
         // 拖动分隔条期间不重新断行（`sync_wrap`）；松开后重绘，重绘前的布局按最终宽度断行。

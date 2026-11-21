@@ -162,7 +162,7 @@ impl App {
                 tab: id,
                 ..TermFind::default()
             });
-            t.request(id, history, Request::Find);
+            t.request(self.terminal_client.as_ref(), id, history, Request::Find);
             // 回滚缓冲是空的：没有要等的。
             if let Some(find) = &mut t.find {
                 find.loaded = history.0 >= history.1;
@@ -233,7 +233,7 @@ impl App {
             find.loaded = history.0 >= history.1;
             t.requests
                 .retain(|&(_, tab, purpose)| (tab, purpose) != (id, Request::Find));
-            t.request(id, history, Request::Find);
+            t.request(self.terminal_client.as_ref(), id, history, Request::Find);
             self.terminal_find_changed();
         }
     }
@@ -306,9 +306,14 @@ impl App {
         let fetched = (find.chunks.last())
             .map_or(history.0, |(start, lines)| start + lines.len() as u64)
             .max(history.0);
-        if fetched < history.1 && find.loaded && t.client.is_some() {
+        if fetched < history.1 && find.loaded && self.terminal_client.is_some() {
             find.fetching = true;
-            t.request(id, (fetched, history.1), Request::Find);
+            t.request(
+                self.terminal_client.as_ref(),
+                id,
+                (fetched, history.1),
+                Request::Find,
+            );
             return;
         }
         // 回滚缓冲里的行不会再变：只重新找上一轮开始之后进入回滚缓冲的行和屏幕上的行。

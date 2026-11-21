@@ -10,7 +10,7 @@ use winc_preview::markdown::paragraph::Kind;
 use super::*;
 use crate::field::TextField;
 use crate::keymap::{Action, Context};
-use crate::layout::{PanelButton, SearchButton, SettingsPage, SidebarView};
+use crate::layout::{PanelButton, SearchButton, SettingsPage};
 
 impl App {
     /// 执行 `action`，返回是否已处理。
@@ -398,6 +398,9 @@ impl App {
             ToggleSidebar => self.toggle_sidebar(),
             FocusSidebar => self.focus_sidebar(),
             ShowFiles => self.show_files(),
+            NextWorkspace => self.cycle_workspace(true),
+            PreviousWorkspace => self.cycle_workspace(false),
+            CloseWorkspace => self.close_workspace(self.workspaces.active),
             IncreaseFontSize => self.step_font_size(Some(true)),
             DecreaseFontSize => self.step_font_size(Some(false)),
             ResetFontSize => self.step_font_size(None),
@@ -643,10 +646,6 @@ impl App {
         if !self.panels.sidebar.visible {
             self.set_sidebar(true);
         }
-        self.focus = match self.panels.sidebar.view {
-            SidebarView::Files => Focus::Tree,
-            SidebarView::Search => Focus::GlobalQuery,
-            SidebarView::Commit => self.commit_view_focus(),
-        };
+        self.focus_panel(self.panels.sidebar.view);
     }
 }

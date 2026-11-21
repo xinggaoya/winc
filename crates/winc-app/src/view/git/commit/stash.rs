@@ -15,7 +15,7 @@ pub(super) fn draw_stashes(
         return;
     };
     let p = app.palette;
-    let clip = app.layout.sidebar.intersect(area);
+    let clip = app.commit_card().intersect(area);
     frame.rect_clipped(
         Rect::new(area.x, area.y, area.w, 1.0),
         p.separator,

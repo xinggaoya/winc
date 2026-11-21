@@ -336,7 +336,7 @@ impl App {
             t.tabs[index].rerun = true;
             // 退出后按这一次的配置启动：配置文件在运行期间可能已修改。
             t.tabs[index].run = Some(config);
-            if let Some(client) = &t.client {
+            if let Some(client) = &self.terminal_client {
                 client.send(&ToHelper::Stop { tab: id });
             }
             self.drop_other_tab_state();
@@ -391,7 +391,7 @@ impl App {
         let t = &mut self.terminal;
         t.tabs[index].rerun = false;
         t.tabs[index].stopped = true;
-        if let Some(client) = &t.client {
+        if let Some(client) = &self.terminal_client {
             client.send(&ToHelper::Stop {
                 tab: t.tabs[index].id,
             });
@@ -514,7 +514,7 @@ impl App {
             let (Some(from), Some(to)) = (t.index_of(new), t.index_of(old)) else {
                 continue;
             };
-            if let Some(client) = &t.client {
+            if let Some(client) = &self.terminal_client {
                 client.send(&ToHelper::Close { tab: old });
             }
             let tab = t.tabs.remove(from);

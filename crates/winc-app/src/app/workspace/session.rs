@@ -49,6 +49,11 @@ impl App {
             self.switch_folder(&target);
             return;
         }
+        // 多工作区模式：打开另一个目录时，它成了这个窗口里的另一个工作区，可以随时切回去。
+        if self.multi_workspace() && self.config.open_folder_in_new_window != Some(true) {
+            self.open_workspace(&target);
+            return;
+        }
         match self.config.open_folder_in_new_window {
             Some(true) => self.new_window(Some(target)),
             Some(false) => self.switch_folder(&target),
@@ -121,6 +126,12 @@ impl App {
             return;
         }
 
+        // 多工作区模式：换目录就是换工作区，原来的那个还开着，随时能切回去。
+        if self.multi_workspace() && self.editor.root().is_some_and(|root| root != target) {
+            self.open_workspace(&target);
+            return;
+        }
+
         match self.editor.root().map(Path::to_path_buf) {
             Some(root) if root == target => self.show_files(),
             // 终端随原目录一起关掉（标签记入原目录的现场），有程序在运行时先确认。
@@ -155,9 +166,9 @@ impl App {
         self.apply_compact_folders();
         self.folder_opened();
         self.focus = match self.panels.sidebar.view {
-            SidebarView::Files => Focus::Tree,
-            SidebarView::Search => Focus::GlobalQuery,
-            SidebarView::Commit => self.commit_view_focus(),
+            Panel::Files => Focus::Tree,
+            Panel::Search => Focus::GlobalQuery,
+            Panel::Commit => self.commit_view_focus(),
         };
 
         let Some(root) = self.editor.root().map(Path::to_path_buf) else {
@@ -198,6 +209,7 @@ impl App {
         self.relayout();
         self.ensure_caret_visible();
         self.reset_blink();
+        self.register_workspace();
         self.request_redraw();
     }
 
@@ -211,8 +223,7 @@ impl App {
         self.reset_folder_views();
         self.watch_folder();
         self.set_sidebar(true);
-        if self.panels.sidebar.view == SidebarView::Search
-            && !self.panels.global.query.text().is_empty()
+        if self.panels.sidebar.view == Panel::Search && !self.panels.global.query.text().is_empty()
         {
             self.run_global_search();
         }
@@ -224,6 +235,9 @@ impl App {
     ///
     /// 打开目录时为应对进程异常中止而记下的 `last` 一并清除：之后再中止，下次启动是开始页。
     pub(in crate::app) fn close_folder_now(&mut self) {
+        // 窗口里没有工作区了：登记表也清空。
+        self.workspaces.slots.clear();
+        self.workspaces.active = 0;
         // `last` 是别的 winc 进程写的（指向别的目录）时不动，该进程异常中止后仍需用它恢复。
         if let Some(root) = self.editor.root().map(Path::to_path_buf) {
             self.update_state(|state| {
@@ -248,7 +262,7 @@ impl App {
     ///
     /// 包括输入框和浮层、全局搜索结果、`⌘P` 面板的文件表、文件树的滚动位置和动画、
     /// 已关闭标签的记录（`⇧⌘T`）以及后退前进历史。
-    fn reset_folder_views(&mut self) {
+    pub(in crate::app) fn reset_folder_views(&mut self) {
         // 输入框和浮层中保存的行号、路径属于旧目录，在新目录中无效。
         self.panels.name_input = None;
         self.bars.goto_input = None;

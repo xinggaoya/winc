@@ -35,7 +35,7 @@ pub(super) fn draw_worktrees(
         return;
     };
     let p = app.palette;
-    let clip = app.layout.sidebar.intersect(area);
+    let clip = app.commit_card().intersect(area);
     let line = Rect::new(area.x, area.y, area.w, 1.0);
     frame.rect_clipped(line, p.separator, 0.0, clip);
     let size = app.fonts.ui_small;

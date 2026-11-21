@@ -9,6 +9,7 @@ use winc_i18n::t;
 mod about;
 mod controls;
 mod keys;
+pub(crate) mod panels;
 
 pub use about::*;
 pub use controls::*;
@@ -30,6 +31,8 @@ pub enum SettingsPage {
     Terminal,
     /// 模块：可选模块的开关。
     Modules,
+    /// 面板：左右两栏里各有哪些面板、顺序，以及右栏的宽度。
+    Panels,
     /// 快捷键：只列出键位，不含设置项，整页由 [`KeysLayout`] 单独布局。
     Keys,
     /// 关于：版本和应用内更新。
@@ -45,13 +48,14 @@ pub struct Modules {
 
 impl SettingsPage {
     /// 全部分类，顺序与分类栏从上到下的顺序一致。
-    pub const ALL: [SettingsPage; 8] = [
+    pub const ALL: [SettingsPage; 9] = [
         SettingsPage::Appearance,
         SettingsPage::Editor,
         SettingsPage::Format,
         SettingsPage::Git,
         SettingsPage::Terminal,
         SettingsPage::Modules,
+        SettingsPage::Panels,
         SettingsPage::Keys,
         SettingsPage::About,
     ];
@@ -74,6 +78,7 @@ impl SettingsPage {
             SettingsPage::Git => t!("settings-page-git"),
             SettingsPage::Terminal => t!("settings-page-terminal"),
             SettingsPage::Modules => t!("settings-page-modules"),
+            SettingsPage::Panels => t!("settings-page-panels"),
             SettingsPage::Keys => t!("settings-page-keys"),
             SettingsPage::About => t!("settings-page-about"),
         }
@@ -224,7 +229,7 @@ impl SettingsPage {
                 });
                 sections
             }
-            SettingsPage::Keys => Vec::new(),
+            SettingsPage::Keys | SettingsPage::Panels => Vec::new(),
             SettingsPage::About => vec![
                 plain(vec![Setting::Version]),
                 plain(vec![
@@ -247,6 +252,8 @@ impl SettingsPage {
     pub fn first(self) -> Setting {
         match self {
             SettingsPage::Keys => Setting::KeySearch,
+            // 「面板」页没有设置项，整页单独布局。
+            SettingsPage::Panels => Setting::MultiWorkspace,
             page => page.sections(&ToolLanguages::default())[0].items[0],
         }
     }
@@ -314,6 +321,8 @@ pub enum Setting {
     Minimap,
     /// 文件视图底部的大纲。
     Outline,
+    /// 多工作区模式：同一个窗口里同时打开多个项目，随时切换。
+    MultiWorkspace,
     /// 显示行号。
     LineNumbers,
     /// 差异单栏显示。
@@ -476,6 +485,8 @@ impl Setting {
             .flat_map(|page| match page {
                 // 「快捷键」页没有设置项，移动到该页即选中该页的搜索框。
                 SettingsPage::Keys => vec![Setting::KeySearch],
+                // 「面板」页整页单独布局，页里只有「多工作区模式」这一个开关。
+                SettingsPage::Panels => vec![Setting::MultiWorkspace],
                 page => page
                     .sections(languages)
                     .into_iter()
@@ -575,6 +586,7 @@ impl Setting {
                 SettingsPage::Modules
             }
             Setting::KeySearch => SettingsPage::Keys,
+            Setting::MultiWorkspace => SettingsPage::Panels,
         }
     }
 
@@ -617,6 +629,7 @@ impl Setting {
             Setting::BackgroundFit => t!("settings-background-fit"),
             Setting::BackgroundOpacity => t!("settings-background-opacity"),
             Setting::Outline => t!("settings-outline"),
+            Setting::MultiWorkspace => t!("settings-multi-workspace"),
             Setting::CompactFolders => t!("settings-compact-folders"),
             Setting::PreviewOnClick => t!("settings-preview-on-click"),
             Setting::RemoteImages => t!("settings-remote-images"),
@@ -698,6 +711,7 @@ impl Setting {
             Setting::WordWrap => Some(t!("settings-word-wrap-desc")),
             Setting::WholeLines => Some(t!("settings-whole-lines-desc")),
             Setting::Outline => Some(t!("settings-outline-desc")),
+            Setting::MultiWorkspace => Some(t!("settings-multi-workspace-desc")),
             Setting::CompactFolders => Some(t!("settings-compact-folders-desc")),
             Setting::PreviewOnClick => Some(t!("settings-preview-on-click-desc")),
             Setting::Minimap => Some(t!("settings-minimap-desc")),
@@ -782,6 +796,7 @@ impl Setting {
             | Setting::WholeLines
             | Setting::Minimap
             | Setting::Outline
+            | Setting::MultiWorkspace
             | Setting::LineNumbers
             | Setting::DiffInline
             | Setting::StatusBar
@@ -1032,6 +1047,10 @@ pub enum SettingsPart {
     Copy(Setting),
     /// 点击后在浏览器中打开的链接。
     Link(Setting),
+    /// 「面板」页中某一行行首的拖动把手。
+    PanelHandle(winc_config::Panel),
+    /// 「面板」页中某一行的按钮。
+    PanelButton(crate::app::settings::panels::PanelButton),
     /// 「快捷键」页的搜索框。
     KeySearch,
     /// 搜索框右端的「录制按键」。

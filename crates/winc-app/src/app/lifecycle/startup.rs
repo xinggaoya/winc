@@ -42,6 +42,24 @@ impl App {
             cap_height: 9.0,
         };
         let panel_visible = editor.workspace.is_some();
+        // 左右两栏里各有哪些面板：配置里没写时用默认的排法。
+        let panel_layout = crate::app::workspace::PanelLayout {
+            left: config
+                .panels_left
+                .clone()
+                .unwrap_or_else(|| winc_config::Panel::DEFAULT_LEFT.to_vec()),
+            right: config
+                .panels_right
+                .clone()
+                .unwrap_or_else(|| winc_config::Panel::DEFAULT_RIGHT.to_vec()),
+            right_width: config
+                .panel_right_width
+                .unwrap_or(winc_config::Config::PANEL_RIGHT_WIDTH)
+                .clamp(
+                    *winc_config::Config::PANEL_WIDTH_RANGE.start(),
+                    *winc_config::Config::PANEL_WIDTH_RANGE.end(),
+                ),
+        };
         // 主题以配置为准；配置中没有时参考环境变量 `WINC_THEME`（见 `forced_theme`）。
         let theme_choice = config.theme.unwrap_or(ThemeChoice::Auto);
         let vim = (config.vim_enabled == Some(true)).then(Box::default);
@@ -49,6 +67,7 @@ impl App {
         Self {
             editor,
             terminal: terminal::TerminalPanel::default(),
+            terminal_client: None,
             run: terminal::run::RunConfigs::default(),
             store: crate::app::settings::Store {
                 saved_config: config.clone(),
@@ -133,12 +152,16 @@ impl App {
             release_notes: Default::default(),
             wallpaper: Default::default(),
             key_path: Default::default(),
+            workspaces: Default::default(),
+            workspace_bar: Default::default(),
             panels: crate::app::workspace::Panels {
                 tree: Default::default(),
                 sidebar: workspace::Sidebar {
                     visible: panel_visible,
                     ..Default::default()
                 },
+                layout: panel_layout,
+                right_hidden: false,
                 file_hover: None,
                 name_input: None,
                 global: GlobalSearch::default(),
@@ -237,6 +260,7 @@ impl App {
                 activation: None,
             },
         }
+        .with_workspace()
     }
 
     /// 注册 macOS 的系统回调：菜单栏的「设置…」「更新日志」、右键菜单和目录菜单的选中项、`⌘Q`

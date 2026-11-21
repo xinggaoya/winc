@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// 分段控件里相邻两段之间的缝（逻辑像素）：选中一段凸起时与旁边一段分开，不贴在一起。
+pub(super) const SEGMENT_SPACING: f32 = 2.0;
+
 /// 返回字体输入框 `control` 右端下拉按钮的位置。
 pub(crate) fn font_menu_button(control: Rect) -> Rect {
     const WIDTH: f32 = 26.0;

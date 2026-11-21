@@ -40,10 +40,6 @@ impl TreeTool {
     }
 }
 
-/// 项目名（含箭头）所占宽度的下限（逻辑像素）：侧栏最窄时仍要露出名字的开头和折叠箭头，
-/// 工具栏不占用这部分宽度。
-pub const TREE_NAME_MIN: f32 = 48.0;
-
 /// 返回文件树工具栏的按钮布局：位于项目名所在行的右端，从左到右依次是新建文件、新建目录、刷新、
 /// 全部折叠、定位。
 ///
@@ -123,35 +119,6 @@ pub fn folded_tools(kept: usize) -> &'static [TreeTool] {
     &TreeTool::ALL[kept.min(TreeTool::ALL.len())..]
 }
 
-/// 侧栏显示的内容：文件树、全局搜索，或 Git 的提交视图。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SidebarView {
-    /// 文件树。
-    #[default]
-    Files,
-    /// 全局搜索面板。
-    Search,
-    /// Git 的提交视图：改动列表、提交信息。
-    ///
-    /// 只在 Git 模块开着、目录在仓库里时有。
-    Commit,
-}
-
-impl SidebarView {
-    /// 返回悬停提示文字（含快捷键）。
-    pub fn label(self) -> String {
-        match self {
-            SidebarView::Files => with_key(t!("workspace-sidebar-files"), Some(Action::ShowFiles)),
-            SidebarView::Search => {
-                with_key(t!("workspace-sidebar-search"), Some(Action::FindInFiles))
-            }
-            SidebarView::Commit => {
-                with_key(t!("workspace-sidebar-commit"), Some(Action::ShowCommit))
-            }
-        }
-    }
-}
-
 /// 红绿灯右端距窗口左边缘的距离（逻辑像素），以 `f32` 的位存放；见 [`TRAFFIC_LIGHTS_END`]。
 static LIGHTS_END: AtomicU32 = AtomicU32::new(TRAFFIC_LIGHTS_END.to_bits());
 
@@ -166,9 +133,6 @@ pub fn set_traffic_lights_end(end: f32) -> bool {
     LIGHTS_END.swap(end.to_bits(), Ordering::Relaxed) != end.to_bits()
 }
 
-/// 总是有的两个侧栏视图。
-pub const BASE_VIEWS: [SidebarView; 2] = [SidebarView::Files, SidebarView::Search];
-
 /// 返回红绿灯右侧第一个按钮的左边缘：侧栏收起时是侧栏开关，展开时是侧栏顶部的「文件」切换。
 ///
 /// 两个按钮里的图标宽度不同（16 和 14），因此按图标可见的左边缘对齐，而不是按按钮对齐：侧栏
@@ -180,47 +144,4 @@ pub(in crate::layout) fn first_button_x(icon_width: f32) -> f32 {
     } else {
         ISLAND_MARGIN + 8.0
     }
-}
-
-/// 视图切换（分段控件）里一段的宽度（逻辑像素）：图标左右宽松，段与段之间隔
-/// [`SEGMENT_SPACING`]，外面的底槽每边再宽 2。
-pub const SEGMENT_W: f32 = 28.0;
-/// 视图切换里一段的高度（逻辑像素）：22 高的横条，图标上下各留 4。
-pub const SEGMENT_H: f32 = 22.0;
-/// 分段控件里相邻两段之间的缝：选中一段凸起时与旁边一段分开，不贴在一起。
-pub const SEGMENT_SPACING: f32 = 2.0;
-/// 视图切换和侧栏开关之间至少隔多远（侧栏最窄时）。
-pub const SEGMENT_GAP: f32 = 6.0;
-
-/// 返回顶栏里视图切换（「文件」「搜索」以及模块提供的视图）每一段的位置，顺序同 `views`：
-/// 分段控件靠侧栏 `sidebar` 的右端（离右边 8 像素，与第二行右端的按钮对齐），侧栏窄到挨着
-/// 侧栏开关 `toggle` 时停在开关右边 [`SEGMENT_GAP`] 处，与开关垂直居中对齐。
-///
-/// 每一段带一个显示比例（0–1），平时是 1：模块的视图出现、消失途中，对应的一段和前面的缝
-/// 按比例变窄，底槽跟着伸缩，整个控件仍靠右；超出侧栏的部分由调用方裁掉。
-pub fn view_tabs(
-    toggle: Rect,
-    sidebar: Rect,
-    views: &[(SidebarView, f32)],
-) -> Vec<(Rect, SidebarView)> {
-    // 每段前面的缝；第一段前面没有。
-    let gap = |i: usize| if i == 0 { 0.0 } else { SEGMENT_SPACING };
-    let widths = views
-        .iter()
-        .enumerate()
-        .map(|(i, v)| (SEGMENT_W + gap(i)) * v.1);
-    let track_w = widths.sum::<f32>() + 4.0;
-    let left = (sidebar.right() - 8.0 - track_w).max(toggle.right() + SEGMENT_GAP) + 2.0;
-    let y = toggle.y + (toggle.h - SEGMENT_H) / 2.0;
-    let mut x = left;
-    views
-        .iter()
-        .enumerate()
-        .map(|(i, &(view, share))| {
-            x += gap(i) * share;
-            let rect = Rect::new(x, y, SEGMENT_W * share, SEGMENT_H);
-            x += rect.w;
-            (rect, view)
-        })
-        .collect()
 }

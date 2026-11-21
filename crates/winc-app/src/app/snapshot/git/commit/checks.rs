@@ -79,9 +79,9 @@ fn commit_view_commits_only_the_checked_files() {
     if git_unusable(&app) {
         return;
     }
-    assert_eq!(app.sidebar_views().last(), Some(&SidebarView::Commit));
+    assert_eq!(app.sidebar_views().last(), Some(&Panel::Commit));
     assert!(app.run_action(Action::ShowCommit));
-    assert_eq!(app.panels.sidebar.view, SidebarView::Commit);
+    assert_eq!(app.panels.sidebar.view, Panel::Commit);
     assert_eq!(app.focus, Focus::CommitMessage);
     paint(&mut app);
 

@@ -1,20 +1,21 @@
 //! 各区域的点击：全局搜索面板、设置浮层、快速打开、输入框、文件树、编辑区。
 
 use super::*;
+use winc_config::Panel;
 
 impl App {
     /// 返回侧栏顶部切换按钮和搜索面板中的悬停目标；不在这些位置时返回 `None`。
     pub(super) fn panel_hover_at(&self, x: f32, y: f32) -> Option<Hover> {
-        let sidebar = self.layout.sidebar;
-
         let spilled = self.in_commit_overflow(x, y) || self.in_result_overflow(x, y);
-        if sidebar.right() <= 0.0 || !(sidebar.contains(x, y) || spilled) {
+        // 左右两栏：点在其中一栏里（或溢出到栏外的行）才算。
+        let left = self.layout.sidebar;
+        let right = self.layout.right;
+        let in_left = left.right() > 0.0 && (left.contains(x, y) || spilled);
+        let in_right = right.x < self.layout.window.right() && (right.contains(x, y) || spilled);
+        if !in_left && !in_right {
             return None;
         }
 
-        if let Some(view) = hit(&self.sidebar_tabs(), x, y) {
-            return Some(Hover::ViewTab(view));
-        }
         // 第二行的项目和分支，三个视图都一样。
         if self.hits.project.contains(x, y) {
             return Some(Hover::ProjectName);
@@ -28,8 +29,9 @@ impl App {
             return Some(hit(&self.hits.outline, x, y).map_or(Hover::None, Hover::Outline));
         }
 
-        // 提交视图：输入框之外按绘制时记下的位置找。
-        if self.commit_shown() && y >= self.panel_rect().y {
+        // 提交面板：输入框之外按绘制时记下的位置找。
+        let commit = self.panel_card(Panel::Commit);
+        if self.commit_shown() && (commit.contains(x, y) || self.in_commit_overflow(x, y)) {
             // 分隔条由 `Target::Splitter` 处理，写全名的那一行除外：该行覆盖在分隔条之上。
             if self.on_splitter_outside_commit_overflow(x, y) {
                 return None;
@@ -39,7 +41,7 @@ impl App {
 
         // 面板只负责顶栏以下、分隔条以左的区域；侧栏开关和分隔条由后面的判断处理。写全名的结果行
         // 覆盖在分隔条和滚动条之上，伸出侧栏的那一段同样属于这一行。
-        let panel = self.panel_rect();
+        let panel = self.panel_card(Panel::Search);
         let over_overflow = self.over_result_overflow_row(y);
         let on_splitter =
             self.panels.sidebar.visible && self.layout.splitter.contains(x, y) && !over_overflow;
@@ -141,6 +143,10 @@ impl App {
 
         match part {
             Some(SettingsPart::Close) => self.close_settings(),
+            // 「面板」页：行尾的按钮。
+            Some(SettingsPart::PanelButton(button)) => self.press_panel_layout_button(button),
+            // 「面板」页：按住把手开始拖动，松手放到落点。
+            Some(SettingsPart::PanelHandle(panel)) => self.start_panel_drag(panel, y),
             Some(SettingsPart::Page(page)) => self.settings_show_page(page),
             Some(SettingsPart::Field(setting)) => {
                 self.settings.selected = setting;
@@ -283,23 +289,15 @@ impl App {
 
     /// 是否已处理对侧栏顶部切换按钮或搜索面板的点击。
     pub(super) fn click_panel(&mut self, x: f32, y: f32) -> bool {
-        let sidebar = self.layout.sidebar;
-
         let spilled = self.in_commit_overflow(x, y) || self.in_result_overflow(x, y);
-        if sidebar.right() <= 0.0 || !(sidebar.contains(x, y) || spilled) {
+        let left = self.layout.sidebar;
+        let right = self.layout.right;
+        let in_left = left.right() > 0.0 && (left.contains(x, y) || spilled);
+        let in_right = right.x < self.layout.window.right() && (right.contains(x, y) || spilled);
+        if !in_left && !in_right {
             return false;
         }
 
-        // 点击切换按钮：已在该页时也把焦点交给它（文件树或搜索输入框）。
-        if let Some(view) = hit(&self.sidebar_tabs(), x, y) {
-            match view {
-                SidebarView::Files => self.show_files(),
-                SidebarView::Search => self.open_global_search(false),
-                SidebarView::Commit => self.show_commit(),
-            }
-
-            return true;
-        }
         if self.hits.project.contains(x, y) {
             self.open_project_menu();
             return true;
@@ -318,7 +316,8 @@ impl App {
             return true;
         }
 
-        if self.commit_shown() && y >= self.panel_rect().y {
+        let commit = self.panel_card(Panel::Commit);
+        if self.commit_shown() && (commit.contains(x, y) || self.in_commit_overflow(x, y)) {
             if self.on_splitter_outside_commit_overflow(x, y) {
                 return false;
             }
@@ -332,7 +331,8 @@ impl App {
             return true;
         }
 
-        if !self.panel_shown() || (y < self.panel_rect().y) {
+        let search = self.panel_card(Panel::Search);
+        if !self.panel_shown() || !(search.contains(x, y) || self.in_result_overflow(x, y)) {
             return false;
         }
 

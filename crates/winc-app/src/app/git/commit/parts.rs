@@ -1,6 +1,7 @@
 //! 提交视图的布局：标题行、分支行、更改列表、提交卡片各自的位置。
 
 use super::*;
+use crate::layout::PANEL_HEADER;
 
 impl App {
     /// 计算提交视图的布局。
@@ -8,9 +9,8 @@ impl App {
     /// 自上而下依次为标题行、分支行、说明条（有进行中的操作时）、改动列表、工作树、储藏、提交
     /// 卡片和尚未推送的上一次提交。
     pub(crate) fn commit_parts(&self) -> CommitParts {
-        let s = self.layout.sidebar;
-        let panel = Rect::new(s.x, TOP_BAR_END, s.w, (s.bottom() - TOP_BAR_END).max(0.0));
-        let header = Rect::new(panel.x, panel.y, panel.w, SIDEBAR_HEADER);
+        let panel = self.panel_card(winc_config::Panel::Commit);
+        let header = Rect::new(panel.x, panel.y, panel.w, PANEL_HEADER);
         let tool = |i: usize| {
             let x = header.right() - 8.0 - (3 - i) as f32 * TOOL;
             Rect::new(x, header.y + (header.h - TOOL) / 2.0, TOOL, TOOL)

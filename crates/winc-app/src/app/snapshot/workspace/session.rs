@@ -232,26 +232,26 @@ fn switching_folders_keeps_each_folders_tabs() {
             .collect()
     };
 
-    // 切换到目录 B：A 的标签关闭；B 没有打开过，因此没有标签。
+    // 切换到目录 B：多工作区模式下 B 是另一个工作区，B 没有打开过，因此没有标签。
     app.open_path(&b);
     let root_b = app.editor.workspace.as_ref().unwrap().root.clone();
     assert_ne!(root_a, root_b);
     assert!(app.editor.documents.is_empty());
     app.open_path(&root_b.join("a.txt"));
 
-    // 有未保存的修改时先询问；取消则仍停留在 B。
+    // 有未保存的修改时切回 A：修改留在 A 的工作区里，不询问、不丢。
     app.run(Command::Insert("x".into()));
     app.open_path(&root_a);
-    assert!(app.closing.prompt.is_some());
-    app.answer_save_prompt(SaveChoice::Cancel);
-    assert_eq!(app.editor.workspace.as_ref().unwrap().root, root_b);
-
-    // 不保存：回到 A，A 的标签和当前标签都恢复。
-    app.open_path(&root_a);
-    app.answer_save_prompt(SaveChoice::Discard);
+    assert!(app.closing.prompt.is_none());
     assert_eq!(app.editor.workspace.as_ref().unwrap().root, root_a);
     assert_eq!(names(&app), ["main.rs", "Cargo.toml"]);
     assert_eq!(app.editor.active().unwrap().name(), "Cargo.toml");
+
+    // 切回 B：B 的标签还在。
+    app.open_path(&root_b);
+    assert_eq!(app.editor.workspace.as_ref().unwrap().root, root_b);
+    assert_eq!(names(&app), ["a.txt"]);
+    app.open_path(&root_a);
 
     // 项目名菜单：最近的目录（不含当前目录）、新建窗口、打开目录、添加目录、关闭目录。菜单开着时项目名
     // 按钮处于按下状态，关掉菜单后放开。
@@ -352,14 +352,19 @@ fn switching_folders_keeps_each_folders_tabs() {
     assert_eq!(label.subtitle.as_deref(), Some(parent.as_str()));
     app.state.forget(&twin);
 
-    // 从菜单切换到 B：B 的 `a.txt` 恢复（之前未保存的修改已放弃），项目名按钮放开。
+    // 从菜单切换到 B：B 的 `a.txt` 恢复（未保存的修改还留在 B 的工作区里），项目名按钮放开。
     app.run_menu_command(MenuCommand::OpenRecent(b_index));
     assert_eq!(app.overlays.menu_button, None);
     assert_eq!(app.editor.workspace.as_ref().unwrap().root, root_b);
     assert_eq!(names(&app), ["a.txt"]);
-    assert!(!app.editor.active().unwrap().is_dirty());
+    assert!(app.editor.active().unwrap().is_dirty());
 
-    // 关闭目录：回到开始页，侧栏收起。
+    // 关闭目录：多工作区模式下关掉的是当前工作区，切到另一个。
+    app.open_project_menu();
+    app.run_menu_command(MenuCommand::CloseFolder);
+    assert_eq!(app.editor.workspace.as_ref().unwrap().root, root_a);
+
+    // 只剩一个工作区时关闭目录：回到开始页，侧栏收起。
     app.open_project_menu();
     app.run_menu_command(MenuCommand::CloseFolder);
     assert!(app.editor.workspace.is_none() && app.editor.documents.is_empty());

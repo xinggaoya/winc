@@ -662,16 +662,16 @@ fn switching_folders_keeps_the_commit_view_while_there_is_a_repository() {
     }
     app.run_action(Action::ShowCommit);
     paint(&mut app);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Commit);
+    assert_eq!(app.panels.sidebar.view, Panel::Commit);
 
     // 换到另一个仓库：还在提交视图，焦点在提交信息里。
     app.switch_folder(&second);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Commit);
+    assert_eq!(app.panels.sidebar.view, Panel::Commit);
     assert_eq!(app.focus, Focus::CommitMessage);
 
     // 换到不是仓库的目录：没有提交视图了，回到文件树。
     app.switch_folder(&plain);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Files);
+    assert_eq!(app.panels.sidebar.view, Panel::Files);
     assert_eq!(app.focus, Focus::Tree);
     for dir in [first, second, plain] {
         let _ = std::fs::remove_dir_all(&dir);

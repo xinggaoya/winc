@@ -52,8 +52,7 @@ use overlays::{
 };
 use status::draw_status;
 use workspace::sidebar::{
-    draw_sidebar, draw_sidebar_button, draw_tree_overflow, draw_tree_overflow_closing,
-    tree_overflow,
+    draw_sidebar_button, draw_tree_overflow, draw_tree_overflow_closing, tree_overflow,
 };
 use workspace::top_bar::{draw_top_bar, draw_window_controls};
 
@@ -61,10 +60,12 @@ use workspace::top_bar::{draw_top_bar, draw_window_controls};
 ///
 /// `App::declare_base` 事先向渲染器声明，使其随窗口背景色一趟绘制（见 [`Frame::base`]）。
 /// 侧栏收起时其矩形位于窗口之外。
-pub(crate) fn base(app: &App) -> [(Rect, Color); 3] {
+pub(crate) fn base(app: &App) -> [(Rect, Color); 4] {
     let (l, p) = (&app.layout, app.palette);
     [
         (l.sidebar, p.sidebar_bg),
+        // 右栏收起时整张卡片在窗口外面，不会画出来。
+        (l.right, p.sidebar_bg),
         (l.top_bar, p.editor_bg),
         // 拆分后编辑区只是前台窗格的那一块：底色铺满整个卡片。
         (app.panes.card.unwrap_or(l.editor), p.editor_bg),
@@ -140,8 +141,8 @@ pub fn draw(app: &mut App, frame: &mut Frame<'_>) {
 
     app.begin_scrollbars();
 
-    if layout.sidebar.right() > 0.0 {
-        draw_sidebar(app, frame);
+    if layout.sidebar.right() > 0.0 || layout.right.x < layout.window.right() {
+        workspace::columns::draw_columns(app, frame);
     }
     // 本帧没有绘制工具栏（侧栏收起或处于搜索视图）时，收起动画直接结束，不需要额外一帧。
     if app.hits.tree_tools.is_empty() && app.hits.tree_more.is_none() {
@@ -158,8 +159,10 @@ pub fn draw(app: &mut App, frame: &mut Frame<'_>) {
         round_editor_corners(app, frame);
     }
     terminal::draw_terminal(app, frame);
-    // 侧栏开关和窗口按钮画在终端之上：面板在右边、最大化且侧栏收起时伸到它们下面。
+    // 侧栏开关、右栏开关和窗口按钮画在终端之上：面板在右边、最大化且侧栏收起时伸到它们
+    // 下面。右栏开关压在卡片的圆角上，画在圆角之后。
     draw_sidebar_button(app, frame);
+    workspace::columns::draw_right_button(app, frame);
     draw_window_controls(app, frame);
     draw_status(app, frame);
     draw_island_corners(app, frame, !covered);
@@ -273,6 +276,9 @@ fn draw_island_corners(app: &App, frame: &mut Frame<'_>, editor: bool) {
 
     if l.sidebar.right() > 0.0 {
         frame.round_corners(l.sidebar, RADIUS_ISLAND, p.frame_bg);
+    }
+    if l.right.x < l.window.right() {
+        frame.round_corners(l.right, RADIUS_ISLAND, p.frame_bg);
     }
     if editor {
         round_editor_corners(app, frame);
@@ -513,6 +519,12 @@ fn field_box(
 fn sidebar_span(app: &App) -> Rect {
     let s = app.layout.sidebar;
     Rect::new(s.x, TOP_BAR_END, s.w, (s.bottom() - TOP_BAR_END).max(0.0))
+}
+
+/// 提交面板所在那一栏的纵向范围：面板卡片的上沿到下沿。
+fn commit_span(app: &App) -> Rect {
+    let s = app.commit_card();
+    Rect::new(s.x, s.y, s.w, s.h.max(0.0))
 }
 
 /// 绘制列表为空时（没有结果、没有更改、尚无提交）的说明文字。

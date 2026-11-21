@@ -140,6 +140,18 @@ pub(crate) struct PanelMotion {
     pub clock: Clock,
 }
 
+/// 终端标签编号的计数器：整个进程共用一个。
+///
+/// 辅助进程由窗口共用，多个工作区的终端标签都挂在它上面，编号不能重号。
+static NEXT_TERM_ID: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
+
+/// 取下一个终端标签的编号（从 1 起；0 表示没有标签）。
+pub(in crate::app) fn next_term_id() -> u16 {
+    NEXT_TERM_ID
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        .wrapping_add(1)
+}
+
 /// 终端面板的状态。
 #[derive(Default)]
 pub(crate) struct TerminalPanel {
@@ -158,7 +170,6 @@ pub(crate) struct TerminalPanel {
     /// 测试里没有窗口、没有时钟：设置后面板的动画都停在这一时刻。
     #[cfg(test)]
     pub frozen: Option<Duration>,
-    client: Option<Client>,
     /// 辅助进程握过手了，可以新建终端。
     ready: bool,
     /// 各终端标签。
@@ -199,7 +210,6 @@ pub(crate) struct TerminalPanel {
     pub resize_due: Option<Instant>,
     /// 启动不了时给用户看的原因，画在面板里。
     pub error: Option<String>,
-    next_id: u16,
     next_request: u32,
     /// 还没回来的取行请求：（请求编号，标签编号，用途）。
     ///
@@ -316,8 +326,14 @@ impl TerminalPanel {
     ///
     /// 分成每次最多 [`REQUEST_LINES`] 行：
     /// 一条消息有长度上限，整个回滚缓冲（可以设到一百万行）一次要会超出。
-    fn request(&mut self, tab: u16, (start, end): (u64, u64), purpose: Request) {
-        let Some(client) = &self.client else { return };
+    fn request(
+        &mut self,
+        client: Option<&Client>,
+        tab: u16,
+        (start, end): (u64, u64),
+        purpose: Request,
+    ) {
+        let Some(client) = client else { return };
         let mut from = start;
         while from < end {
             let to = end.min(from + REQUEST_LINES);
@@ -570,7 +586,7 @@ impl App {
     pub(super) fn close_all_terminal_tabs(&mut self) {
         let t = &mut self.terminal;
         let ids: Vec<u16> = t.tabs.iter().map(|tab| tab.id).collect();
-        if let Some(client) = &t.client {
+        if let Some(client) = &self.terminal_client {
             for &tab in &ids {
                 client.send(&ToHelper::Close { tab });
             }
@@ -582,7 +598,15 @@ impl App {
         t.want_into.clear();
         t.want_active = None;
         t.active = 0;
-        t.client = None;
+        // 还有别的工作区开着终端时，辅助进程留着（各个工作区的终端标签是分开的）。
+        let others = self
+            .workspaces
+            .slots
+            .iter()
+            .any(|slot| !slot.terminal.tabs.is_empty());
+        if !others {
+            self.terminal_client = None;
+        }
         t.ready = false;
         t.crashed = false;
         for id in ids {
@@ -614,7 +638,7 @@ impl App {
     /// 是否已连接辅助进程且当前标签已创建，此时可以向终端写入。
     pub(crate) fn terminal_ready(&self) -> bool {
         let t = &self.terminal;
-        t.client.is_some() && t.tabs.get(t.active).is_some()
+        self.terminal_client.is_some() && t.tabs.get(t.active).is_some()
     }
 
     /// 终端中是否有程序在运行、关闭前需要确认；设置中关闭了确认（`terminal.confirmClose`）时为假。
@@ -946,7 +970,7 @@ impl App {
         let Some((index, gone)) = t.remove_terminal(id) else {
             return;
         };
-        if let Some(client) = &t.client {
+        if let Some(client) = &self.terminal_client {
             client.send(&ToHelper::Close { tab: id });
         }
         // 最后一个关掉了（也没有等着建的）：辅助进程自己会退出，连接马上放掉（关掉它的
@@ -954,7 +978,7 @@ impl App {
         // 还会被当成辅助进程中止）。
         let last = t.tabs.is_empty() && t.want.is_empty() && t.run_queue.is_empty();
         if last {
-            t.client = None;
+            self.terminal_client = None;
             t.ready = false;
             t.crashed = false;
         }
@@ -1058,7 +1082,7 @@ impl App {
     fn terminal_activated(&mut self) {
         self.drop_other_tab_state();
         let t = &mut self.terminal;
-        let (Some(client), Some(tab)) = (&t.client, t.tabs.get_mut(t.active)) else {
+        let (Some(client), Some(tab)) = (&self.terminal_client, t.tabs.get_mut(t.active)) else {
             return;
         };
         if tab.credit_due {
@@ -1074,7 +1098,7 @@ impl App {
         if !std::mem::take(&mut t.focus_sent) {
             return;
         }
-        let (Some(client), Some(tab)) = (&t.client, t.tabs.get(t.active)) else {
+        let (Some(client), Some(tab)) = (&self.terminal_client, t.tabs.get(t.active)) else {
             return;
         };
         let mut bytes = Vec::new();
@@ -1097,7 +1121,7 @@ impl App {
             self.blur_terminal_tab();
             return;
         }
-        let (Some(client), Some(tab)) = (&t.client, t.tabs.get_mut(t.active)) else {
+        let (Some(client), Some(tab)) = (&self.terminal_client, t.tabs.get_mut(t.active)) else {
             return;
         };
         if tab.credit_due {

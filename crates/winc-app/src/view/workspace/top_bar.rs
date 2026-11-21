@@ -5,9 +5,48 @@ use crate::app::TabHit;
 
 /// 绘制顶栏：底色与编辑区相同，与下方的代码区之间不绘制分隔线。
 ///
-/// 标签为胶囊形状，一直排到顶栏右端；右端不放按钮。
+/// 标签为胶囊形状，一直排到顶栏右端；右端是右栏的开关按钮。
 pub(in crate::view) fn draw_top_bar(app: &mut App, frame: &mut Frame<'_>) {
+    draw_workspaces(app, frame);
     draw_tabs(app, frame);
+}
+
+/// 绘制顶栏里的工作区切换条：窗口里打开的各个项目，当前打开的高亮。
+///
+/// 末尾是「打开项目」按钮，点了弹出打开目录的对话框。
+pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
+    let bar = &app.workspace_bar;
+    if bar.chips.is_empty() {
+        return;
+    }
+    let p = app.palette;
+    let active = app.workspaces.active;
+    let clip = app.layout.top_bar;
+    for (rect, index) in &bar.chips {
+        if rect.right() < clip.x || rect.x > clip.right() {
+            continue;
+        }
+        let slot = &app.workspaces.slots[*index];
+        let on = *index == active;
+        let hovered = app.pointer.hover == Hover::Workspace(*index);
+        if on {
+            frame.rect_clipped(*rect, p.tab_fill, RADIUS_TAB, clip);
+        } else if hovered {
+            frame.rect_clipped(*rect, p.hover, RADIUS_TAB, clip);
+        }
+        let color = if on { p.text } else { p.text_muted };
+        let icon = (rect.x + 10.0, rect.y + rect.h / 2.0);
+        icons::folder_small(frame, icon, color, clip);
+        ui_text(frame, app, icon.0 + 17.0, *rect, &slot.name, color, clip);
+    }
+    let add = bar.add;
+    if add.right() >= clip.x && add.x <= clip.right() {
+        let hovered = app.pointer.hover == Hover::AddWorkspace;
+        draw_button(frame, p, add, clip, hovered, false);
+        let color = if hovered { p.text } else { p.text_muted };
+        // 「打开项目」用文件夹的图标，和标签栏里的新建标签（加号）区分开。
+        icons::folder_small(frame, center(add), color, clip);
+    }
 }
 
 /// 绘制顶栏右端的窗口按钮（最小化、最大化或还原、关闭），由应用绘制标题栏时才有。

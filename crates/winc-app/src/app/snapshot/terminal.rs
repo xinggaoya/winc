@@ -292,9 +292,9 @@ fn only_command_shortcuts_reach_past_the_terminal() {
         // 单按 Ctrl 的组合交给 shell：Ctrl+B（收起侧栏）在终端里不是快捷键。
         assert!(!press(&mut app, &["ctrl"], Char('b')));
         // 带 Ctrl+Shift 的全局快捷键仍然生效：Ctrl+Shift+E 显示文件树（焦点随之到文件树）。
-        app.panels.sidebar.view = SidebarView::Search;
+        app.set_sidebar_view(Panel::Search);
         assert!(press(&mut app, &["ctrl", "shift"], Char('e')));
-        assert_eq!(app.panels.sidebar.view, SidebarView::Files);
+        assert_eq!(app.panels.sidebar.view, Panel::Files);
         app.focus = Focus::Terminal;
     }
     // ⌘K（其他系统 Ctrl+Shift+K）在终端里是清屏，不是组合键的第一段。

@@ -300,7 +300,7 @@ fn extra_folders_take_part_in_quick_open_search_and_git() {
     app.close_picker();
 
     // 全局搜索：结果里有附加目录中的文件，相对路径以目录名开头。
-    app.set_sidebar_view(SidebarView::Search);
+    app.set_sidebar_view(Panel::Search);
     app.panels.global.query.insert("load_config");
     app.run_global_search();
     finish_search(&mut app);

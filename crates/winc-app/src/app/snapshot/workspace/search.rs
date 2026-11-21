@@ -11,7 +11,7 @@ fn long_queries_and_replacements_grow_their_boxes() {
     let dir = search_folder("global-grow");
     let mut app = app_with(&dir, false);
     paint(&mut app);
-    app.set_sidebar_view(SidebarView::Search);
+    app.set_sidebar_view(Panel::Search);
     app.panels.global.replace_open = true;
     settle_search(&mut app);
     let one = app.panel_parts();
@@ -71,7 +71,7 @@ fn the_exclude_field_toggles_searching_ignored_files() {
     std::fs::write(dir.join("dist/out.js"), "ignoredneedle\n").unwrap();
     let mut app = app_with(&dir, false);
     paint(&mut app);
-    app.set_sidebar_view(SidebarView::Search);
+    app.set_sidebar_view(Panel::Search);
     app.panels.global.details_open = true;
     app.panels.global.query.insert("ignoredneedle");
     app.global_changed(true);
@@ -108,14 +108,11 @@ fn global_search_finds_opens_and_replaces() {
     let mut app = app_with(&dir, false);
     paint(&mut app);
 
-    // 点击侧栏顶部的「搜索」：侧栏切换为搜索面板，焦点在查找输入框，文件树高度变为 0。
-    let (search_tab, _) = app.sidebar_tabs()[1];
-    app.on_mouse_move(search_tab.x + 4.0, search_tab.y + 4.0);
-    assert_eq!(app.pointer.hover, Hover::ViewTab(SidebarView::Search));
-    app.on_mouse_down(MouseButton::Left);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Search);
+    // 切到搜索面板：焦点在查找输入框。
+    app.run_action(Action::FindInFiles);
+    assert_eq!(app.panels.sidebar.view, Panel::Search);
     assert_eq!(app.focus, Focus::GlobalQuery);
-    assert_eq!(app.layout.tree.h, 0.0);
+    assert!(app.layout.tree.h > 0.0);
 
     // 输入后延迟一段时间才搜索（`due` 记录触发时间）；回车（这里直接调用）立即搜索。
     app.edit_field(|f| f.insert("config"));
@@ -232,11 +229,9 @@ fn global_search_finds_opens_and_replaces() {
         .collect();
     assert_eq!(left, ["Cargo.toml"]);
 
-    // 点击「文件」回到文件树，焦点在文件树。
-    let (files_tab, _) = app.sidebar_tabs()[0];
-    app.on_mouse_move(files_tab.x + 4.0, files_tab.y + 4.0);
-    app.on_mouse_down(MouseButton::Left);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Files);
+    // 切回文件树，焦点在文件树。
+    app.run_action(Action::ShowFiles);
+    assert_eq!(app.panels.sidebar.view, Panel::Files);
     assert_eq!(app.focus, Focus::Tree);
     assert!(app.layout.tree.h > 0.0);
 
@@ -248,7 +243,7 @@ fn sidebar_top_buttons_hover_in_both_views() {
     let dir = search_folder("top-hover");
     let mut app = app_with(&dir, false);
 
-    for view in [SidebarView::Files, SidebarView::Search] {
+    for view in [Panel::Files, Panel::Search] {
         app.set_sidebar_view(view);
         paint(&mut app);
 
@@ -256,11 +251,6 @@ fn sidebar_top_buttons_hover_in_both_views() {
         let button = app.layout.sidebar_button;
         app.on_mouse_move(button.x + 4.0, button.y + 4.0);
         assert_eq!(app.pointer.hover, Hover::SidebarButton, "{view:?}");
-
-        for (rect, tab) in app.sidebar_tabs() {
-            app.on_mouse_move(rect.x + 4.0, rect.y + 4.0);
-            assert_eq!(app.pointer.hover, Hover::ViewTab(tab), "{view:?}");
-        }
 
         let splitter = app.layout.splitter;
         app.on_mouse_move(splitter.x + 1.0, 300.0);
@@ -278,7 +268,7 @@ fn hover_and_click_agree_on_what_is_under_the_mouse() {
     let mut app = app_with(&dir, false);
     app.open_path(&dir.join("src/main.rs"));
 
-    for view in [SidebarView::Files, SidebarView::Search] {
+    for view in [Panel::Files, Panel::Search] {
         app.set_sidebar_view(view);
         paint(&mut app);
         let window = app.layout.window;
@@ -519,10 +509,7 @@ fn the_search_results_scrollbar_can_be_dragged() {
     std::fs::write(dir.join("src/many.rs"), many).unwrap();
     let mut app = app_with(&dir, false);
     paint(&mut app);
-    let (search_tab, _) = app.sidebar_tabs()[1];
-    app.on_mouse_move(search_tab.x + 4.0, search_tab.y + 4.0);
-    app.on_mouse_down(MouseButton::Left);
-    app.on_mouse_up(MouseButton::Left);
+    app.run_action(Action::FindInFiles);
     app.edit_field(|f| f.insert("config"));
     app.run_global_search();
     finish_search(&mut app);
@@ -584,7 +571,7 @@ fn switching_folders_keeps_the_search_view_and_searches_the_new_folder() {
         app.editor.root(),
         Some(winc_config::files::canonicalize(&second).unwrap().as_path())
     );
-    assert_eq!(app.panels.sidebar.view, SidebarView::Search);
+    assert_eq!(app.panels.sidebar.view, Panel::Search);
     assert_eq!(app.panels.global.query.text(), "config");
     finish_search(&mut app);
     let root = winc_config::files::canonicalize(&second).unwrap();
@@ -757,7 +744,7 @@ fn right_clicking_a_search_result_offers_its_menu() {
     let file = row_of(&app, ResultRow::File(0)).unwrap();
     click_row(&mut app, file);
     app.run_menu_command(RevealInTree);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Files);
+    assert_eq!(app.panels.sidebar.view, Panel::Files);
     let ws = app.editor.workspace.as_ref().unwrap();
     assert_eq!(
         ws.selected_entry().map(|e| e.path.clone()),
@@ -1041,7 +1028,7 @@ fn search_results_open_in_the_preview_tab_until_double_clicked() {
     let dir = search_folder("global-preview");
     let mut app = app_with(&dir, false);
     app.config.preview_on_click = Some(true);
-    app.panels.sidebar.view = SidebarView::Search;
+    app.set_sidebar_view(Panel::Search);
     app.relayout();
     paint(&mut app);
     app.focus = Focus::GlobalQuery;
@@ -1111,10 +1098,7 @@ fn long_result_files_unfold_under_the_mouse() {
     app.panels.sidebar.width = 260.0;
     app.relayout();
     paint(&mut app);
-    let (search_tab, _) = app.sidebar_tabs()[1];
-    app.on_mouse_move(search_tab.x + 4.0, search_tab.y + 4.0);
-    app.on_mouse_down(MouseButton::Left);
-    app.on_mouse_up(MouseButton::Left);
+    app.run_action(Action::FindInFiles);
     app.edit_field(|f| f.insert("config"));
     app.run_global_search();
     finish_search(&mut app);
@@ -1190,7 +1174,7 @@ fn shoot_long_result_file() {
     let mut app = app_with(&dir, false);
     app.panels.sidebar.width = 260.0;
     app.relayout();
-    app.set_sidebar_view(SidebarView::Search);
+    app.set_sidebar_view(Panel::Search);
     app.panels.global.query.set_text("config");
     app.run_global_search();
     finish_search(&mut app);

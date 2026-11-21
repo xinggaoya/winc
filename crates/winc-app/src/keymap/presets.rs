@@ -449,6 +449,15 @@ pub(super) const IDEA: &[PresetRow] = &[
     ),
     row(ShowFiles, Global, &["cmd+1"], &["alt+1"]),
     row(ShowOutline, Global, &["cmd+7"], &["alt+7"]),
+    // 多工作区模式：在窗口里打开的各个项目之间切换。
+    row(NextWorkspace, Global, &["ctrl+cmd+right"], &["ctrl+alt+n"]),
+    row(
+        PreviousWorkspace,
+        Global,
+        &["ctrl+cmd+left"],
+        &["ctrl+alt+p"],
+    ),
+    row(CloseWorkspace, Global, &["ctrl+cmd+w"], &["ctrl+alt+w"]),
     row(GitShowChanges, Global, &["cmd+0"], &["alt+0"]),
     row(ShowCommit, Global, &["cmd+k"], &["ctrl+k"]),
     row(GitShowLog, Global, &["cmd+9"], &["alt+9"]),

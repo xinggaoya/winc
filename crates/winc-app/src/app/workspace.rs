@@ -8,6 +8,8 @@
 use super::*;
 
 pub(super) mod background_save;
+pub(crate) mod bar;
+pub(super) mod columns;
 pub(super) mod compare;
 pub(super) mod copying;
 pub(super) mod file_drop;
@@ -19,8 +21,10 @@ pub(super) mod loading;
 pub(super) mod outline;
 pub(crate) mod panes;
 pub(crate) mod picker;
+pub(crate) mod place;
 pub(super) mod recent;
 pub(super) mod session;
+pub(super) mod switch;
 pub(super) mod tab_drag;
 pub(crate) mod tab_names;
 pub(super) mod tool_fold;
@@ -28,17 +32,43 @@ pub(super) mod tree;
 pub(super) mod tree_drag;
 pub(super) mod tree_label;
 pub(super) mod watch;
+pub(crate) mod workspaces;
 
-/// 侧栏的界面状态：宽度、是否显示、当前视图，以及显示隐藏和切换视图的过渡。
+pub(crate) use bar::WorkspaceBar;
+pub(crate) use workspaces::{WorkspaceSlot, Workspaces};
+
+/// 左右两栏里各自的面板，以及右栏的宽度。
+///
+/// 窗口分成三栏：左栏、右栏和中间那栏。中间一栏固定是编辑区和终端，不参与配置；哪面板放在
+/// 哪一栏、各栏里的顺序，由用户配置决定（见 [`winc_config::Config::panels_left`] 和
+/// [`winc_config::Config::panels_right`]）。
+pub(crate) struct PanelLayout {
+    /// 左栏里的面板，从上到下。
+    pub left: Vec<Panel>,
+    /// 右栏里的面板，从上到下。
+    pub right: Vec<Panel>,
+    /// 右栏的宽度（逻辑像素）。
+    pub right_width: f32,
+}
+
+impl Default for PanelLayout {
+    fn default() -> Self {
+        Self {
+            left: Panel::DEFAULT_LEFT.to_vec(),
+            right: Panel::DEFAULT_RIGHT.to_vec(),
+            right_width: winc_config::Config::PANEL_RIGHT_WIDTH,
+        }
+    }
+}
+
+/// 侧栏的界面状态：宽度、是否显示，以及当前有焦点的面板。
 pub struct Sidebar {
     pub(in crate::app) width: f32,
     /// 侧栏是否应显示；动画进行中取动画的终点。
     pub(in crate::app) visible: bool,
     pub(in crate::app) motion: Option<SidebarMotion>,
-    /// 侧栏当前显示文件树还是全局搜索。
-    pub(crate) view: SidebarView,
-    /// 切换侧栏视图时，视图切换器中选中的一段从上一个视图滑入：记录上一个视图和动画时钟。
-    pub(crate) view_slide: Option<(SidebarView, crate::app::animation::Clock)>,
+    /// 当前有焦点的面板：键盘输入和点击都按它分派。
+    pub(crate) view: Panel,
 }
 
 impl Default for Sidebar {
@@ -47,8 +77,7 @@ impl Default for Sidebar {
             width: DEFAULT_PANEL_WIDTH,
             visible: false,
             motion: None,
-            view: SidebarView::Files,
-            view_slide: None,
+            view: Panel::Files,
         }
     }
 }
@@ -96,6 +125,10 @@ pub(crate) struct Panels {
     pub tree: workspace::tree::TreeState,
     /// 侧栏的界面状态。
     pub sidebar: workspace::Sidebar,
+    /// 左右两栏里各自的面板和右栏的宽度。
+    pub layout: workspace::PanelLayout,
+    /// 右栏是否收起：收起时中间一栏占满窗口，右栏不占地方。
+    pub right_hidden: bool,
     /// 文件树中正在重命名的项及其输入框；没有时为 `None`。
     pub name_input: Option<NameInput>,
     /// 从文件管理器等来源拖动文件经过窗口时的放置位置；未在拖动时为 `None`。

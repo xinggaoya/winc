@@ -15,6 +15,24 @@ pub(super) fn draw_header(
 ) {
     let header = parts.header;
     let p = app.palette;
+    let name_right = crate::view::workspace::columns::draw_panel_title(
+        app,
+        frame,
+        header,
+        winc_config::Panel::Commit,
+    );
+    // 有改动时，标题右边跟着改动的文件数。
+    if let Some(count) = app.commit_count_text() {
+        ui_text(
+            frame,
+            app,
+            name_right + 8.0,
+            header,
+            &count,
+            p.accent,
+            header,
+        );
+    }
     for (rect, target) in parts.tools {
         let open = target == CommitTarget::More
             && app.overlays.menu_button == Some(crate::app::MenuButton::CommitMore);
@@ -49,7 +67,7 @@ pub(super) fn draw_context(
     widths: (f32, f32),
     hits: &mut Vec<(Rect, CommitTarget)>,
 ) {
-    let clip = app.layout.sidebar;
+    let clip = app.commit_card();
     draw_branch_row(app, frame, parts.branch, widths, clip, hits);
 }
 
@@ -350,7 +368,7 @@ pub(super) fn draw_banner(
         return;
     };
     let p = app.palette;
-    let clip = app.layout.sidebar.intersect(rect);
+    let clip = app.commit_card().intersect(rect);
     let unresolved = status.unresolved.len();
     let conflicted = status
         .entries
@@ -421,7 +439,7 @@ pub(super) fn draw_undo(
         &mut leaving
     };
     let p = app.palette;
-    let clip = app.layout.sidebar.intersect(bar);
+    let clip = app.commit_card().intersect(bar);
     if parts.card.is_none() {
         frame.rect_clipped(Rect::new(bar.x, bar.y, bar.w, 1.0), p.separator, 0.0, clip);
     }

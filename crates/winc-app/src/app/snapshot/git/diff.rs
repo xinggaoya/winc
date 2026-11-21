@@ -1187,8 +1187,8 @@ fn a_diff_tab_is_located_in_the_file_tree_by_its_worktree_file() {
     };
 
     forget(&mut app);
-    app.set_sidebar_view(SidebarView::Search);
-    app.set_sidebar_view(SidebarView::Files);
+    app.set_sidebar_view(Panel::Search);
+    app.set_sidebar_view(Panel::Files);
     assert_eq!(located(&app).as_deref(), Some("main.rs"));
 
     forget(&mut app);

@@ -122,7 +122,7 @@ impl App {
     /// （[`App::sync_terminal`]）。
     pub(super) fn start_terminal(&mut self) {
         self.detect_terminal_shells();
-        if self.terminal.client.is_some() {
+        if self.terminal_client.is_some() {
             return;
         }
         #[cfg(windows)]
@@ -144,7 +144,7 @@ impl App {
         match Client::start(&path, wake) {
             Ok(client) => {
                 client.send(&ToHelper::Theme(theme_colors(self.palette)));
-                self.terminal.client = Some(client);
+                self.terminal_client = Some(client);
                 self.terminal.error = None;
             }
             Err(error) => {
@@ -196,7 +196,7 @@ impl App {
     /// 或点「重新启动」重来（[`App::restart_terminal_tab`]）。
     pub(in crate::app) fn terminal_helper_gone(&mut self) {
         let t = &mut self.terminal;
-        t.client = None;
+        self.terminal_client = None;
         t.ready = false;
         t.find = None;
         t.errors = None;
@@ -322,7 +322,7 @@ impl App {
 
     /// 主题变了：告诉辅助进程，程序再来问颜色时答新的。
     pub(crate) fn terminal_theme_changed(&mut self) {
-        if let Some(client) = &self.terminal.client {
+        if let Some(client) = &self.terminal_client {
             client.send(&ToHelper::Theme(theme_colors(self.palette)));
         }
     }
@@ -393,7 +393,7 @@ impl App {
             })
             .collect();
         let t = &mut self.terminal;
-        let Some(client) = &t.client else {
+        let Some(client) = &self.terminal_client else {
             return;
         };
         // 每个标签同时只有一个尺寸在路上：上一个尺寸重排好的一帧回来后发下一个（中间的跳过），
@@ -439,8 +439,7 @@ impl App {
                 .want_active
                 .unwrap_or(t.tabs.len() + t.want.len().saturating_sub(1));
             for (i, want) in std::mem::take(&mut t.want).into_iter().enumerate() {
-                t.next_id = t.next_id.wrapping_add(1);
-                let id = t.next_id;
+                let id = next_term_id();
                 let dir = if want.is_empty() { cwd.clone() } else { want };
                 let chosen = shells.get(i).cloned().flatten();
                 // 远端的目录只接受在那台主机上检测到的 shell：本机的命令（设置里的、恢复现场
@@ -517,8 +516,7 @@ impl App {
         let mut replaced = Vec::new();
         if t.error.is_none() {
             for start in std::mem::take(&mut t.run_queue) {
-                t.next_id = t.next_id.wrapping_add(1);
-                let id = t.next_id;
+                let id = next_term_id();
                 client.send(&ToHelper::Spawn {
                     tab: id,
                     program: start.launch.program,
@@ -560,7 +558,7 @@ impl App {
         }
         tab.requested = Some(range);
         let id = tab.id;
-        t.request(id, range, Request::View);
+        t.request(self.terminal_client.as_ref(), id, range, Request::View);
     }
 
     /// 新终端的工作目录：打开的目录，没有时是家目录（辅助进程按空路径处理）。
@@ -672,7 +670,7 @@ impl App {
         let before = self.terminal.visible_state();
         let mut shown = false;
         loop {
-            let Some(client) = &self.terminal.client else {
+            let Some(client) = &self.terminal_client else {
                 self.request_redraw();
                 return;
             };
@@ -703,7 +701,7 @@ impl App {
                     t.ready = true;
                     self.relayout();
                 } else {
-                    t.client = None;
+                    self.terminal_client = None;
                     t.error = Some(winc_i18n::t!("terminal-helper-version-mismatch").into());
                 }
             }

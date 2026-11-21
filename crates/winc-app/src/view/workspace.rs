@@ -2,6 +2,7 @@
 
 use super::*;
 
+pub(super) mod columns;
 pub(super) mod outline;
 pub(super) mod panel;
 pub(super) mod sidebar;

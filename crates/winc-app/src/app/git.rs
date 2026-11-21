@@ -39,7 +39,7 @@ use winc_i18n::t;
 use super::diff::worktree_title;
 use super::{App, Focus, UserEvent};
 use crate::app::NoticeKind;
-use crate::layout::SidebarView;
+use winc_config::Panel;
 
 /// 界面线程与各后台任务共用的 [`Git`]。
 ///
@@ -743,7 +743,7 @@ impl App {
             self.git.repositories.push(root.clone());
             self.git_read_summaries();
         }
-        let stay = self.panels.sidebar.view == SidebarView::Commit
+        let stay = self.panels.sidebar.view == Panel::Commit
             || self.git.commit.busy
             || self.git.branch.running.is_some()
             || !self.git.commit.message.text().is_empty();
@@ -833,8 +833,8 @@ impl App {
         // 不再位于仓库中时提交视图不可用，切换回文件树；焦点位于提交视图时同样移出，
         // 否则键入的文字会进入不可见的输入框。
         if self.git.root.is_none() {
-            if self.panels.sidebar.view == SidebarView::Commit {
-                self.set_sidebar_view(SidebarView::Files);
+            if self.panels.sidebar.view == Panel::Commit {
+                self.set_sidebar_view(Panel::Files);
             }
             if matches!(self.focus, Focus::CommitMessage | Focus::CommitList) {
                 self.focus = if self.editor.active.is_some() {

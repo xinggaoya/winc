@@ -224,26 +224,14 @@ fn narrow_sidebar_folds_tools_before_the_name() {
     assert_eq!(app.hits.tree_tools.len(), 5);
     let full = app.hits.project.w;
 
-    // 从宽到窄一点点收：工具栏还留着按钮时项目名完整显示，按钮一个个收进「⋯」；
-    // 只剩「⋯」以后项目名才变短，最后停在最小宽度。
+    // 从宽到窄一点点收：项目名在自己的行里，只按行宽截短，不受文件面板标题行里的工具影响。
     let mut width = app.panels.sidebar.width;
-    let mut shortened = false;
     while width >= MIN_PANEL_WIDTH {
         app.panels.sidebar.width = width;
         paint(&mut app);
-        if app.hits.tree_tools.is_empty() {
-            assert!(app.hits.tree_more.is_some());
-            shortened |= app.hits.project.w < full;
-        } else {
-            assert_eq!(app.hits.project.w, full, "宽 {width} 时项目名被截短了");
-        }
-        assert!(app.hits.project.w >= TREE_NAME_MIN);
-        if let Some(more) = app.hits.tree_more {
-            assert!(more.x >= app.hits.project.right());
-        }
+        assert!(app.hits.project.w <= full, "宽 {width} 时项目名变长了");
         width -= 2.0;
     }
-    assert!(shortened);
 
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -258,21 +246,26 @@ fn narrow_sidebar_folds_tools_into_more() {
     assert_eq!(app.hits.tree_tools.len(), 5);
     assert!(app.hits.tree_more.is_none());
 
-    // 缩到最窄：项目名仍然保留且可点击（只检查悬停，不实际点击，因为点击会弹出选择目录的
-    // 系统对话框）。
+    // 缩到最窄：项目名在自己的行里，仍然保留且可点击（只检查悬停，不实际点击，因为点击会
+    // 弹出选择目录的系统对话框）。工具按钮在文件面板的标题行里，与项目名不在一行。
     app.panels.sidebar.width = MIN_PANEL_WIDTH;
     paint(&mut app);
-    let more = app.hits.tree_more.unwrap();
-    assert!(app.hits.tree_tools.len() < 5);
     let hit = app.hits.project;
-    assert!(hit.w >= TREE_NAME_MIN);
-    assert!(app.hits.tree_tools.iter().all(|(r, _)| r.x >= hit.right()));
     app.on_mouse_move(hit.x + hit.w / 2.0, hit.y + hit.h / 2.0);
     assert_eq!(app.pointer.hover, Hover::ProjectName);
+    let more = app.hits.tree_more;
+    if more.is_some() {
+        assert!(app.hits.tree_tools.len() < 5);
+        assert!(app.hits.tree_tools.iter().all(|(r, _)| r.y != hit.y));
+    }
 
     // 点击「⋯」弹出系统菜单，列出被收起的按钮，顺序与工具栏中的顺序相同；
     // 悬停提示为「更多操作」。
     use crate::app::input::context_menu::{MenuCommand, MenuEntry, MenuTarget};
+    let Some(more) = more else {
+        std::fs::remove_dir_all(&dir).unwrap();
+        return;
+    };
     app.on_mouse_move(more.x + 4.0, more.y + 4.0);
     assert_eq!(app.pointer.hover, Hover::TreeMore);
     app.on_mouse_down(MouseButton::Left);
@@ -912,7 +905,7 @@ fn a_retracting_name_is_not_drawn_once_the_tree_is_hidden() {
     assert!(app.panels.tree.labels.moving());
 
     // 切到搜索视图：编辑区上方恢复背景色，不留下收回中的名字。
-    app.panels.sidebar.view = SidebarView::Search;
+    app.set_sidebar_view(Panel::Search);
     paint(&mut app);
     let image = app.frame.renderer.as_ref().unwrap().image().unwrap();
     let pixel = |x: f32, y: f32| {

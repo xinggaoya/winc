@@ -138,7 +138,7 @@ fn a_folder_of_repositories_can_switch_between_them() {
 
     // 正在看提交视图时不跟随，新仓库只加入列表。
     app.git_switch_repository(0);
-    app.panels.sidebar.view = SidebarView::Commit;
+    app.set_sidebar_view(Panel::Commit);
     let shallow = dir.join("group/other");
     std::fs::create_dir_all(shallow.join("src")).unwrap();
     std::fs::write(shallow.join("src/main.rs"), "fn main() {}\n").unwrap();
@@ -149,7 +149,7 @@ fn a_folder_of_repositories_can_switch_between_them() {
     app.git_follow_active();
     assert_eq!(app.git.root.as_ref(), Some(&a));
     assert!(app.git.repositories.contains(&shallow));
-    app.panels.sidebar.view = SidebarView::Files;
+    app.set_sidebar_view(Panel::Files);
     app.git_switch_repository(2);
 
     // 每个位置都能看到分支和改动数：另一个仓库改一个文件，后台读到以后显示。
@@ -484,7 +484,7 @@ fn shoot_themes() {
             click(&mut app, at);
             shoot(&mut app, &format!("theme-{name}"));
             // 文件视图加编辑区：文件树与代码并排。
-            app.set_sidebar_view(crate::layout::SidebarView::Files);
+            app.set_sidebar_view(winc_config::Panel::Files);
             app.open_path(&dir.join("src/main.rs"));
             app.focus = Focus::Editor;
             shoot(&mut app, &format!("theme-{name}-editor"));
@@ -740,55 +740,6 @@ fn the_project_leads_the_second_row_and_git_context_sits_below_it() {
     assert!(branch.right() <= sync.x);
     assert!(sync.right() <= app.layout.sidebar.right());
     let _ = std::fs::remove_dir_all(&root);
-}
-
-#[test]
-fn switching_views_slides_the_raised_segment() {
-    use crate::app::animation::{Clock, VIEW_SLIDE};
-    use std::time::Duration;
-
-    let Some((mut app, root)) = git_app("view-slide", false) else {
-        return;
-    };
-    // 没有窗口（测试中）时不做动画，直接到终点。
-    app.set_sidebar_view(SidebarView::Search);
-    assert!(app.panels.sidebar.view_slide.is_none());
-    // 半路：动画进行中、下一帧继续绘制；到时间以后清掉。
-    app.panels.sidebar.view_slide = Some((
-        SidebarView::Files,
-        Clock::frozen(VIEW_SLIDE / 2, VIEW_SLIDE),
-    ));
-    assert!(app.animating());
-    app.settle_animations();
-    assert!(app.panels.sidebar.view_slide.is_some());
-    app.panels.sidebar.view_slide = Some((
-        SidebarView::Files,
-        Clock::frozen(VIEW_SLIDE + Duration::from_millis(1), VIEW_SLIDE),
-    ));
-    app.settle_animations();
-    assert!(app.panels.sidebar.view_slide.is_none());
-    let _ = std::fs::remove_dir_all(&root);
-}
-
-/// 截图：从「文件」切到「提交」滑到一半（`view-slide-light`、`view-slide-dark`）。
-#[test]
-#[ignore]
-fn shoot_view_slide() {
-    use crate::app::animation::{Clock, VIEW_SLIDE};
-
-    for dark in [false, true] {
-        let theme = if dark { "dark" } else { "light" };
-        let Some((mut app, root)) = git_app_in(&format!("view-slide-{theme}"), false, dark) else {
-            return;
-        };
-        app.set_sidebar_view(SidebarView::Commit);
-        app.panels.sidebar.view_slide = Some((
-            SidebarView::Files,
-            Clock::frozen(VIEW_SLIDE / 3, VIEW_SLIDE),
-        ));
-        shoot(&mut app, &format!("view-slide-{theme}"));
-        let _ = std::fs::remove_dir_all(&root);
-    }
 }
 
 /// 切换目录：旧仓库的分支操作与写了一半的提交信息不带入新目录；旧仓库晚到的结果只在状态栏

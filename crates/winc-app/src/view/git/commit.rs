@@ -70,7 +70,7 @@ const NEXT_GAP: f32 = 14.0;
 const NEXT_PAD: f32 = 12.0;
 
 /// 绘制提交视图，返回提交信息里光标的矩形（窗口坐标，逻辑像素），供输入法定位候选框。
-pub(in crate::view) fn draw_commit(app: &mut App, frame: &mut Frame<'_>) -> Option<Rect> {
+pub(in crate::view) fn draw_commit_panel(app: &mut App, frame: &mut Frame<'_>) -> Option<Rect> {
     // 提交信息框随内容长高：先按框的宽度折好行（框的宽度和高度无关，卡片和分支行同宽，卡片
     // 收起时也照样折），框的高度按行数定，绘制时继续使用折好的行。
     app.track_stash_height();
@@ -125,6 +125,10 @@ pub(in crate::view) fn draw_commit(app: &mut App, frame: &mut Frame<'_>) -> Opti
         (None, Some(problem)) => {
             let text = t!("git-commit-view-problem", problem = problem.as_str());
             draw_note(app, frame, &parts, &text, true);
+        }
+        // Git 模块关着：写明原因，用户到设置里打开。
+        (None, None) if !app.git_enabled() => {
+            draw_note(app, frame, &parts, t!("git-commit-module-off"), false)
         }
         (None, None) if app.git_no_repository() => {
             draw_no_repository(app, frame, &parts, &mut hits)
@@ -184,7 +188,7 @@ fn draw_empty(
     let bottom = draw_empty_state(
         app,
         frame,
-        (list, sidebar_span(app)),
+        (list, commit_span(app)),
         t!("git-commit-view-empty"),
         detail.as_deref(),
     );
@@ -239,7 +243,7 @@ fn draw_no_repository(
     let list = parts.list;
     let detail = t!("git-no-repository-detail");
     let title = t!("git-not-a-repository");
-    let mut top = draw_empty_state(app, frame, (list, sidebar_span(app)), title, Some(detail));
+    let mut top = draw_empty_state(app, frame, (list, commit_span(app)), title, Some(detail));
     let buttons = [
         (
             CommitTarget::InitRepository,
@@ -656,7 +660,7 @@ fn draw_list_fade(app: &App, frame: &mut Frame<'_>, list: Rect, rest: f32) {
     }
     let edge = Rect::new(list.x, list.bottom() - TAB_FADE, list.w, TAB_FADE);
     let color = app.palette.sidebar_bg;
-    frame.within(list.intersect(app.layout.sidebar), |frame| {
+    frame.within(list.intersect(app.commit_card()), |frame| {
         frame.with_opacity(strength, |frame| fade_up(frame, edge, color));
     });
 }
@@ -831,7 +835,7 @@ fn draw_compose(
     wrap: AreaWrap,
     hits: &mut Vec<(Rect, CommitTarget)>,
 ) -> Option<Rect> {
-    let panel = app.layout.sidebar;
+    let panel = app.commit_card();
     let mut leaving = Vec::new();
     let hits = if app.commit_compose_shown() {
         hits
@@ -851,7 +855,7 @@ fn draw_card(
 ) -> Option<Rect> {
     let card = parts.card?;
     let p = app.palette;
-    let panel = app.layout.sidebar;
+    let panel = app.commit_card();
     let focused = app.focus == Focus::CommitMessage;
     field_box(app, frame, card, p.sidebar_bg, focused, false);
     // 框高过渡途中文字按过渡结束后的高度排版，只绘制在当前的框内，行的位置和滚动量不随框高变化。

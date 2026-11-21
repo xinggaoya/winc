@@ -304,8 +304,12 @@ fn settings_keyboard_walks_every_item_and_adjusts() {
     assert_eq!(app.settings.selected, Setting::KeySearch);
     assert_eq!(app.settings_layout().page, SettingsPage::Keys);
     assert_eq!(app.focus, Focus::KeySearch);
-    // 向回走一步，回到模块页最后的远程开关，焦点回到浮层；再往回是终端开关和 Git 开关；再走
-    // 一步，回到终端页的最后一项（macOS 上是「Meta 键」，其他平台是「关闭前确认」）。
+    // 向回走一步，回到「面板」页；再往回是模块页最后的远程开关，焦点回到浮层；再往回是终端
+    // 开关和 Git 开关；再走一步，回到终端页的最后一项（macOS 上是「Meta 键」，其他平台是
+    // 「关闭前确认」）。
+    app.settings_move(false);
+    assert_eq!(app.settings.selected, Setting::MultiWorkspace);
+    assert_eq!(app.settings_layout().page, SettingsPage::Panels);
     app.settings_move(false);
     assert_eq!(app.settings.selected, Setting::RemoteModule);
     assert_eq!(app.focus, Focus::Settings);
@@ -482,9 +486,12 @@ fn settings_pages_are_listed_on_the_left() {
             assert!(row.row.x >= layout.nav.right(), "设置项不压到分类栏上");
         }
         listed.extend(layout.rows.iter().map(|r| r.setting));
-        // 快捷键页没有设置项，只有搜索框。
+        // 快捷键页没有设置项，只有搜索框；「面板」页整页单独布局。
         if page == SettingsPage::Keys {
             listed.push(Setting::KeySearch);
+        }
+        if page == SettingsPage::Panels {
+            listed.push(Setting::MultiWorkspace);
         }
     }
     assert_eq!(

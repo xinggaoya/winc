@@ -145,7 +145,7 @@ fn tree_context_menu_targets_the_clicked_row() {
     let at = tree_row_center(&app, src);
     right_click(&mut app, at);
     app.run_menu_command(MenuCommand::FindInFolder);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Search);
+    assert_eq!(app.panels.sidebar.view, Panel::Search);
     assert_eq!(app.panels.global.include.text(), "./src");
     assert!(app.panels.global.details_open);
     assert_eq!(app.focus, Focus::GlobalQuery);
@@ -334,12 +334,12 @@ fn tab_context_menu_closes_others_right_and_saved() {
     assert_eq!(names(&app), ["main.rs"]);
 
     // 「在文件树中显示」：侧栏切回文件树，并选中该文件。
-    app.set_sidebar_view(SidebarView::Search);
+    app.set_sidebar_view(Panel::Search);
     paint(&mut app);
     let at = tab(&app, 0);
     right_click(&mut app, at);
     app.run_menu_command(MenuCommand::RevealInTree);
-    assert_eq!(app.panels.sidebar.view, SidebarView::Files);
+    assert_eq!(app.panels.sidebar.view, Panel::Files);
     let ws = app.editor.workspace.as_ref().unwrap();
     assert_eq!(ws.selected_entry().unwrap().name, "main.rs");
 

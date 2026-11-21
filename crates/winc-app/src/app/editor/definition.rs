@@ -18,7 +18,7 @@ use winc_i18n::t;
 use winc_syntax::Language;
 
 use super::*;
-use crate::layout::SidebarView;
+use winc_config::Panel;
 
 /// 一处定义的位置。
 #[derive(Debug, Clone)]
@@ -715,7 +715,7 @@ impl App {
         self.panels.global.regex = false;
         self.panels.global.query.remember();
         self.panels.global.query.set_text(&name);
-        self.set_sidebar_view(SidebarView::Search);
+        self.set_sidebar_view(Panel::Search);
         if !self.panels.sidebar.visible {
             self.set_sidebar(true);
         }

@@ -19,7 +19,7 @@ use winc_render::Rect;
 use super::*;
 use crate::app::animation::Presence;
 use crate::app::input::context_menu::MenuCommand;
-use crate::layout::{PanelButton, PanelParts, PanelTool, RowAction, SidebarView};
+use crate::layout::{PanelButton, PanelParts, PanelTool, RowAction};
 
 /// 搜索条件变化之后到开始搜索之间的等待时间。
 ///
@@ -331,10 +331,9 @@ impl GlobalSearch {
 }
 
 impl App {
-    /// 返回侧栏中顶栏以下的区域，搜索面板绘制在这里。
+    /// 返回搜索面板的位置：标题行连同下面的输入框和结果列表。
     pub(crate) fn panel_rect(&self) -> Rect {
-        let s = self.layout.sidebar;
-        Rect::new(s.x, TOP_BAR_END, s.w, (s.bottom() - TOP_BAR_END).max(0.0))
+        self.panel_card(Panel::Search)
     }
 
     /// 返回搜索面板各部分的布局。
@@ -437,29 +436,29 @@ impl App {
 
     /// 搜索面板是否正在显示：侧栏当前是搜索视图，且侧栏可见。
     pub(crate) fn panel_shown(&self) -> bool {
-        self.panels.sidebar.view == SidebarView::Search && self.layout.sidebar.right() > 0.0
+        // 搜索面板在某一栏里就显示着（不论它是哪一栏、当前有没有焦点）。
+        self.panel_slot(Panel::Search).is_some()
     }
 
     /// 把侧栏切换到视图 `view`（文件树或搜索）。
-    pub(in crate::app) fn set_sidebar_view(&mut self, view: SidebarView) {
+    pub(in crate::app) fn set_sidebar_view(&mut self, view: Panel) {
         if self.panels.sidebar.view == view {
             return;
         }
 
-        let from = std::mem::replace(&mut self.panels.sidebar.view, view);
-        self.panels.sidebar.view_slide = self
-            .clock(crate::app::animation::VIEW_SLIDE)
-            .map(|clock| (from, clock));
+        // 有焦点的面板一定显示着：藏起来的面板收不到焦点。
+        self.show_panel(view);
+        self.panels.sidebar.view = view;
         self.finish_name_input();
         self.relayout();
 
         // 切回文件树时，在搜索中打开过的文件已在树中展开并选中，滚动文件树使其可见。
-        if view == SidebarView::Files {
+        if view == Panel::Files {
             self.clamp_tree_scroll();
             self.reveal_active();
         }
         // 其他位置的状态只在提交视图里看得见，看不见的时候没有读。
-        if view == SidebarView::Commit {
+        if view == Panel::Commit {
             self.git_read_summaries();
         }
 
@@ -468,13 +467,12 @@ impl App {
 
     /// 把侧栏切换到文件树，并把焦点交给文件树（`⇧⌘E`）。
     pub(in crate::app) fn show_files(&mut self) {
-        self.set_sidebar_view(SidebarView::Files);
-
         if !self.panels.sidebar.visible {
             self.set_sidebar(true);
         }
 
-        self.focus = Focus::Tree;
+        self.show_panel(Panel::Files);
+        self.focus_panel(Panel::Files);
         self.request_redraw();
     }
 
@@ -488,7 +486,8 @@ impl App {
             return;
         }
 
-        self.set_sidebar_view(SidebarView::Search);
+        self.show_panel(Panel::Search);
+        self.set_sidebar_view(Panel::Search);
 
         if !self.panels.sidebar.visible {
             self.set_sidebar(true);

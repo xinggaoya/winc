@@ -4,6 +4,7 @@
 //! 几何绘制，并记录当前页中各控件的可点击区域。
 
 mod keys;
+mod panels;
 
 use std::borrow::Cow;
 
@@ -127,6 +128,11 @@ fn draw_dialog(app: &mut App, frame: &mut Frame<'_>, layout: &SettingsLayout) {
     // 卡片之外。「快捷键」页的搜索框在标题行中，由该页自行裁剪。
     let caret = if layout.page == SettingsPage::Keys && !layout.searching {
         keys::draw(app, frame, layout.body)
+    } else if layout.page == SettingsPage::Panels && !layout.searching {
+        frame.within(layout.body, |frame| {
+            panels::draw(app, frame, layout.body);
+        });
+        None
     } else {
         frame.within(layout.body, |frame| draw_body(app, frame, layout))
     };
@@ -214,6 +220,7 @@ fn draw_nav_row(
         SettingsPage::Git => icons::git(frame, icon, 1.0, p.text_muted, layout.nav),
         SettingsPage::Terminal => icons::console(frame, icon, p.text_muted, layout.nav),
         SettingsPage::Modules => icons::modules(frame, icon, p.text_muted, layout.nav),
+        SettingsPage::Panels => icons::panel(frame, icon, true, p.text_muted, layout.nav),
         SettingsPage::Keys => icons::keyboard(frame, icon, p.text_muted, layout.nav),
         SettingsPage::About => icons::about(frame, icon, p.text_muted, layout.nav),
     }

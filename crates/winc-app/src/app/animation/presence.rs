@@ -81,8 +81,6 @@ impl Presence {
 pub struct ModuleFx {
     /// 第一帧只记下有哪些，不做动画：启动时这些元素已经存在。
     primed: bool,
-    /// 视图切换里的「提交」一段。
-    pub commit_tab: Presence,
     /// 状态栏右端的终端开关和设置分类栏中的「终端」一项：二者都随终端模块出现、消失。
     pub terminal: Presence,
     /// 状态栏右端连接远端主机的按钮，随远程模块出现、消失。
@@ -104,8 +102,7 @@ pub struct ModuleFx {
 impl ModuleFx {
     /// 是否有东西正在出现或消失。
     pub fn moving(&self) -> bool {
-        self.commit_tab.moving()
-            || self.terminal.moving()
+        self.terminal.moving()
             || self.remote.moving()
             || self.git.moving()
             || self.branch.moving()
@@ -118,7 +115,6 @@ impl App {
     /// 每帧绘制前调用：与上一帧比较「提交」一段、终端开关、分支名、预览切换和「在浏览器中打开」
     /// 是否出现或消失。
     pub(in crate::app) fn track_modules(&mut self) {
-        let commit = self.git.root.is_some();
         let terminal = self.terminal_enabled();
         let remote = self.remote_enabled();
         let git = self.git_enabled();
@@ -126,8 +122,7 @@ impl App {
         let preview = self.editor.active().is_some_and(|d| d.can_preview());
         let browser = self.browser_page().is_some();
         let fx = &self.motion.module_fx;
-        let changed = fx.commit_tab.shown != commit
-            || fx.terminal.shown != terminal
+        let changed = fx.terminal.shown != terminal
             || fx.remote.shown != remote
             || fx.git.shown != git
             || fx.branch.shown != branch
@@ -141,7 +136,6 @@ impl App {
             None
         };
         let fx = &mut self.motion.module_fx;
-        fx.commit_tab.track(commit, clock);
         fx.terminal.track(terminal, clock);
         fx.remote.track(remote, clock);
         fx.git.track(git, clock);

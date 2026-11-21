@@ -6,6 +6,7 @@
 mod adopt;
 mod card;
 mod formatters;
+pub(crate) mod panels;
 pub(super) mod shortcuts;
 mod stepper;
 
@@ -70,6 +71,8 @@ pub struct SettingsState {
     pub keys_recorded: bool,
     /// 「快捷键」页中正在修改的一行。
     pub(crate) key_edit: Option<shortcuts::KeyEdit>,
+    /// 「面板」页中正在拖动的面板。
+    pub(crate) panel_drag: Option<super::settings::panels::PanelDrag>,
     /// 「快捷键」页中一行展开、收起的过渡：同时收起的另一行和时钟；展开的是 `key_edit` 的一行。
     pub key_slide: Option<(Option<keymap::Action>, super::animation::Clock)>,
     /// 「导入…」菜单列出的来源，打开菜单时查找。
@@ -268,6 +271,12 @@ impl App {
         if layout.page == SettingsPage::Keys
             && !layout.searching
             && let Some(part) = self.keys_part_at(layout.body, x, y)
+        {
+            return Some(part);
+        }
+        if layout.page == SettingsPage::Panels
+            && !layout.searching
+            && let Some(part) = self.panels_part_at(x, y)
         {
             return Some(part);
         }
@@ -605,12 +614,19 @@ impl App {
 
     /// 当前设置页的滚动区域和最大滚动量：快捷键页为命令列表，其他页为正文。
     pub(in crate::app) fn settings_scroll_area(&self) -> (Rect, f32) {
-        if self.settings.selected.page() == SettingsPage::Keys {
-            let keys = self.keys_layout();
-            (keys.list, keys.max_scroll())
-        } else {
-            let layout = self.settings_layout();
-            (layout.body, layout.max_scroll())
+        match self.settings.selected.page() {
+            SettingsPage::Keys => {
+                let keys = self.keys_layout();
+                (keys.list, keys.max_scroll())
+            }
+            SettingsPage::Panels => {
+                let panels = self.panels_layout();
+                (self.settings_layout().body, panels.max_scroll())
+            }
+            _ => {
+                let layout = self.settings_layout();
+                (layout.body, layout.max_scroll())
+            }
         }
     }
 
@@ -731,6 +747,7 @@ impl App {
             Setting::WholeLines => self.config.whole_lines == Some(true),
             Setting::Minimap => self.config.minimap == Some(true),
             Setting::Outline => self.config.outline != Some(false),
+            Setting::MultiWorkspace => self.config.multi_workspace != Some(false),
             Setting::LineNumbers => self.config.line_numbers != Some(false),
             Setting::DiffInline => self.config.diff_inline == Some(true),
             Setting::StatusBar => self.config.status_bar != Some(false),
@@ -803,6 +820,7 @@ impl App {
             Setting::WholeLines => self.config.whole_lines = Some(on),
             Setting::Minimap => self.config.minimap = Some(on),
             Setting::Outline => self.config.outline = Some(on),
+            Setting::MultiWorkspace => self.config.multi_workspace = Some(on),
             Setting::LineNumbers => self.config.line_numbers = Some(on),
             Setting::DiffInline => self.config.diff_inline = Some(on),
             Setting::StatusBar => self.config.status_bar = Some(on),

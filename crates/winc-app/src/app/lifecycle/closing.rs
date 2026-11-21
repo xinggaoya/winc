@@ -176,6 +176,12 @@ impl App {
         if self.editor.workspace.is_none() {
             return;
         }
+        // 多工作区模式：关掉的是当前这个工作区，其余的还开着。
+        if self.multi_workspace() && self.workspaces.slots.len() > 1 {
+            let active = self.workspaces.active;
+            self.close_workspace(active);
+            return;
+        }
         self.remember_session();
         if !self.confirm_terminal_quit(CloseRequest::CloseFolder) {
             self.request_close(CloseRequest::CloseFolder);

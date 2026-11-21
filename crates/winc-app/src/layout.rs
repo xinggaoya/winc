@@ -14,6 +14,7 @@ use crate::icons;
 use crate::keymap::{self, Action, KeyCode, Mods, Os, Stroke};
 use crate::theme::*;
 
+mod columns;
 mod dialog;
 mod overlays;
 mod settings;
@@ -22,23 +23,47 @@ mod tests;
 mod workspace;
 mod wrap;
 
+pub use columns::*;
 pub use dialog::*;
 pub use overlays::*;
+pub use settings::panels::*;
 pub use settings::*;
 pub use workspace::panel::*;
 pub use workspace::sidebar::*;
 pub use wrap::wrap_text;
+
+/// 窗口的竖列：左边或右边。
+///
+/// 中间一栏（编辑区和终端）是固定的，不参与配置；左右两栏放各个面板，哪面板在哪一栏由用户
+/// 决定。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Column {
+    /// 左栏：默认放文件树和符号大纲。
+    Left,
+    /// 右栏：默认放 Git 的提交视图。
+    Right,
+}
 
 /// 窗口各主要区域的矩形，由 [`Layout::compute`] 生成。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Layout {
     /// 整个窗口。
     pub window: Rect,
-    /// 侧栏卡片，从窗口顶部的留白之下到状态栏。
+    /// 侧栏卡片（左栏），从窗口顶部的留白之下到状态栏。
     ///
     /// 宽度不随展开比例变化：未完全展开时左侧伸到窗口外，
     /// 隐藏时整个位于窗口外（`right()` 不大于 0）。
     pub sidebar: Rect,
+    /// 右栏卡片（Git 等面板），与左栏对称：收起时伸到窗口外。
+    pub right: Rect,
+    /// 左栏里的各个面板，从上到下；前 [`left_count`] 项有效。
+    pub left_panels: [PanelSlot; MAX_PANELS],
+    /// 左栏里的面板数。
+    pub left_count: usize,
+    /// 右栏里的各个面板，从上到下；前 [`right_count`] 项有效。
+    pub right_panels: [PanelSlot; MAX_PANELS],
+    /// 右栏里的面板数。
+    pub right_count: usize,
     /// 侧栏第二行：左边项目和分支，右端当前视图的工具。
     pub sidebar_header: Rect,
     /// 侧栏中的文件树区域，位于项目名所在行之下；文件视图里不含底部的大纲。
@@ -47,6 +72,10 @@ pub struct Layout {
     pub outline: Rect,
     /// 侧栏和编辑区之间可拖动的分隔条。
     pub splitter: Rect,
+    /// 编辑区和右栏之间可拖动的分隔条。
+    pub right_splitter: Rect,
+    /// 右栏开关按钮：固定在顶栏右端，展开、收起时都不动。
+    pub right_button: Rect,
     /// 侧栏开关按钮：固定在红绿灯右侧，侧栏展开、收起时都不动。
     pub sidebar_button: Rect,
     /// 编辑区卡片顶部的顶栏。
@@ -54,6 +83,8 @@ pub struct Layout {
     /// 顶栏右端的窗口按钮（最小化、最大化、关闭），由应用绘制标题栏时才有，否则为空矩形；由
     /// `App::relayout` 放置。
     pub controls: Rect,
+    /// 顶栏里切换各个工作区的按钮，以及「打开项目」按钮。
+    pub workspaces: Rect,
     /// 顶栏中放置标签和新建按钮的区域。
     pub tabs: Rect,
     /// 标签栏右端切换「源代码 / 分栏 / 预览」的三个按钮（仅 SVG 等可预览的文件有，见
@@ -98,6 +129,9 @@ impl Layout {
     /// - `width`、`height`：窗口的逻辑大小。
     /// - `panel_width`：侧栏完全展开时的宽度。
     /// - `shown`：侧栏露出的比例，0 为隐藏，1 为完全展开，动画中介于两者之间。
+    /// - `right_width`：右栏完全展开时的宽度。
+    /// - `right_shown`：右栏露出的比例，0 为隐藏，1 为完全展开。
+    /// - `left_panels`、`right_panels`：两栏里各自的面板，顺序从上到下。
     /// - `search_rows`：查找条的行数，0 为关闭，1 为只有查找，2 为查找加替换。
     /// - `picker_rows`：快速打开面板的结果行数，0 为关闭。
     /// - `gutter_width`：行号栏的宽度。
@@ -108,6 +142,10 @@ impl Layout {
         height: f32,
         panel_width: f32,
         shown: f32,
+        right_width: f32,
+        right_shown: f32,
+        left_panels: &[winc_config::Panel],
+        right_panels: &[winc_config::Panel],
         search_rows: usize,
         picker_rows: usize,
         gutter_width: f32,
@@ -134,20 +172,31 @@ impl Layout {
             (body_h - m).max(0.0),
         );
         let sidebar_header = Rect::new(sidebar.x, TOP_BAR_END, sidebar.w, SIDEBAR_HEADER);
-        let tree = Rect::new(
-            sidebar.x,
-            sidebar_header.bottom(),
-            sidebar.w,
-            (body_h - sidebar_header.bottom()).max(0.0),
+
+        // 右栏与左栏对称：收起时整张卡片伸到窗口外。
+        let right_full = right_width
+            .min((width - 320.0).max(MIN_PANEL_WIDTH))
+            .round();
+        let right_visible = (right_full * right_shown.clamp(0.0, 1.0)).round();
+        let right = Rect::new(
+            width + ISLAND_GAP / 2.0 - right_visible,
+            m,
+            right_full - m - ISLAND_GAP / 2.0,
+            (body_h - m).max(0.0),
         );
+
         // 侧栏动画进行中（`shown` 小于 1）不显示分隔条，因此不能拖动；显示时宽 6 像素
         // （`ISLAND_GAP`）。
         let splitter_w = if shown >= 1.0 { 6.0 } else { 0.0 };
         let splitter = Rect::new(visible_w - 3.0, 0.0, splitter_w, body_h);
+        let right_splitter_w = if right_shown >= 1.0 { 6.0 } else { 0.0 };
+        let right_splitter = Rect::new(width - right_visible - 3.0, 0.0, right_splitter_w, body_h);
 
-        // 编辑区卡片从侧栏卡片右侧的间距之后开始；侧栏隐藏时与窗口左边缘相隔 `ISLAND_MARGIN`。
+        // 编辑区卡片从侧栏卡片右侧的间距之后开始，到右栏卡片左侧的间距之前结束；两侧的栏都
+        // 隐藏时与窗口边缘相隔 `ISLAND_MARGIN`。
         let main_x = (visible_w + ISLAND_GAP / 2.0).max(m);
-        let main_w = (width - m - main_x).max(0.0);
+        let main_right = (width - right_visible.max(m)).max(main_x);
+        let main_w = (main_right - main_x).max(0.0);
         let top_bar = Rect::new(main_x, m, main_w, TOP_BAR);
 
         // 侧栏开关固定在红绿灯右侧，侧栏展开、收起和动画期间位置不变，连续点击时无需重新定位。
@@ -161,13 +210,42 @@ impl Layout {
             BUTTON,
         );
         let tabs_x = (main_x + TAB_INSET).max(sidebar_button.right() + TAB_GAP);
+        // 右栏开关在窗口右上角：位置固定，收起右栏时按钮不动，点了还能再展开。右栏里没有
+        // 面板时不显示，标签栏也就让出那一块。
+        let right_button = if right_panels.is_empty() {
+            Rect::default()
+        } else {
+            Rect::new(
+                width - ISLAND_MARGIN - 6.0 - BUTTON,
+                button_y,
+                BUTTON,
+                BUTTON,
+            )
+        };
         // 标签栏延伸到顶栏右端：查找由快捷键打开，设置的入口位于菜单栏和命令面板中。
-        let tabs = Rect::new(
-            tabs_x,
-            m,
-            (top_bar.right() - 8.0 - tabs_x).max(0.0),
-            TOP_BAR,
-        );
+        // 右栏开关占着位置时，标签栏在它左边停下。
+        let tabs_right = if right_button.w > 0.0 {
+            (right_button.x - TAB_GAP).min(top_bar.right() - 8.0)
+        } else {
+            top_bar.right() - 8.0
+        };
+        let tabs = Rect::new(tabs_x, m, (tabs_right - tabs_x).max(0.0), TOP_BAR);
+
+        // 两栏里的各个面板：左栏在项目名一行之下，右栏从顶栏之下开始。
+        let left_slots = panel_slots(sidebar, sidebar_header.bottom(), left_panels);
+        let left_count = left_panels.len().min(MAX_PANELS);
+        let right_slots = panel_slots(right, TOP_BAR_END, right_panels);
+        let right_count = right_panels.len().min(MAX_PANELS);
+
+        // 文件树在文件面板里；文件面板不在任何一栏里时没有位置。
+        let tree = left_slots[..left_count]
+            .iter()
+            .chain(&right_slots[..right_count])
+            .find(|slot| slot.panel == Some(winc_config::Panel::Files))
+            .map(|slot| slot.body)
+            .unwrap_or_default();
+        // 大纲在文件树底部，由 `App::place_outline` 从树里分出来。
+        let outline = Rect::default();
 
         let editor = Rect::new(main_x, TOP_BAR_END, main_w, (body_h - TOP_BAR_END).max(0.0));
         let gutter = Rect::new(editor.x, editor.y, gutter_width, editor.h);
@@ -202,11 +280,19 @@ impl Layout {
 
         Layout {
             window,
+            workspaces: Rect::default(),
             sidebar,
+            right,
+            left_panels: left_slots,
+            left_count,
+            right_panels: right_slots,
+            right_count,
             sidebar_header,
             tree,
-            outline: Rect::default(),
+            outline,
             splitter,
+            right_splitter,
+            right_button,
             sidebar_button,
             top_bar,
             controls: Rect::default(),

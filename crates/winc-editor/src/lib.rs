@@ -61,6 +61,7 @@ pub use workspace::watch::{Changes, Watcher};
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 编辑器状态：打开的文档（每个对应一个标签）和工作区。
 pub struct Editor {
@@ -92,8 +93,13 @@ pub struct Editor {
     /// 各类可预览的文件读取完成时采用的显示方式（[`Editor::finish_load`]），按
     /// [`PreviewKind::ALL`] 的顺序；默认为源代码。
     pub preview_defaults: [PreviewMode; PreviewKind::ALL.len()],
-    next_id: u64,
 }
+
+/// 文档编号的计数器：整个进程共用一个。
+///
+/// 同一个窗口里可以同时打开多个工作区，各自有自己的 [`Editor`]；编号在进程内唯一，界面
+/// 按编号缓存的东西（渲染结果、滚动位置）才不会串到另一个工作区的文档上。
+static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 
 impl Default for Editor {
     fn default() -> Self {
@@ -108,7 +114,6 @@ impl Default for Editor {
             bookmarks: BookmarkMap::new(),
             folds: FoldMap::new(),
             preview_defaults: [PreviewMode::Source; PreviewKind::ALL.len()],
-            next_id: 0,
         }
     }
 }
@@ -653,8 +658,7 @@ impl Editor {
     }
 
     fn allocate_id(&mut self) -> DocumentId {
-        self.next_id += 1;
-        DocumentId(self.next_id)
+        DocumentId(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
 }
 

@@ -3,6 +3,7 @@
 
 use super::*;
 
+pub(super) mod columns;
 pub(super) mod folders;
 pub(super) mod loading;
 pub(super) mod outline;
@@ -12,8 +13,10 @@ pub(super) mod recent;
 pub(super) mod search;
 pub(super) mod selection;
 pub(super) mod session;
+pub(super) mod shots;
 pub(super) mod tab_selection;
 pub(super) mod tabs;
 pub(super) mod tree;
 mod tree_drag;
 pub(super) mod watch;
+pub(super) mod workspaces;

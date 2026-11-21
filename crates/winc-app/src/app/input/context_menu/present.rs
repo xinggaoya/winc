@@ -135,7 +135,7 @@ impl App {
         let target = if let Some(doc) = tab {
             MenuTarget::Tab(doc.id)
         } else if self.panels.sidebar.visible
-            && self.panels.sidebar.view == SidebarView::Files
+            && self.panels.sidebar.view == Panel::Files
             && (self.layout.tree.contains(x, y) || self.in_tree_overflow(x, y))
             && self.editor.workspace.is_some()
         {
@@ -218,7 +218,7 @@ impl App {
     /// 点击目录或组标题时选中其下的各个文件，返回第一个文件的路径。
     fn commit_context_target(&mut self, x: f32, y: f32) -> Option<PathBuf> {
         if !self.panels.sidebar.visible
-            || self.panels.sidebar.view != SidebarView::Commit
+            || self.panels.sidebar.view != Panel::Commit
             || self.git.commit.hits_generation != self.git.generation
         {
             return None;

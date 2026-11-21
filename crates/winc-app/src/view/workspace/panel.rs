@@ -9,8 +9,9 @@ use super::*;
 use crate::app::{Focus, OutlineTarget, ResultRow, SyncState};
 use crate::layout::{
     PANEL_CHEVRON, PANEL_LEFT, PANEL_TEXT, PanelButton, PanelParts, PanelTool, RowAction,
-    SearchButton, SidebarView, row_actions,
+    SearchButton, row_actions,
 };
+use winc_config::Panel;
 
 mod overflow;
 
@@ -19,88 +20,10 @@ pub(in crate::view) use overflow::{
     draw_result_overflow, draw_result_overflow_closing, result_overflow,
 };
 
-/// 视图切换里的图标比原大小略小（约占 13 逻辑像素，放在 22 逻辑像素的一段里四周留出 4.5）。
-const VIEW_ICON: f32 = 0.93;
-
 /// 结果行上悬停按钮左侧渐隐区域的宽度（逻辑像素，经验值）。
 ///
 /// 其下的文本在该区域内逐渐淡出，而不是被直接截断。
 const COVER_FADE: f32 = 20.0;
-
-/// 绘制顶栏里侧栏开关右边的视图切换（文件、搜索、提交）。
-///
-/// 各段放在一条浅灰的底槽里，当前视图那一段凸起来：浅色配色里是白底、一圈细边，深色配色里比
-/// 底槽亮一档；图标都是线条风格、同一个颜色，选中靠凸起的底分辨。悬停的那一段铺浅色，提示写
-/// 名字和快捷键。有未提交的改动时「提交」那一段右上角是一个强调色的小圆点。
-/// 侧栏收起、动画途中超出侧栏的部分不绘制。
-pub(super) fn draw_view_tabs(app: &App, frame: &mut Frame<'_>) {
-    let p = app.palette;
-    let clip = app.layout.sidebar;
-    let tabs = app.sidebar_tabs();
-    let (Some(first), Some(last)) = (tabs.first(), tabs.last()) else {
-        return;
-    };
-    let track = Rect::new(
-        first.0.x - 2.0,
-        first.0.y - 2.0,
-        last.0.right() - first.0.x + 4.0,
-        first.0.h + 4.0,
-    );
-    frame.rect_clipped(track, p.hover, RADIUS_TAB, clip);
-    let track_bg = over(p.sidebar_bg, p.hover);
-    let (raised, edge) = segment_colors(p, track_bg);
-
-    // 凸起的那一段：切换视图时从上一个视图的位置滑过来（`Sidebar::view_slide`），先绘制，图标压在上面。
-    let at = |view: SidebarView| tabs.iter().find(|t| t.1 == view).map(|t| t.0);
-    if let Some(to) = at(app.panels.sidebar.view) {
-        let slot = match app
-            .panels
-            .sidebar
-            .view_slide
-            .and_then(|(from, clock)| Some((at(from)?, clock)))
-        {
-            Some((from, clock)) => Rect::new(clock.between(from.x, to.x), to.y, to.w, to.h),
-            None => to,
-        };
-        frame.rect_clipped(slot, edge, RADIUS_ROW, clip);
-        frame.rect_clipped(slot.inset(0.5, 0.5), raised, RADIUS_ROW - 0.5, clip);
-    }
-
-    for &(rect, view) in &tabs {
-        let on = app.panels.sidebar.view == view;
-        let hovered = app.pointer.hover == Hover::ViewTab(view);
-        // 图标外圈（改动小圆点的隔圈）用这一段的底色。
-        let base = if on {
-            raised
-        } else if hovered {
-            frame.rect_clipped(rect, p.hover, RADIUS_ROW, clip);
-            over(track_bg, p.hover)
-        } else {
-            track_bg
-        };
-        // 选中的一段靠凸起的底分辨，图标与其他段一样用淡一档的字色；悬停时才加深。若选中段
-        // 用正文色，选中的图标会明显重于相邻的几段。
-        let color = if hovered { p.text } else { p.text_muted };
-        // 模块的视图出现、消失途中（`App::view_tab_share`）这一段按比例变窄，图标跟着淡入淡出、
-        // 从小到大，只绘制在这一段里，不压到旁边。
-        let share = app.view_tab_share(view);
-        let (color, scale, clip) = if share < 1.0 {
-            let opacity = app.view_tab_opacity(view);
-            let color = color.alpha(color.a * opacity);
-            (color, VIEW_ICON * (0.6 + 0.4 * share), rect.intersect(clip))
-        } else {
-            (color, VIEW_ICON, clip)
-        };
-        match view {
-            SidebarView::Files => icons::files(frame, center(rect), scale, color, clip),
-            SidebarView::Search => icons::search(frame, center(rect), scale, color, clip),
-            SidebarView::Commit => icons::git(frame, center(rect), scale, color, clip),
-        }
-        if view == SidebarView::Commit && share >= 1.0 && app.commit_count_text().is_some() {
-            draw_change_dot(frame, p, rect, base, clip);
-        }
-    }
-}
 
 /// 分段控件里凸起那一段的底色和细边：浅色配色是白底、淡黑边；深色配色是比底槽 `track` 亮一档的
 /// 灰、淡白边。
@@ -116,25 +39,8 @@ pub(in crate::view) fn segment_colors(p: &Palette, track: Color) -> (Color, Colo
     }
 }
 
-/// 在图标按钮 `button` 的右上角、图标外面绘制一个强调色的小圆点，表示有未提交的改动；外面
-/// 一圈按钮底色 `ring`，与按钮底色隔开。
-///
-/// 具体几个改动写在悬停提示和列表的组标题里。
-///
-/// 圆点放在图标（中心 ±7 逻辑像素）与按钮边（±14 逻辑像素）之间：压在图标上会盖住 Git 图标
-/// 右上的提交标记。
-fn draw_change_dot(frame: &mut Frame<'_>, p: &Palette, button: Rect, ring: Color, clip: Rect) {
-    let (cx, cy) = center(button);
-    let r = 2.5;
-    // 段是横着的长方形：圆点放在图标右上、段里面，不伸到底槽外。
-    let (x, y) = (cx + 11.5, cy - 6.5);
-    let dot = Rect::new(x - r, y - r, 2.0 * r, 2.0 * r);
-    frame.rect_clipped(dot.inset(-1.5, -1.5), ring, r + 1.5, clip);
-    frame.rect_clipped(dot, p.accent, r, clip);
-}
-
-/// 绘制全局搜索面板，返回有焦点的输入框的光标矩形（供输入法候选框定位）。
-pub(super) fn draw_panel(app: &mut App, frame: &mut Frame<'_>) -> Option<Rect> {
+/// 绘制搜索面板，返回有焦点的输入框的光标矩形（供输入法候选框定位）。
+pub(super) fn draw_search_panel(app: &mut App, frame: &mut Frame<'_>) -> Option<Rect> {
     app.panels.global.sync_rows();
     // 查找、替换输入框随内容长高：先按框的宽度折好行（宽度和高度无关），框的高度按行数定，
     // 绘制时继续使用折好的行。
@@ -179,10 +85,11 @@ pub(super) fn draw_panel(app: &mut App, frame: &mut Frame<'_>) -> Option<Rect> {
     caret
 }
 
-/// 绘制面板第一行右端的三个按钮（左边是共用的项目和分支）。
+/// 绘制面板第一行：左边是「搜索」，右端是三个按钮。
 fn draw_panel_header(app: &App, frame: &mut Frame<'_>, parts: &PanelParts) {
     let p = app.palette;
     let header = parts.header;
+    columns::draw_panel_title(app, frame, header, Panel::Search);
 
     let has_results = !app.panels.global.engine.results.is_empty();
 
@@ -1238,17 +1145,6 @@ pub(in crate::view) fn tooltip(app: &App) -> Option<(Rect, String)> {
             Some((hit.tab, label))
         }
         Hover::TabList => Some((app.tabs.list?, t!("workspace-tip-all-tabs").to_owned())),
-        Hover::ViewTab(view) => {
-            let rect = app.sidebar_tabs().into_iter().find(|(_, v)| *v == view)?.0;
-            let label = match (view, app.commit_count_text()) {
-                (SidebarView::Commit, Some(count)) => {
-                    let name = t!("workspace-tip-commit-changes", count = count);
-                    with_key(&name, Some(Action::ShowCommit))
-                }
-                _ => view.label(),
-            };
-            Some((rect, label))
-        }
         Hover::Panel(PanelButton::Tool(tool)) => {
             let parts = app.panel_parts();
             let rect = parts.tools.iter().find(|(_, t)| *t == tool)?.0;

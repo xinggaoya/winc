@@ -46,8 +46,7 @@ impl App {
         if self.terminal_takes_drop(x, y) {
             return DropZone::Terminal;
         }
-        let on_tree =
-            self.panels.sidebar.view == SidebarView::Files && self.layout.sidebar.right() > 0.0;
+        let on_tree = self.panels.sidebar.view == Panel::Files && self.layout.sidebar.right() > 0.0;
         match on_tree.then(|| self.tree_dir_at(x, y)).flatten() {
             Some(dir) => DropZone::Tree(dir),
             None => DropZone::Open((self.pane_drop_at((x, y))).map(|(pane, edge)| PaneDrop {

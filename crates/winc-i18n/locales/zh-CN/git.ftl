@@ -380,6 +380,8 @@ git-trust-allow = 信任
 ## 提交视图
 
 git-commit-view-problem = { $problem }，请点击刷新按钮重试
+git-commit-module-off = Git 模块已关闭，可在设置中打开
+
 git-commit-view-loading = 正在读取仓库状态…
 git-commit-view-empty = 暂无待提交的更改
 git-commit-repository-current = 当前

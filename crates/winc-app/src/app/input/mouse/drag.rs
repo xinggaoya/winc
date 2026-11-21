@@ -1,6 +1,7 @@
 //! 鼠标移动：悬停、各类拖动，以及拖选文字时的边缘自动滚动。
 
 use super::*;
+use crate::app::settings::panels::PanelDrag;
 
 use crate::app::scroll::set_scroll_line;
 
@@ -114,6 +115,17 @@ impl App {
             Drag::DiffColumns { anchor } => self.drag_diff_columns(x, y, anchor),
             Drag::DiffSelectRead { side, unit, origin } => {
                 self.drag_diff_select_read(x, y, side, unit, origin);
+            }
+            Drag::RightSplitter {
+                start_x,
+                start_width,
+            } => {
+                // 往左拖右栏变宽：宽度是右边缘到分隔条的距离。
+                let width = start_width - (x - start_x);
+                let max = (self.layout.window.w - 320.0).max(MIN_PANEL_WIDTH);
+                self.panels.layout.right_width = width.clamp(MIN_PANEL_WIDTH, max);
+                self.relayout();
+                self.request_redraw();
             }
             Drag::Splitter {
                 start_x,
@@ -434,6 +446,20 @@ impl App {
                 self.request_redraw();
             }
             // 设置卡片在上面设置浮层打开时的分支中拖动；浮层已关闭时不再处理。
+            Drag::PanelRow { panel, grab } => {
+                if let Some(drag) = self.settings.panel_drag {
+                    self.settings.panel_drag = Some(PanelDrag { at: (x, y), ..drag });
+                } else {
+                    self.settings.panel_drag = Some(PanelDrag {
+                        panel,
+                        from: None,
+                        index: 0,
+                        grab,
+                        at: (x, y),
+                    });
+                }
+                self.request_redraw();
+            }
             Drag::None | Drag::SettingsCard { .. } => {}
         }
     }

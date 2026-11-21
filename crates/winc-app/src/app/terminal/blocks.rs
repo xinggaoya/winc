@@ -432,7 +432,12 @@ impl App {
         });
         let history_end = end.min(tab.history.1);
         if output < history_end {
-            t.request(tab_id, (output, history_end), Request::Errors);
+            t.request(
+                self.terminal_client.as_ref(),
+                tab_id,
+                (output, history_end),
+                Request::Errors,
+            );
         } else {
             self.terminal_errors_loaded(tab_id, output, Vec::new());
         }

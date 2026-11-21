@@ -224,6 +224,25 @@ impl App {
                     start_width: self.panels.sidebar.width.min(most),
                 };
             }
+            // 双击分隔条恢复默认宽度。
+            Target::RightSplitter if self.click_count(x, y) == 2 => {
+                self.panels.layout.right_width = winc_config::Config::PANEL_RIGHT_WIDTH;
+                self.relayout();
+                self.request_redraw();
+            }
+            // 从看到的宽度开始拖：记下的宽度可能比这个窗口放得下的大。
+            Target::RightSplitter => {
+                let most = (self.layout.window.w - 320.0).max(crate::theme::MIN_PANEL_WIDTH);
+                self.pointer.drag = Drag::RightSplitter {
+                    start_x: x,
+                    start_width: self.panels.layout.right_width.min(most),
+                };
+            }
+            Target::RightButton => self.toggle_right_column(),
+            // 顶栏里的工作区按钮：点了切到那个工作区。
+            Target::Workspace(index) => self.switch_workspace(index),
+            // 「打开项目」：弹出打开目录的对话框。
+            Target::AddWorkspace => self.pick(crate::app::Pick::OpenFolder),
             Target::TreeTool(tool) => self.run_tree_tool(tool),
             Target::TreeMore => self.open_tree_tools_menu(),
             Target::ProjectName => self.open_project_menu(),

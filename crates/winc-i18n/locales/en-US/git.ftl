@@ -469,6 +469,8 @@ git-trust-allow = Trust
 ## Commit view
 
 git-commit-view-problem = { $problem }. Click Refresh to try again
+git-commit-module-off = The Git module is off; turn it on in the settings
+
 git-commit-view-loading = Reading repository status…
 git-commit-view-empty = Nothing to Commit
 git-commit-repository-current = Current

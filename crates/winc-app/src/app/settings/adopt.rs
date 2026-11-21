@@ -53,6 +53,9 @@ impl App {
             old.terminal_enabled != new.terminal_enabled && new.terminal_enabled == Some(false);
         let stop_remote =
             old.remote_enabled != new.remote_enabled && new.remote_enabled != Some(true);
+        let panels = old.panels_left != new.panels_left
+            || old.panels_right != new.panels_right
+            || old.panel_right_width != new.panel_right_width;
 
         if fonts || glyph_language {
             // 别的窗口已经用上了这些字体，这里也用得上；万一用不上，留着原来的字体。
@@ -105,6 +108,9 @@ impl App {
         }
         if stop_remote {
             self.stop_remote();
+        }
+        if panels {
+            self.adopt_panels();
         }
         // 模块关闭后它的那一页不再列出：设置停在该页时改到「模块」页。
         let page = self.settings.selected.page();

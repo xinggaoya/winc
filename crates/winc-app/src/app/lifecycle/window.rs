@@ -301,11 +301,16 @@ impl App {
             0
         };
         let (panel, shown) = (self.panels.sidebar.width, self.sidebar_shown());
+        let (left, right) = self.columns();
         self.layout = Layout::compute(
             w,
             h,
             panel,
             shown,
+            self.panels.layout.right_width,
+            self.right_shown(),
+            &left,
+            &right,
             rows,
             picker_rows,
             self.gutter_width(),
@@ -318,6 +323,7 @@ impl App {
         }
 
         self.place_terminal();
+        self.place_workspaces();
         self.place_window_controls();
         self.place_panes();
         self.place_editor_parts();
@@ -330,11 +336,6 @@ impl App {
         }
 
         self.place_outline();
-        // 搜索有自己的列表，不能命中工作区文件树原来的区域。
-        if self.panels.sidebar.view == SidebarView::Search {
-            let tree = self.layout.tree;
-            self.layout.tree = Rect::new(tree.x, tree.y, 0.0, 0.0);
-        }
         self.sync_wrap();
         self.sync_terminal();
     }

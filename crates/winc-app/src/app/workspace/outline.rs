@@ -23,7 +23,7 @@ use winit::keyboard::{Key, NamedKey};
 
 use super::*;
 use crate::app::animation::{Clock, TREE_ANIMATION};
-use crate::layout::SidebarView;
+use winc_config::Panel;
 
 /// 大纲标题行上下各留的空隙（逻辑像素）：列表间隔（`SIDEBAR_LIST_GAP`）的一半，与提交视图中
 /// 储藏一组的标题相同，侧栏底部收着的各栏等高。上面是分隔线，下面是侧栏卡片的下沿或符号列表。
@@ -270,7 +270,7 @@ impl App {
         let l = &mut self.layout;
         l.outline = Rect::default();
         let off = self.config.outline == Some(false);
-        if off || self.panels.sidebar.view != SidebarView::Files || l.tree.h <= 0.0 {
+        if off || l.tree.h <= 0.0 {
             return;
         }
         let room = (l.tree.h - OUTLINE_HEADER - OUTLINE_MIN).max(0.0);
@@ -331,7 +331,7 @@ impl App {
             self.flash(t!("workspace-outline-off"));
             return;
         }
-        self.set_sidebar_view(SidebarView::Files);
+        self.set_sidebar_view(Panel::Files);
         if !self.panels.sidebar.visible {
             self.set_sidebar(true);
         }

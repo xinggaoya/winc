@@ -14,8 +14,8 @@ use crate::app::StartAction;
 use crate::app::workspace::picker::PickerMotion;
 use crate::layout::{
     PanelButton, PickerParts, RowAction, Scrollbar, SearchParts, Setting, SettingsPage,
-    SettingsPart, SidebarView, StepperParts, THEME_CHOICES, TREE_NAME_MIN, hscrollbar_thumb,
-    row_actions, scrollbar_thumb, theme_tile,
+    SettingsPart, StepperParts, THEME_CHOICES, hscrollbar_thumb, row_actions, scrollbar_thumb,
+    theme_tile,
 };
 
 mod animation;
@@ -278,6 +278,60 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
         }
         SettingsPart::FontMenu(s) => {
             crate::layout::font_menu_button(layout.row(s).unwrap().control)
+        }
+        SettingsPart::PanelHandle(panel) => {
+            app.panels_layout()
+                .left
+                .iter()
+                .chain(app.panels_layout().right.iter())
+                .chain(app.panels_layout().hidden.iter())
+                .find(|row| row.panel == panel)
+                .unwrap()
+                .handle
+        }
+        SettingsPart::PanelButton(button) => {
+            let panels = app.panels_layout();
+            match button {
+                crate::app::settings::panels::PanelButton::Up(panel) => {
+                    panels
+                        .left
+                        .iter()
+                        .chain(panels.right.iter())
+                        .find(|row| row.panel == panel)
+                        .unwrap()
+                        .up
+                }
+                crate::app::settings::panels::PanelButton::Down(panel) => {
+                    panels
+                        .left
+                        .iter()
+                        .chain(panels.right.iter())
+                        .find(|row| row.panel == panel)
+                        .unwrap()
+                        .down
+                }
+                crate::app::settings::panels::PanelButton::Side(panel) => {
+                    panels
+                        .left
+                        .iter()
+                        .chain(panels.right.iter())
+                        .find(|row| row.panel == panel)
+                        .unwrap()
+                        .side
+                }
+                crate::app::settings::panels::PanelButton::Hide(panel) => {
+                    panels
+                        .left
+                        .iter()
+                        .chain(panels.right.iter())
+                        .chain(panels.hidden.iter())
+                        .find(|row| row.panel == panel)
+                        .unwrap()
+                        .hide
+                }
+                crate::app::settings::panels::PanelButton::WidthDown => panels.width_down,
+                crate::app::settings::panels::PanelButton::WidthUp => panels.width_up,
+            }
         }
         SettingsPart::Decrease(s) => StepperParts::new(layout.row(s).unwrap().control).minus,
         SettingsPart::Increase(s) => StepperParts::new(layout.row(s).unwrap().control).plus,

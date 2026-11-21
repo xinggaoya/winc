@@ -971,7 +971,7 @@ fn features_work_in_a_remote_workspace() {
     app.close_picker();
 
     // 全局搜索在那台主机上的文件中进行。
-    app.set_sidebar_view(SidebarView::Search);
+    app.set_sidebar_view(Panel::Search);
     app.panels.global.query.insert("load_config");
     app.run_global_search();
     finish_search(&mut app);

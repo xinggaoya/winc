@@ -16,7 +16,7 @@ pub(crate) mod preview;
 mod release_notes;
 pub(crate) mod remote;
 pub(crate) mod scroll;
-mod settings;
+pub(crate) mod settings;
 pub(crate) mod setup;
 #[cfg(test)]
 mod snapshot;
@@ -107,6 +107,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::ModifiersState;
 use winit::window::{CursorIcon, Theme, Window, WindowId};
 
+use winc_config::Panel;
 use winc_core::text::{self, MAX_LINE_BYTES, MAX_LINE_CHARS};
 use winc_core::{Lines, Selection};
 use winc_editor::{COPY_LIMIT, Command, DocumentId, Editor, Entry, EntryKind, FileIndex, Search};
@@ -118,8 +119,8 @@ use crate::bench::{Bench, Next};
 use crate::field::{TextField, Unit};
 use crate::layout::{
     Layout, PanelButton, RowAction, Scrollbar, SearchButton, Setting, SettingControl,
-    SettingsLayout, SettingsPage, SettingsPart, SidebarView, THEME_CHOICES, TreeTool,
-    editor_content_height, scroll_to_show,
+    SettingsLayout, SettingsPage, SettingsPart, THEME_CHOICES, TreeTool, editor_content_height,
+    scroll_to_show,
 };
 use crate::theme::*;
 use crate::view;
@@ -529,6 +530,10 @@ pub enum Hover {
     /// 标签序号，以及是否悬停在该标签的关闭按钮上。
     Tab(usize, bool),
     Splitter,
+    /// 编辑区和右栏之间的分隔条。
+    RightSplitter,
+    /// 右栏开关按钮。
+    RightButton,
     /// 编辑区和终端面板之间的间距（拖动可调整面板大小）。
     TerminalDivider,
     /// 文件视图中大纲标题行的上沿（上下拖动可调整大纲的高度）。
@@ -548,8 +553,10 @@ pub enum Hover {
     TreeTool(TreeTool),
     /// 文件树工具栏收起后的「⋯」按钮。
     TreeMore,
-    /// 侧栏顶部的「文件」「搜索」切换按钮。
-    ViewTab(SidebarView),
+    /// 顶栏里的工作区按钮，参数是工作区的下标。
+    Workspace(usize),
+    /// 顶栏里的「打开项目」按钮。
+    AddWorkspace,
     /// 搜索面板中的按钮。
     Panel(PanelButton),
     /// 搜索结果的行序号。
@@ -611,7 +618,6 @@ impl Hover {
                 | Hover::TabList
                 | Hover::Preview(_)
                 | Hover::Browser
-                | Hover::ViewTab(_)
                 | Hover::Outline(OutlineTarget::FoldAll)
                 | Hover::MarkdownToc(preview::markdown::TocTarget::Pin)
                 | Hover::MarkdownLink(_)
@@ -711,6 +717,16 @@ enum Drag {
     Splitter {
         start_x: f32,
         start_width: f32,
+    },
+    /// 拖动编辑区和右栏之间的分隔条。
+    RightSplitter {
+        start_x: f32,
+        start_width: f32,
+    },
+    /// 在设置中「面板」页拖动一行：`panel` 是正在拖的面板，`grab` 是按下点相对行上沿的距离。
+    PanelRow {
+        panel: winc_config::Panel,
+        grab: f32,
     },
     /// 在日志详情中拖选文字（`App::drag_log_text`）。
     LogText,
@@ -863,6 +879,10 @@ pub struct App {
     pub editor: Editor,
     /// 终端面板（终端模块）。
     pub(crate) terminal: terminal::TerminalPanel,
+    /// 终端辅助进程的连接：整个窗口共用一个，各个工作区的终端标签都挂在它上面。
+    ///
+    /// 切换工作区时终端面板跟着换，辅助进程不动，别的项目里的程序仍在运行。
+    pub(crate) terminal_client: Option<winc_pty::client::Client>,
     /// 当前目录的运行配置。
     pub(crate) run: terminal::run::RunConfigs,
     /// 当前生效的配置。
@@ -909,6 +929,8 @@ pub struct App {
     pub layout: Layout,
     /// 标签栏的标签和滚动状态。
     pub tabs: TabBar,
+    /// 顶栏里切换各个工作区的按钮（多工作区模式）。
+    pub(crate) workspace_bar: workspace::WorkspaceBar,
     /// 编辑区的各个窗格在界面上的位置和状态。
     pub(crate) panes: workspace::panes::PaneUi,
     /// 差异视图的界面状态。
@@ -929,6 +951,8 @@ pub struct App {
     pub key_path: status::breadcrumb::KeyPath,
     /// 侧栏及其中的面板：文件树、搜索、大纲，以及文件树中的重命名和拖入。
     pub(crate) panels: workspace::Panels,
+    /// 窗口里打开的各个工作区（多工作区模式）：同时打开多个项目，随时切换。
+    pub(crate) workspaces: workspace::Workspaces,
     /// 滚动的状态：滚轮与触控板的输入、平滑滚动的过渡、惯性滚动和滚动条的显示。
     pub(crate) scroll: scroll::ScrollState,
 
