@@ -1258,8 +1258,23 @@ impl App {
     }
 
     /// 第 `line` 行不在可见范围内时，滚动到使它位于中间。
+    ///
+    /// 全局搜索弹窗浮在编辑区上方时，目标行要落在卡片下方的可见区域里，否则被卡片盖住；
+    /// 这时不再沿用「已经看得见就不滚动」的规则，卡片盖住的地方也算看不见。
     fn center_line(&mut self, line: usize) {
-        self.scroll_to_line(line, 0.5, true);
+        let (at, only_if_off) = if self.search_open() {
+            let editor = self.layout.editor;
+            let card = self.layout.search_card;
+            let below = (editor.bottom() - card.bottom()).max(0.0);
+            if below > editor.h * 0.2 {
+                (((card.bottom() - editor.y) + below / 2.0) / editor.h, false)
+            } else {
+                (0.5, true)
+            }
+        } else {
+            (0.5, true)
+        };
+        self.scroll_to_line(line, at.clamp(0.1, 0.9), only_if_off);
     }
 
     /// 在结果列表中移动选中的行，`delta` 为移动的行数（正数向下，负数向上），到两端后绕回。

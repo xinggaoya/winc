@@ -30,6 +30,58 @@ fn the_global_search_opens_a_dialog_over_the_editor() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// 打开一处匹配时，匹配行落在卡片下方的可见区域里，不被卡片盖住。
+#[test]
+fn opening_a_result_scrolls_it_below_the_dialog() {
+    let dir = search_folder("global-dialog-scroll");
+    // 足够长的文件：匹配行在文档中间，编辑区能滚动。
+    let mut text = String::new();
+    for i in 0..100 {
+        text.push_str(&format!("let value_{i} = {i};\n"));
+    }
+    text.push_str("let config = 1;\n");
+    for i in 0..100 {
+        text.push_str(&format!("let other_{i} = {i};\n"));
+    }
+    std::fs::write(dir.join("src/long.rs"), text).unwrap();
+    let mut app = app_with(&dir, false);
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    app.panels.global.query.insert("config");
+    app.run_global_search();
+    app.panels.global.engine.wait();
+    finish_search(&mut app);
+
+    // 打开长文件里的一处匹配：匹配行落在卡片下方的可见区域里。
+    let index = app
+        .panels
+        .global
+        .rows()
+        .iter()
+        .position(|r| {
+            matches!(r, ResultRow::Match(f, _) if app.panels.global.engine.results[*f].relative.ends_with("long.rs"))
+        })
+        .unwrap();
+    let (file, m) = match app.panels.global.rows()[index] {
+        ResultRow::Match(f, m) => (f, m),
+        _ => unreachable!(),
+    };
+    let line = app.panels.global.engine.results[file].matches[m].line;
+    app.open_result(index, false, false);
+    paint(&mut app);
+
+    let doc = app.editor.active().unwrap();
+    let row = doc.row_of(line) as f64;
+    let y = app.layout.text.y + (row - doc.scroll_line) as f32 * app.fonts.line_height;
+    assert!(
+        y >= app.layout.search_card.bottom(),
+        "匹配行 {y} 在卡片下方吗？卡片下沿 {}",
+        app.layout.search_card.bottom()
+    );
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 /// `Esc` 关掉弹窗，⌘⇧F 再按一次也关掉。
 #[test]
 fn escape_closes_the_dialog_and_the_shortcut_toggles_it() {
