@@ -375,6 +375,8 @@ fn the_pdf_toolbar_hides_when_idle_and_the_page_shows_in_the_status_bar() {
 
     // 指针在正文中间，到时隐藏：不画工具栏，没有可点击的按钮。
     app.on_mouse_move(middle.0, middle.1);
+    // 重新起算隐藏的时刻：这个用例不该取决于它自己跑了多久（并行跑时可能已经超过空闲时长）。
+    app.reveal_pdf_tools();
     assert!(app.pdf_tools_tick(Instant::now()).is_some());
     assert_eq!(app.pdf_tools_tick(later()), None);
     paint(&mut app);
