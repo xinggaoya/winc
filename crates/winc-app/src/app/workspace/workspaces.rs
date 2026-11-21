@@ -65,3 +65,20 @@ impl Workspaces {
         self.slots.iter().position(|slot| slot.folder == folder)
     }
 }
+
+impl App {
+    /// 工作区 `index` 的显示名：目录的名字，或用户给这一组起的名字。
+    ///
+    /// 当前工作区用打开着的目录的名字（起了名时用起名的），其余用登记时记下的。
+    pub(crate) fn workspace_name(&self, index: usize) -> String {
+        if index == self.workspaces.active
+            && let Some(workspace) = self.editor.workspace.as_ref()
+        {
+            return workspace.name.clone();
+        }
+        self.workspaces
+            .slots
+            .get(index)
+            .map_or_else(String::new, |slot| slot.name.clone())
+    }
+}

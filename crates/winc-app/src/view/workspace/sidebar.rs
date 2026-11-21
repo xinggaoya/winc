@@ -14,20 +14,72 @@ use winc_i18n::t;
 use super::*;
 use crate::app::animation::stage;
 use crate::app::{DropZone, Focus, LabelCause, LabelView, NameInput, TreeMotion};
-use crate::icons::Direction;
 use crate::layout::{
     PanelSlot, TreeTool, folding_tools, hscrollbar_thumb, tree_row_slot, tree_tools,
 };
 use crate::theme::SCROLLBAR_HIT;
 use winc_config::Panel;
 
-/// 绘制左栏的项目名一行：项目、徽章和下拉箭头。
+/// 绘制左栏顶部的工作区标签条：窗口里打开的各个项目，当前打开的高亮。
 ///
-/// 点了项目名弹项目菜单（最近的目录、打开目录、关闭目录）。这一行只在左栏有，右栏不重复。
-pub(in crate::view) fn draw_project_header(app: &mut App, frame: &mut Frame<'_>) {
+/// 末尾是「打开项目」与项目菜单两个按钮；标签悬停时右端出现关闭按钮。
+/// 这一行只在左栏有，右栏不重复。
+pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
     let header = app.layout.sidebar_header;
-    let bar = ContextBar::new(app, frame);
-    draw_context_bar(app, frame, &bar, header.right() - 8.0);
+    let clip = header.intersect(app.layout.sidebar);
+    let p = app.palette;
+    let active = app.workspaces.active;
+
+    if app.workspace_bar.chips.is_empty() {
+        // 没有打开目录：这一行只说明当前状态，末尾仍是项目菜单。
+        let text = t!("workspace-sidebar-no-folder");
+        ui_text(frame, app, header.x + 8.0, header, text, p.text_muted, clip);
+    }
+    for chip in &app.workspace_bar.chips {
+        let index = chip.index;
+        let rect = chip.rect;
+        if rect.right() < clip.x || rect.x > clip.right() {
+            continue;
+        }
+        let on = index == active;
+        let hovered = matches!(app.pointer.hover, Hover::Workspace(i) if i == index);
+        // 当前的是一块实底，悬停只铺浅色。
+        if on {
+            frame.rect_clipped(rect, p.tab_fill, RADIUS_TAB, clip);
+        } else if hovered {
+            frame.rect_clipped(rect, p.hover, RADIUS_TAB, clip);
+        }
+        let color = if on { p.text } else { p.text_muted };
+        let slot = &app.workspaces.slots[index];
+        let name = app.workspace_name(index);
+        // 徽章：项目名的首字母，底色是该目录分到的颜色。
+        let badge = Rect::new(rect.x + 6.0, rect.y + (rect.h - 20.0) / 2.0, 20.0, 20.0);
+        draw_workspace_badge(app, frame, badge, &slot.folder, &name, on, clip);
+        // 名字：放不下时截短，右端给关闭按钮留着位置。
+        let name_x = badge.right() + 5.0;
+        let room = (chip.close.x - name_x).max(0.0);
+        let name = ellipsize(frame, &name, app.fonts.ui, room).into_owned();
+        ui_text(frame, app, name_x, rect, &name, color, clip);
+    }
+
+    // 末尾两个按钮：项目菜单在最右，「打开项目」在它左边。
+    let more = app.workspace_bar.more;
+    let hovered = app.pointer.hover == Hover::ProjectName;
+    let open = app.overlays.menu_button == Some(MenuButton::Project);
+    draw_button(frame, p, more, clip, hovered, open);
+    let color = if hovered || open {
+        p.text
+    } else {
+        p.text_muted
+    };
+    icons::more(frame, center(more), color, more.intersect(clip));
+    app.hits.project = more.intersect(clip);
+
+    let add = app.workspace_bar.add;
+    let hovered = app.pointer.hover == Hover::AddWorkspace;
+    draw_button(frame, p, add, clip, hovered, false);
+    let color = if hovered { p.text } else { p.text_muted };
+    icons::plus(frame, center(add), 9.0, color, add.intersect(clip));
 }
 
 /// 绘制文件面板：标题行左边是「文件」，右端是文件树工具栏，下面是文件树和底部的大纲。
@@ -49,130 +101,44 @@ const GIT_DOT: f32 = 6.0;
 /// 文件树中放不下的名称在侧栏边缘淡出的宽度（逻辑像素），
 /// 与结果行上按钮左侧的渐隐同宽。
 pub(in crate::view) const NAME_FADE: f32 = 20.0;
-/// 项目按钮里徽章占的宽度（逻辑像素）：左边 6、徽章 20、右边 8。
+/// 项目徽章占的宽度（逻辑像素）：左边 6、徽章 20、右边 8。
 pub(in crate::view) const BADGE_ROOM: f32 = 34.0;
-/// 徽章中心相对项目按钮左边的距离（逻辑像素）。
+/// 徽章中心相对徽章左边���距离（逻辑像素）。
 pub(in crate::view) const BADGE_CENTER: f32 = 16.0;
 
-/// 侧栏第二行左边的上下文栏：现在在哪个项目。
+/// 绘制工作区标签里的项目徽章：`folder` 是工作区的目录，`current` 表示它是当前工作区。
 ///
-/// 项目按钮三个视图（文件、搜索、提交）都一样，切换视图时不动：首字母徽章、项目名和下拉箭头，
-/// 点了弹项目菜单（最近的目录、打开目录、关闭目录）。
-pub(in crate::view) struct ContextBar {
-    /// 项目名；没有打开目录时是「未打开目录」。
-    project: String,
-    /// 打开了目录（可以绘制徽章，名称用正文色）。
-    opened: bool,
-    /// 项目按钮的左边。
-    left: f32,
-    /// 项目名完整显示时的文字宽度。
-    project_w: f32,
-}
-
-impl ContextBar {
-    /// 读出当前的项目名，并量出完整显示时的文字宽度。
-    pub(in crate::view) fn new(app: &App, frame: &mut Frame<'_>) -> Self {
-        let opened = app.editor.workspace.is_some();
-        let project = app
-            .project_name()
-            .unwrap_or_else(|| t!("workspace-sidebar-no-folder").to_owned());
-        let project_w = frame.measure(FontKind::Ui, app.fonts.ui, &project);
-        ContextBar {
-            project,
-            opened,
-            left: app.layout.sidebar_header.x + 8.0,
-            project_w,
-        }
-    }
-
-    /// 项目名文字相对项目按钮左边的偏移：打开了目录时让出徽章（徽章一直在，名字放不下时
-    /// 截名字，不省徽章），否则留 6。
-    fn name_offset(&self) -> f32 {
-        if self.opened { BADGE_ROOM } else { 6.0 }
-    }
-
-    /// 项目按钮完整显示时的宽度。
-    pub(in crate::view) fn project_full(&self) -> f32 {
-        self.name_offset() + self.project_w + 18.0
-    }
-}
-
-/// 在第二行左边绘制上下文栏（[`ContextBar`]），右边不超过 `right`；记下项目按钮的位置
-/// （`project_hit`）。
-pub(super) fn draw_context_bar(app: &mut App, frame: &mut Frame<'_>, bar: &ContextBar, right: f32) {
-    let p = app.palette;
-    let header = app.layout.sidebar_header;
-    let clip = header.intersect(app.layout.sidebar);
-    let room = (right - 4.0 - bar.left).max(0.0);
-    // 留 0.5 的余量：刚好放得下时，浮点运算的误差不应该让名字被截短。
-    let fits = bar.project_full() <= room + 0.5;
-    let project_w = if fits { bar.project_full() } else { room };
-    let name_x = bar.left + bar.name_offset();
-
-    // 项目：徽章一直在；名称太长时从末尾截短，其后是下拉箭头。
-    let badge_rect = Rect::new(
-        bar.left + 6.0,
-        header.y + (header.h - 20.0) / 2.0,
-        20.0,
-        20.0,
-    );
-    let name_max = if fits {
-        f32::INFINITY
-    } else {
-        (bar.left + project_w - 18.0 - name_x).max(0.0)
-    };
-    let name = truncate_end(frame, &bar.project, app.fonts.ui, name_max);
-    let name_end = name_x + frame.measure(FontKind::Ui, app.fonts.ui, &name);
-    let hit = Rect::new(
-        bar.left,
-        header.y + (header.h - BUTTON_SMALL) / 2.0,
-        name_end + 18.0 - bar.left,
-        BUTTON_SMALL,
-    );
-    let open = app.overlays.menu_button == Some(MenuButton::Project);
-    draw_button(
-        frame,
-        p,
-        hit,
-        clip,
-        app.pointer.hover == Hover::ProjectName,
-        open,
-    );
-    if bar.opened {
-        draw_badge(app, frame, badge_rect, &bar.project, clip);
-    }
-    let color = if bar.opened { p.text } else { p.text_muted };
-    let x = ui_text(frame, app, name_x, header, &name, color, clip);
-    let arrow = (x + 9.0, icon_center_y(app, header, app.fonts.ui));
-    icons::chevron(frame, arrow, 6.5, Direction::Down, p.text_muted, clip);
-    app.hits.project = hit.intersect(clip);
-}
-
-/// 绘制项目名前面的徽章：圆角方块内是 [`crate::theme::ProjectBadge::initials`]；窗口中有附加的
-/// 目录时是一组目录的图标。
+/// 圆角方块内是 [`crate::theme::ProjectBadge::initials`]，底色是该目录在最近列表里分到的颜色；
+/// 当前工作区有附加的目录时，徽章里是一组目录的图标。
 ///
 /// 打开的是附属工作树时，徽章用主工作树的颜色（同一个仓库的工作树颜色相同），右下角加一个工作树
 /// 记号。
-fn draw_badge(app: &App, frame: &mut Frame<'_>, rect: Rect, project: &str, header: Rect) {
-    let main = app.git.main_worktree();
+fn draw_workspace_badge(
+    app: &App,
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    folder: &Path,
+    project: &str,
+    current: bool,
+    clip: Rect,
+) {
+    let main = current.then(|| app.git.main_worktree()).flatten();
     let color = match main {
         Some(main) => app.state.badge_color(&main.path),
-        None => app
-            .editor
-            .root()
-            .map_or(0, |root| app.state.badge_color(root)),
+        None => app.state.badge_color(folder),
     };
     let badge = app.palette.project_badge(project, color);
-    frame.rect_clipped(rect, badge.background, 6.0, header);
+    frame.rect_clipped(rect, badge.background, 6.0, clip);
 
-    let group = (app.editor.workspace.as_ref()).is_some_and(|ws| !ws.extra_folders().is_empty());
+    let group =
+        current && (app.editor.workspace.as_ref()).is_some_and(|ws| !ws.extra_folders().is_empty());
     if group {
         // 图标 15×12，在徽章中居中。
         let at = (
             (rect.x + (rect.w - 15.0) / 2.0).round(),
             (rect.y + (rect.h - 12.0) / 2.0).round(),
         );
-        icons::folders(frame, at, badge.text, header);
+        icons::folders(frame, at, badge.text, clip);
     } else {
         let w = frame.measure(FontKind::Ui, app.fonts.initials, &badge.initials);
         caps_label(
@@ -182,7 +148,7 @@ fn draw_badge(app: &App, frame: &mut Frame<'_>, rect: Rect, project: &str, heade
             (rect.x + (rect.w - w) / 2.0, rect),
             &badge.initials,
             badge.text,
-            header,
+            clip,
         );
     }
     if main.is_some() {
@@ -191,7 +157,7 @@ fn draw_badge(app: &App, frame: &mut Frame<'_>, rect: Rect, project: &str, heade
             frame,
             (rect.right() - 1.0, rect.bottom() - 1.0),
             colors,
-            header,
+            clip,
         );
     }
 }

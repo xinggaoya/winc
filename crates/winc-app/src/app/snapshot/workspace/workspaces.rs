@@ -32,10 +32,10 @@ fn opening_a_second_folder_adds_a_workspace_and_keeps_both_sets_of_tabs() {
     let root_a = root(&app);
     app.open_path(&root_a.join("src/main.rs"));
 
-    // 只有一个工作区时，顶栏里不占地方。
+    // 只有一个工作区时，左栏顶部只有它一个标签。
     paint(&mut app);
     assert_eq!(app.workspaces.slots.len(), 1);
-    assert!(app.workspace_bar.chips.is_empty());
+    assert_eq!(app.workspace_bar.chips.len(), 1);
 
     // 打开第二个目录：它成了另一个工作区，顶栏里出现两个按钮。
     open_workspace(&mut app, &b);
@@ -76,15 +76,19 @@ fn the_workspace_bar_switches_between_the_workspaces() {
     open_workspace(&mut app, &b);
     paint(&mut app);
 
-    // 顶栏里每个工作区一个按钮，末尾是「打开项目」。
+    // 左栏顶部每个工作区一个标签，末尾是「打开项目」与项目菜单两个按钮。
     let chips = app.workspace_bar.chips.clone();
     assert_eq!(chips.len(), 2);
-    assert_eq!(chips[0].1, 0);
-    assert_eq!(chips[1].1, 1);
+    assert_eq!(chips[0].index, 0);
+    assert_eq!(chips[1].index, 1);
     assert!(app.workspace_bar.add.w > 0.0);
+    assert!(app.workspace_bar.more.w > 0.0);
 
     // 点第一个工作区的按钮：切过去。
-    let (x, y) = (chips[0].0.x + 4.0, chips[0].0.y + chips[0].0.h / 2.0);
+    let (x, y) = (
+        chips[0].rect.x + 4.0,
+        chips[0].rect.y + chips[0].rect.h / 2.0,
+    );
     app.on_mouse_move(x, y);
     assert_eq!(app.pointer.hover, Hover::Workspace(0));
     app.on_mouse_down(MouseButton::Left);
@@ -193,6 +197,36 @@ fn the_multi_workspace_mode_can_be_turned_off() {
     paint(&mut app);
     assert_eq!(app.workspaces.slots.len(), 1);
     assert_eq!(root(&app), root_a);
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 工作区标签条住在左栏顶部一行：中间栏不因工作区让位。
+#[test]
+fn the_workspace_tabs_are_in_the_left_column() {
+    let a = search_folder("workspace-tabs-left-a");
+    let b = search_folder("workspace-tabs-left-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    paint(&mut app);
+
+    // 标签条在左栏头部一行里。
+    let chips = app.workspace_bar.chips.clone();
+    assert_eq!(chips.len(), 2);
+    let header = app.layout.sidebar_header;
+    for chip in &chips {
+        assert!(chip.rect.y >= header.y && chip.rect.bottom() <= header.bottom());
+    }
+
+    // 末尾两个按钮钉在左栏的右端，标签在它们左边滚动。
+    assert!(app.workspace_bar.view.x >= header.x);
+    assert!(app.workspace_bar.more.right() <= header.right());
+    assert!(app.workspace_bar.add.right() < app.workspace_bar.more.x);
+
+    // 顶栏不再有工作区按钮：文件标签栏没有被压缩，也没有被挤到左栏的卡片里。
+    assert!(app.layout.tabs.x >= app.layout.top_bar.x);
+    assert!(app.workspace_bar.view.right() <= app.layout.sidebar.right());
 
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);

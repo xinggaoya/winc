@@ -114,9 +114,6 @@ impl App {
         if l.right_splitter.w > 0.0 {
             client.push(l.right_splitter);
         }
-        // 顶栏里的工作区按钮和「打开项目」按钮。
-        client.extend(self.workspace_bar.chips.iter().map(|(r, _)| *r));
-        client.push(self.workspace_bar.add);
         client.retain(|r| r.w > 0.0 && r.h > 0.0 && r.y < TOP_BAR_END && r.bottom() > 0.0);
         client
     }
@@ -235,6 +232,7 @@ impl App {
             Target::RightSplitter => Hover::RightSplitter,
             Target::RightButton => Hover::RightButton,
             Target::Workspace(index) => Hover::Workspace(index),
+            Target::WorkspaceClose(index) => Hover::WorkspaceClose(index),
             Target::AddWorkspace => Hover::AddWorkspace,
             Target::TreeTool(tool) => Hover::TreeTool(tool),
             Target::ProjectName => Hover::ProjectName,
@@ -376,6 +374,20 @@ impl App {
         if self.search_open() && (l.search_card.contains(x, y) || self.in_result_overflow(x, y)) {
             return Target::GlobalSearch;
         }
+        // 左栏顶部的工作区标签与「打开项目」按钮：它们在左栏里，先于两栏的命中判定。
+        for chip in &self.workspace_bar.chips {
+            if chip.close.contains(x, y) {
+                return Target::WorkspaceClose(chip.index);
+            }
+        }
+        for chip in &self.workspace_bar.chips {
+            if chip.rect.contains(x, y) {
+                return Target::Workspace(chip.index);
+            }
+        }
+        if self.workspace_bar.add.contains(x, y) {
+            return Target::AddWorkspace;
+        }
         if let Some(hover) = self.panel_hover_at(x, y) {
             return Target::Panel(hover);
         }
@@ -400,15 +412,6 @@ impl App {
         }
         if l.right_button.contains(x, y) {
             return Target::RightButton;
-        }
-        // 顶栏里的工作区按钮和「打开项目」按钮。
-        for (rect, index) in &self.workspace_bar.chips {
-            if rect.contains(x, y) {
-                return Target::Workspace(*index);
-            }
-        }
-        if self.workspace_bar.add.contains(x, y) {
-            return Target::AddWorkspace;
         }
         if let Some(tool) = hit(&self.hits.tree_tools, x, y) {
             return Target::TreeTool(tool);
@@ -1038,9 +1041,11 @@ pub(super) enum Target {
     RightSplitter,
     /// 右栏开关按钮。
     RightButton,
-    /// 顶栏里的工作区按钮，参数是工作区的下标。
+    /// 左栏顶部的工作区标签，参数是工作区的下标。
     Workspace(usize),
-    /// 顶栏里的「打开项目」按钮。
+    /// 左栏顶部工作区标签上的关闭按钮，参数是工作区的下标。
+    WorkspaceClose(usize),
+    /// 左栏顶部的「打开项目」按钮。
     AddWorkspace,
     TreeTool(crate::layout::TreeTool),
     ProjectName,

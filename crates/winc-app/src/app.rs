@@ -553,9 +553,11 @@ pub enum Hover {
     TreeTool(TreeTool),
     /// 文件树工具栏收起后的「⋯」按钮。
     TreeMore,
-    /// 顶栏里的工作区按钮，参数是工作区的下标。
+    /// 左栏顶部的工作区标签，参数是工作区的下标。
     Workspace(usize),
-    /// 顶栏里的「打开项目」按钮。
+    /// 左栏顶部工作区标签上的关闭按钮，参数是工作区的下标。
+    WorkspaceClose(usize),
+    /// 左栏顶部的「打开项目」按钮。
     AddWorkspace,
     /// 搜索面板中的按钮。
     Panel(PanelButton),

@@ -248,8 +248,10 @@ impl App {
                 };
             }
             Target::RightButton => self.toggle_right_column(),
-            // 顶栏里的工作区按钮：点了切到那个工作区。
+            // 左栏顶部的工作区标签：点了切到那个工作区。
             Target::Workspace(index) => self.switch_workspace(index),
+            // 标签上的关闭按钮：只关掉这一个工作区。
+            Target::WorkspaceClose(index) => self.close_workspace(index),
             // 「打开项目」：弹出打开目录的对话框。
             Target::AddWorkspace => self.pick(crate::app::Pick::OpenFolder),
             Target::TreeTool(tool) => self.run_tree_tool(tool),

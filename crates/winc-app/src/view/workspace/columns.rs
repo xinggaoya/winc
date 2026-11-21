@@ -26,8 +26,8 @@ fn draw_column(app: &mut App, frame: &mut Frame<'_>, column: Column) {
         return;
     }
     if column == Column::Left {
-        // 项目名一行只在左栏：它连着项目菜单（切换目录、打开目录）。
-        sidebar::draw_project_header(app, frame);
+        // 工作区标签条只在左栏：它连着项目菜单（切换目录、打开目录）。
+        sidebar::draw_workspaces(app, frame);
     }
     // 有输入框的面板返回光标的位置，供输入法候选框定位。
     let mut caret = None;

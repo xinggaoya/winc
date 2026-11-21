@@ -359,9 +359,9 @@ fn a_missing_worktree_is_cleaned_up_from_its_menu() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// 打开的目录里有多个仓库时项目就是这个目录，选中其中的附属工作树也不变。
+/// 打开的目录里有多个仓库时工作区就是这个目录，选中其中的附属工作树也不变。
 #[test]
-fn the_project_name_stays_the_folder_with_several_repositories() {
+fn the_workspace_name_stays_the_folder_with_several_repositories() {
     let dir = search_folder("git-project-folder");
     let a = dir.join("a");
     let b = dir.join("b");
@@ -397,7 +397,7 @@ fn the_project_name_stays_the_folder_with_several_repositories() {
     app.git_switch_repository(index);
     app.git_refresh();
     assert!(app.git.main_worktree().is_some());
-    assert_eq!(app.project_name(), Some(folder));
+    assert_eq!(app.workspace_name(0), folder);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -754,9 +754,9 @@ fn the_folded_worktree_section_tells_when_other_worktrees_have_changes() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// 项目名始终是仓库，位置行写工作树：主工作树写「主工作树」，附属工作树写它自己的名字。
+/// 位置行写工作树：主工作树写「主工作树」，附属工作树写它自己的名字。
 #[test]
-fn the_location_row_does_not_repeat_the_project_name() {
+fn the_location_row_names_the_worktree() {
     let Some((mut app, root)) = git_app("git-location-label", false) else {
         return;
     };
@@ -765,12 +765,12 @@ fn the_location_row_does_not_repeat_the_project_name() {
     let name = |path: &Path| path.file_name().unwrap().to_string_lossy().into_owned();
     let main = winc_i18n::t!("git-location-main-worktree").to_owned();
     assert_eq!(app.git_location_label(), (main, None));
-    assert_eq!(app.project_name(), Some(name(&root)));
+    assert_eq!(app.workspace_name(0), name(&root));
 
     app.open_worktree(1, false);
     app.git_refresh();
     assert_eq!(app.git_location_label(), (name(&linked), None));
-    assert_eq!(app.project_name(), Some(name(&root)));
+    assert_eq!(app.workspace_name(0), name(&linked));
     let _ = std::fs::remove_dir_all(&linked);
     let _ = std::fs::remove_dir_all(&root);
 }

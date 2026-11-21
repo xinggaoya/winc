@@ -418,7 +418,7 @@ fn the_controls_in_the_title_bar_are_client_area() {
 
     // 右栏的开关按钮。
     assert!(inside(app.layout.right_button), "右栏开关不在客户区里");
-    // 两个工作区时顶栏里的切换按钮。
+    // 两个工作区时，工作区标签在左栏里：它不在标题栏里，不用登记为客户区控件。
     let other = sample_folder("columns-caption-2");
     app.open_path(&other);
     paint(&mut app);
@@ -427,13 +427,12 @@ fn the_controls_in_the_title_bar_are_client_area() {
         let (x, y) = (rect.x + rect.w / 2.0, rect.y + rect.h / 2.0);
         client.iter().any(|r| r.contains(x, y))
     };
-    for (rect, _) in &app.workspace_bar.chips {
-        assert!(inside(*rect), "工作区按钮不在客户区里");
+    for chip in &app.workspace_bar.chips {
+        assert!(
+            !inside(chip.rect),
+            "工作区标签在左栏里，不该登记为标题栏控件"
+        );
     }
-    assert!(
-        inside(app.workspace_bar.add),
-        "「打开项目」按钮不在客户区里"
-    );
 
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&other);
