@@ -384,23 +384,19 @@ fn global_search_finds_opens_and_replaces() {
 }
 
 #[test]
-fn sidebar_top_buttons_hover_in_both_views() {
+fn sidebar_top_buttons_hover() {
     let dir = search_folder("top-hover");
     let mut app = app_with(&dir, false);
+    paint(&mut app);
 
-    for view in [Panel::Files] {
-        app.set_sidebar_view(view);
-        paint(&mut app);
+    // 侧栏开关和分隔条都有悬停效果。
+    let button = app.layout.sidebar_button;
+    app.on_mouse_move(button.x + 4.0, button.y + 4.0);
+    assert_eq!(app.pointer.hover, Hover::SidebarButton);
 
-        // 侧栏开关、两个视图切换按钮和分隔条，在两种视图中都有悬停效果。
-        let button = app.layout.sidebar_button;
-        app.on_mouse_move(button.x + 4.0, button.y + 4.0);
-        assert_eq!(app.pointer.hover, Hover::SidebarButton, "{view:?}");
-
-        let splitter = app.layout.splitter;
-        app.on_mouse_move(splitter.x + 1.0, 300.0);
-        assert_eq!(app.pointer.hover, Hover::Splitter, "{view:?}");
-    }
+    let splitter = app.layout.splitter;
+    app.on_mouse_move(splitter.x + 1.0, 300.0);
+    assert_eq!(app.pointer.hover, Hover::Splitter);
 
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -412,40 +408,37 @@ fn hover_and_click_agree_on_what_is_under_the_mouse() {
     let dir = search_folder("hover-click");
     let mut app = app_with(&dir, false);
     app.open_path(&dir.join("src/main.rs"));
+    paint(&mut app);
 
-    for view in [Panel::Files] {
-        app.set_sidebar_view(view);
-        paint(&mut app);
-        let window = app.layout.window;
-        let mut checked = 0;
-        // 网格再加上分隔条那一列：分隔条只有几像素宽，网格未必落在上面。
-        let splitter = app.layout.splitter.x + app.layout.splitter.w / 2.0;
-        let columns = (0..60)
-            .map(|gx| window.x + (gx as f32 + 0.5) * window.w / 60.0)
-            .chain([splitter]);
-        for x in columns {
-            for gy in 0..40 {
-                let y = window.y + (gy as f32 + 0.5) * window.h / 40.0;
-                app.on_mouse_move(x, y);
-                let hover = app.pointer.hover;
-                let expected = match hover {
-                    Hover::Splitter => "splitter",
-                    Hover::Scrollbar(_) => "scrollbar",
-                    _ => continue,
-                };
-                app.on_mouse_down(MouseButton::Left);
-                let got = match app.pointer.drag {
-                    crate::app::Drag::Splitter { .. } => "splitter",
-                    crate::app::Drag::Scrollbar { .. } => "scrollbar",
-                    _ => "other",
-                };
-                app.on_mouse_up(MouseButton::Left);
-                assert_eq!(got, expected, "{view:?} ({x}, {y}) hover {hover:?}");
-                checked += 1;
-            }
+    let window = app.layout.window;
+    let mut checked = 0;
+    // 网格再加上分隔条那一列：分隔条只有几像素宽，网格未必落在上面。
+    let splitter = app.layout.splitter.x + app.layout.splitter.w / 2.0;
+    let columns = (0..60)
+        .map(|gx| window.x + (gx as f32 + 0.5) * window.w / 60.0)
+        .chain([splitter]);
+    for x in columns {
+        for gy in 0..40 {
+            let y = window.y + (gy as f32 + 0.5) * window.h / 40.0;
+            app.on_mouse_move(x, y);
+            let hover = app.pointer.hover;
+            let expected = match hover {
+                Hover::Splitter => "splitter",
+                Hover::Scrollbar(_) => "scrollbar",
+                _ => continue,
+            };
+            app.on_mouse_down(MouseButton::Left);
+            let got = match app.pointer.drag {
+                crate::app::Drag::Splitter { .. } => "splitter",
+                crate::app::Drag::Scrollbar { .. } => "scrollbar",
+                _ => "other",
+            };
+            app.on_mouse_up(MouseButton::Left);
+            assert_eq!(got, expected, "({x}, {y}) hover {hover:?}");
+            checked += 1;
         }
-        assert!(checked > 0, "{view:?}");
     }
+    assert!(checked > 0);
 
     std::fs::remove_dir_all(&dir).unwrap();
 }
