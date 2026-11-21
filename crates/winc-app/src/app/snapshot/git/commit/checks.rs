@@ -71,8 +71,8 @@ fn commit_view_commits_only_the_checked_files() {
     let mut app = app_with(&dir, false);
     // 默认显示为列表；本测试检查按目录排列的树形视图。
     app.git.commit.set_flat(false);
-    // 模块关闭时：提交面板不列出来，⌃⇧G 不响应。
-    assert!(!app.panel_available(Panel::Commit));
+    // 模块关闭时：提交面板还在（目录是仓库），面板里没有 Git 的内容；⌃⇧G 不响应。
+    assert!(app.panel_available(Panel::Commit));
     assert!(!app.run_action(Action::ShowCommit));
 
     app.settings_toggle(Setting::GitModule);

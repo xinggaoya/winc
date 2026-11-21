@@ -302,8 +302,10 @@ fn commit_and_sync_pulls_then_pushes() {
     app.open_context_menu(MenuTarget::CommitButton, (0.0, 0.0));
     app.run_menu_command(MenuCommand::CommitSync);
     press_alert(&mut app, 0);
-    app.poll_commit();
-    app.poll_branch_ops();
+    for _ in 0..10 {
+        app.poll_commit();
+        app.poll_branch_ops();
+    }
     let out = Command::new("git")
         .arg("-C")
         .arg(dir.join("bare.git"))

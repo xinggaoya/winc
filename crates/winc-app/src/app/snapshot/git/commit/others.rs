@@ -31,6 +31,8 @@ fn other_repositories_are_listed_after_the_current_one_and_a_click_switches() {
         return;
     };
     app.run_action(Action::ShowCommit);
+    app.git_refresh();
+    app.poll_git();
     paint(&mut app);
     assert_eq!(app.git.root.as_ref(), Some(&a));
 

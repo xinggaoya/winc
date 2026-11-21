@@ -755,6 +755,11 @@ impl App {
     /// 将当前仓库切换为 `root`；没有变化时不做任何操作。
     pub(in crate::app) fn git_set_root(&mut self, root: Option<PathBuf>) {
         if root == self.git.root {
+            // 目录里没有仓库：提交面板用不上，焦点回到文件树。换了工作区时仓库本来就是没有的，
+            // 这里也要把焦点移出提交面板。
+            if root.is_none() {
+                self.leave_commit_view();
+            }
             return;
         }
         // 未完成的提交信息按位置保存，切换回来时恢复。多仓库时列表里的各个仓库共用一条提交信息、
@@ -833,19 +838,25 @@ impl App {
         // 不再位于仓库中时提交视图不可用，切换回文件树；焦点位于提交视图时同样移出，
         // 否则键入的文字会进入不可见的输入框。
         if self.git.root.is_none() {
-            if self.panels.sidebar.view == Panel::Commit {
-                self.set_sidebar_view(Panel::Files);
-            }
-            if matches!(self.focus, Focus::CommitMessage | Focus::CommitList) {
-                self.focus = if self.editor.active.is_some() {
-                    Focus::Editor
-                } else {
-                    Focus::Tree
-                };
-            }
+            self.leave_commit_view();
         }
         self.git_refresh();
         self.request_redraw();
+    }
+
+    /// 目录里没有仓库时，把提交面板与它的焦点让出来：面板切回文件树，焦点也离开提交面板，
+    /// 否则键入的文字会进入看不见的输入框。
+    fn leave_commit_view(&mut self) {
+        if self.panels.sidebar.view == Panel::Commit {
+            self.set_sidebar_view(Panel::Files);
+        }
+        if matches!(self.focus, Focus::CommitMessage | Focus::CommitList) {
+            self.focus = if self.editor.active.is_some() {
+                Focus::Editor
+            } else {
+                Focus::Tree
+            };
+        }
     }
 
     /// 处理目录监视报告的变化：`rescan` 或 `git` 为真时刷新状态和分支，否则仅当 `paths` 中有
