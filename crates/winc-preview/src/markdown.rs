@@ -1255,13 +1255,9 @@ impl Builder<'_> {
         self.ranges.shrink_to_fit();
         let mut lines = Vec::with_capacity(self.root.len());
         let (mut line, mut counted) = (0, 0);
-        for i in 0..self.root.len() {
+        for (i, range) in self.ranges.iter().enumerate() {
             // 脚注没有记起点：算在末尾。起点不会往回走，取不小于上一个的值。
-            let at = if i < main {
-                self.ranges[i].start
-            } else {
-                source.len()
-            };
+            let at = if i < main { range.start } else { source.len() };
             let at = at.max(counted);
             line += memchr::memchr_iter(b'\n', &source.as_bytes()[counted..at]).count();
             counted = at;

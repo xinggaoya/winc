@@ -60,8 +60,8 @@ impl Mirror {
         if let Some(frame) = t.take_frame() {
             self.apply(&frame);
         }
-        for r in 0..t.rows() {
-            assert_eq!(self.rows[r], t.line(r), "第 {r} 行和帧还原的不一样");
+        for (r, row) in self.rows.iter().enumerate().take(t.rows()) {
+            assert_eq!(*row, t.line(r), "第 {r} 行和帧还原的不一样");
         }
     }
 }

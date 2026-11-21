@@ -564,8 +564,13 @@ impl LargeText {
 
     /// 对 `a` 到 `b` 覆盖的每个片段调用 `f(片段, 起始字节, 结束字节)`，偏移相对于片段起点。
     fn for_each_range(&self, a: Loc, b: Loc, mut f: impl FnMut(&Piece, u64, u64)) {
-        for i in a.piece..(b.piece + 1).min(self.pieces.len()) {
-            let p = &self.pieces[i];
+        for (i, p) in self
+            .pieces
+            .iter()
+            .enumerate()
+            .take((b.piece + 1).min(self.pieces.len()))
+            .skip(a.piece)
+        {
             let start = if i == a.piece { a.offset } else { 0 };
             let end = if i == b.piece { b.offset } else { p.bytes };
 
