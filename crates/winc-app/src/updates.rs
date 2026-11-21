@@ -290,10 +290,8 @@ fn feeds_item(updater: &Updater) -> Result<Option<Item>, Failure> {
         return Ok(None);
     }
     let xml = race(&updater.feeds, key)?;
-    Ok(
-        newest(&xml, std::env::consts::ARCH)
-            .filter(|item| newer(&item.version, winc_version::VERSION)),
-    )
+    Ok(newest(&xml, std::env::consts::ARCH)
+        .filter(|item| newer(&item.version, winc_version::VERSION)))
 }
 
 /// 从哪个仓库的发布里取更新；构建时可用 `WINC_UPDATE_REPOSITORY` 改。

@@ -727,4 +727,3 @@ fn draw_match_row(
 
     ui_text(frame, app, x, row, after, p.text_muted, clip);
 }
-

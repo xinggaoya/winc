@@ -97,4 +97,3 @@ pub(in crate::view) fn segment_colors(p: &Palette, track: Color) -> (Color, Colo
         (white, over(track, Color::hex(0x000000).alpha(0.08)))
     }
 }
-

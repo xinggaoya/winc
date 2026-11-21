@@ -29,6 +29,11 @@ notes live in [upstream Releases](https://github.com/DEEIX-AI/Winc/releases) and
   顺序由配置决定，中间一栏不参与配置。
 - 打开另一个目录不再关闭当前目录，而是把它留成另一个工作区；关掉最后一个工作区时行为与原来一致。
 - 文档编号改为进程内全局唯一，多个工作区同时打开时编号不会重复。
+- 自动更新改用 GitHub 的发布：版本号取自仓库的发布订阅源，附件从发布里下载，用发布里的
+  `SHA256SUMS` 核对；构建时可用 `WINC_UPDATE_REPOSITORY` 改仓库，appcast 通道仍在，取不到发布时
+  退回它。
+- 本仓库自行发布：推送 tag 即触发四个平台的构建，产物与发布说明（由 Git 日志生成）一起发到
+  GitHub 的 Release。
 
 ### 修复 / Fixed
 

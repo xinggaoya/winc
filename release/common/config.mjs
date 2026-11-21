@@ -19,10 +19,13 @@ export function msiVersion(version) {
   return `${core}.${revision}`;
 }
 
-// The update channel served by winc.si. Packages and appcasts are deployed under its URL; a
-// prerelease version (with "-", such as 1.2.0-beta.1) goes to the beta channel.
+// The update channel: the appcast files are uploaded with every release, and GitHub serves the
+// newest one under this address. A prerelease version (with "-", such as 1.2.0-beta.1) goes to
+// the beta channel, which points at its own release.
 export const channelOf = (version) => version.includes("-") ? "beta" : "stable";
-export const channelBase = (version) => `https://winc.si/releases${channelOf(version) === "beta" ? "/beta" : ""}`;
+export const channelBase = (version) => version.includes("-")
+  ? `https://github.com/xinggaoya/winc/releases/download/v${version}`
+  : "https://github.com/xinggaoya/winc/releases/latest/download";
 
 function releaseConfig({ version, thumbprint, key }) {
   if (thumbprint && !/^[0-9A-Fa-f]{40}$/.test(thumbprint)) throw new Error("--thumbprint must be a 40-digit SHA-1 certificate thumbprint");

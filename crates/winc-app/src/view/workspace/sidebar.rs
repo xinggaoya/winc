@@ -550,7 +550,9 @@ fn draw_tree_entry(
         draw_file_icon(frame, p, (x + 1.5, cy), &entry.name, clip);
     }
     if entry.symlink {
-        let bg = background.map_or(p.sidebar_bg, |c| super::super::controls::over(p.sidebar_bg, c));
+        let bg = background.map_or(p.sidebar_bg, |c| {
+            super::super::controls::over(p.sidebar_bg, c)
+        });
         icons::link_badge(frame, (x + 2.5, cy + 4.0), bg, p.text_muted, clip);
     }
 
@@ -618,7 +620,9 @@ fn draw_tree_entry(
     // 收回途中名字还连着编辑区上方那一段，到最后才淡出，名字不会先变暗、再缩回来。
     let reach = NAME_FADE * stage(view.progress, FADE_FROM, 1.0);
     if cut && !hovered && reach > 0.0 {
-        let solid = background.map_or(p.sidebar_bg, |c| super::super::controls::over(p.sidebar_bg, c));
+        let solid = background.map_or(p.sidebar_bg, |c| {
+            super::super::controls::over(p.sidebar_bg, c)
+        });
         let edge = Rect::new(text_right - reach, row.y, reach, row.h);
         frame.within(clip, |frame| fade(frame, edge, solid, false));
     }

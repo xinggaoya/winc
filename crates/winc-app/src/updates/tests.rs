@@ -275,7 +275,8 @@ fn a_verified_download_replaces_the_appimage() {
     // 下载期间报告的百分比不超过 100，也不倒退。
     let reported = std::cell::RefCell::new(Vec::new());
     let progress = |percent: u8| reported.borrow_mut().push(percent);
-    let program = appimage::prepare(&item, &appimage, Some(&key.verifying_key()), &progress).unwrap();
+    let program =
+        appimage::prepare(&item, &appimage, Some(&key.verifying_key()), &progress).unwrap();
     let reported = reported.into_inner();
     assert!(reported.windows(2).all(|w| w[0] <= w[1]), "{reported:?}");
     assert!(reported.iter().all(|&p| p <= 100), "{reported:?}");
@@ -393,12 +394,19 @@ fn the_checksum_of_a_file_is_read_from_the_manifest() {
     let digest = "a".repeat(64);
     let other = "b".repeat(64);
     let sums = format!("{digest}  Winc-0.1.400-linux-x64.AppImage\n{other}  other.bin\n");
-    let expected = std::array::from_fn(|n| u8::from_str_radix(&digest[n * 2..n * 2 + 2], 16).unwrap());
-    assert_eq!(github::checksum(&sums, "Winc-0.1.400-linux-x64.AppImage"), Some(expected));
+    let expected =
+        std::array::from_fn(|n| u8::from_str_radix(&digest[n * 2..n * 2 + 2], 16).unwrap());
+    assert_eq!(
+        github::checksum(&sums, "Winc-0.1.400-linux-x64.AppImage"),
+        Some(expected)
+    );
     // 别的文件、没有这一份、校验值写错了：都取不到。
     assert_eq!(github::checksum(&sums, "missing.bin"), None);
     assert_eq!(github::checksum("not a manifest", "other.bin"), None);
-    assert_eq!(github::checksum(&format!("{}  other.bin\n", "z".repeat(64)), "other.bin"), None);
+    assert_eq!(
+        github::checksum(&format!("{}  other.bin\n", "z".repeat(64)), "other.bin"),
+        None
+    );
 }
 
 /// 从 GitHub 的发布里找到的更新包：核对用的是校验值，不是签名。
