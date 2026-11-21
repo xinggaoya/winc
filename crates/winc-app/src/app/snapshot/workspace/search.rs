@@ -104,6 +104,38 @@ fn escape_closes_the_dialog_and_the_shortcut_toggles_it() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// 编辑区很窄时卡片随它收窄，输入框与开关都留在卡片里。
+#[test]
+fn the_dialog_narrows_with_the_editor() {
+    let dir = search_folder("global-dialog-narrow");
+    let mut app = app_with(&dir, false);
+    // 侧栏很宽：留给编辑区的位置不多了。
+    app.panels.sidebar.width = 900.0;
+    app.relayout();
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    paint(&mut app);
+
+    let card = app.layout.search_card;
+    assert!(card.w < 720.0, "卡片没收窄：{}", card.w);
+    assert!(card.right() <= app.layout.editor.right());
+    assert!(card.bottom() <= app.layout.editor.bottom());
+
+    // 查找行里的开关都在卡片内。
+    let parts = app.panel_parts();
+    for rect in [
+        parts.case_toggle,
+        parts.word_toggle,
+        parts.regex_toggle,
+        parts.details,
+    ] {
+        assert!(rect.right() <= card.right(), "开关画到卡片外了");
+        assert!(rect.x >= card.x);
+    }
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 /// 弹窗里的输入框和结果列表都画在卡片内。
 #[test]
 fn the_dialog_draws_its_fields() {
@@ -1327,5 +1359,23 @@ fn shoot_long_result_file() {
     app.on_mouse_move(row.x + 60.0, row.y + row.h / 2.0);
     paint(&mut app);
     shoot(&mut app, "search-result-unfold");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 截图：全局搜索弹窗（临时验证用）。
+#[test]
+#[ignore = "截图，手动运行"]
+fn shoot_global_search_dialog() {
+    let dir = search_folder("global-dialog-shot");
+    let mut app = app_with(&dir, false);
+    app.open_path(&dir.join("src/main.rs"));
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    app.panels.global.query.insert("config");
+    app.run_global_search();
+    finish_search(&mut app);
+    app.panels.global.replace_open = true;
+    paint(&mut app);
+    shoot(&mut app, "global-search-dialog");
     let _ = std::fs::remove_dir_all(&dir);
 }
