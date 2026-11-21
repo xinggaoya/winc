@@ -265,6 +265,11 @@ fn the_close_button_shows_on_hover() {
     paint(&mut app);
     assert_ne!(before, pixel(&app, at), "悬停时标签右端应有关闭按钮");
 
+    // 鼠标落在关闭按钮上时，按钮不能消失。
+    app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
+    paint(&mut app);
+    assert_ne!(before, pixel(&app, at), "鼠标落在关闭按钮上时它不能消失");
+
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }

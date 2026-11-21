@@ -51,7 +51,9 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
             continue;
         }
         let on = index == active;
-        let hovered = matches!(app.pointer.hover, Hover::Workspace(i) if i == index);
+        // 悬停标签本体或它的关闭按钮时，标签都有反馈：鼠标落在 × 上时它不能消失。
+        let hovered = matches!(app.pointer.hover, Hover::Workspace(i) if i == index)
+            || matches!(app.pointer.hover, Hover::WorkspaceClose(i) if i == index);
         // 当前的是一块实底，悬停只铺浅色。
         if on {
             frame.rect_clipped(rect, p.tab_fill, RADIUS_TAB, clip);
