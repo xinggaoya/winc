@@ -7,6 +7,16 @@ See the LICENSE file for the full license text.
 Website: https://winc.si
 Source: https://github.com/DEEIX-AI/Winc
 
+Secondary development
+--------------------
+
+This repository is a secondary development of the upstream project listed above. It adds
+multi-workspace mode, a three-column layout, and a configurable panel arrangement. The upstream
+copyright notices above apply to the upstream work, which is kept intact in the history of this
+repository.
+
+Secondary development repository: https://github.com/xinggaoya/winc
+
 Third-party components
 
 Windows builds include conpty.dll and OpenConsole.exe from Windows Terminal

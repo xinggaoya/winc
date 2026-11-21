@@ -3,6 +3,15 @@
 Thank you for helping improve winc. This guide explains how to propose a change and what a pull
 request needs before it can be merged.
 
+> **This repository is a secondary development of the upstream project**
+> (<https://github.com/DEEIX-AI/Winc>). The guide below is upstream's; our changes follow the same
+> conventions: the `dev` branch, Conventional Commits subjects, and the same checks before pushing.
+> How the two repositories relate and how to sync with upstream is described in
+> [UPSTREAM.md](../UPSTREAM.md); the changes made here are listed in
+> [CHANGELOG.md](../CHANGELOG.md).
+>
+> Pull requests about the upstream project itself belong upstream, not here.
+
 ## Before You Start
 
 - Search the existing issues and pull requests first.

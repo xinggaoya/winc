@@ -2,10 +2,10 @@
   <img src="./crates/winc-app/assets/icon.svg" alt="winc" width="128" />
 </p>
 
-<h1 align="center">Winc</h1>
+<h1 align="center">Winc · 二次开发版</h1>
 
 <p align="center">
-  更轻、更快、更顺手的桌面编辑器。
+  更轻、更快、更顺手的桌面编辑器 —— 在上游基础上加入多工作区模式、三栏布局与可自定义的面板排布。
 </p>
 
 <p align="center">
@@ -23,6 +23,81 @@
   <a href="https://winc.si/#download"><img alt="下载 Winc" src="./.github/assets/download-zh.svg" /></a>
 </p>
 
+## 这是什么
+
+这是 [上游项目 Winc](https://github.com/DEEIX-AI/Winc) 的**二次开发分支**。上游是 Rust 与自研渲染引擎
+写成的桌面编辑器：0.1 秒启动，十万行代码仅占 52 MB 内存，多光标、查找替换、并排差异都在，每一次
+输入与滚动都即时响应。
+
+本仓库在上游代码之上做了三项界面改动（详见 [二次开发内容](#二次开发内容)）：
+
+1. **多工作区模式** —— 同一个窗口里同时打开多个项目，随时切换；
+2. **三栏布局** —— 左侧目录、中间文件与终端（固定）、右侧 Git 等面板；
+3. **可自定义的面板排布** —— 面板放哪一栏、什么顺序都能拖动调整，并写进配置。
+
+上游地址、后续同步方式与变更记录见 **[UPSTREAM.md](./UPSTREAM.md)** 与
+**[CHANGELOG.md](./CHANGELOG.md)**。
+
+| 项目 | 地址 |
+| --- | --- |
+| 本仓库（二次开发） | <https://github.com/xinggaoya/winc> |
+| 上游项目 | <https://github.com/DEEIX-AI/Winc> |
+| 上游主页 | <https://winc.si> |
+
+## 二次开发内容
+
+### 1. 多工作区模式
+
+一个窗口里同时打开多个项目，每个项目是一份独立的"现场"：打开的标签、文件树的展开状态、Git 状态、
+终端会话都各自保留，切过去时原样还在。
+
+- 顶栏左侧列出当前打开的各个项目，点一下就切过去；末尾的文件夹按钮打开新项目。
+- 切换目录不再关闭原来的目录，而是把它留成另一个工作区（可在设置里关闭该模式，恢复旧行为）。
+- 关闭项目时只关这一个，其余工作区不受影响。
+- 快捷键：`⌘⌃→` / `⌘⌃←` 切换下一个、上一个工作区，`⌘⌃W` 关闭当前工作区
+  （Windows/Linux 为 `Ctrl+Alt+N` / `Ctrl+Alt+P` / `Ctrl+Alt+W`）。
+
+### 2. 三栏布局
+
+窗口分成三栏：
+
+| 栏 | 内容 |
+| --- | --- |
+| 左栏 | 文件树等面板，顶部是项目名与项目菜单 |
+| 中间（固定） | 标签栏、编辑区、终端 |
+| 右栏 | Git 提交视图等面板 |
+
+- 右栏可用窗口右上角的面板按钮收起或展开，按钮位置固定，收起后仍在原地。
+- 右栏左边缘的分隔条可以拖动调整宽度。
+- 中间一栏不参与配置，编辑区与终端始终在一起。
+
+### 3. 可自定义的面板排布
+
+设置里的**「面板」**页（`⌘,` → 面板）里可以：
+
+- 拖动行首的 `≡` 把手，把面板拖到另一栏或换个位置；
+- 用行尾的按钮上移、下移、移到另一栏、隐藏或重新显示；
+- 调整右栏宽度。
+
+排布写进配置文件（见 [配置项](#配置项)），下次启动照旧。
+
+### 配置项
+
+在配置文件的 `panels` 一节里指定左右两栏的内容与顺序，`multiWorkspace` 控制多工作区模式：
+
+```jsonc
+{
+  "panels": {
+    "left": ["files"],            // 左栏：文件树
+    "right": ["commit", "search"], // 右栏：提交视图、搜索
+    "rightWidth": 320             // 右栏宽度（180–720）
+  },
+  "multiWorkspace": true         // 多工作区模式（默认开）
+}
+```
+
+面板的取值：`files`（文件树）、`search`（全局搜索）、`commit`（Git 提交视图）。
+
 ## 概述
 
 winc 以 Rust 与自研渲染引擎构建：0.1 秒启动，十万行代码仅占 52 MB 内存。多光标、查找替换、并排差异，
@@ -38,120 +113,150 @@ winc 以 Rust 与自研渲染引擎构建：0.1 秒启动，十万行代码仅�
 
 ## 功能
 
-| 方面 | 能力 |
+| 领域 | 能力 |
 | --- | --- |
-| 编辑 | 多光标、查找替换、系统输入法，GB 级文件中流畅滚动，以及实验性的 Vim 模式 |
-| 语法 | 常见编程语言、标记语言、数据和配置格式的高亮，不依赖语言服务器的轻量跳转定义和查找用法 |
-| 格式化 | 调用 rustfmt、Prettier、Black、Ruff、gofmt 等外部工具整理整个文件 |
-| 预览 | Markdown（含公式和 Mermaid 图）、图片、SVG、PDF（macOS 和 Windows）、Word 文档（docx）、表格（xlsx、csv），随时切回源代码 |
-| Git | 并排差异（词级高亮）、按块暂存、提交和推送、提交图、逐行追溯 |
+| 编辑 | 多光标、查找替换、原生输入法、GB 级文件的平滑滚动，还有实验性的 Vim 模式 |
+| 语法 | 常见编程、标记、数据与配置语言的高亮，以及不依赖语言服务器的轻量跳转定义与查找引用 |
+| 格式化 | 用 rustfmt、Prettier、Black、Ruff、gofmt 等外部工具整文件格式化 |
+| 预览 | Markdown（含公式与 Mermaid）、图片、SVG、PDF（macOS 与 Windows）、Word（docx）、表格（xlsx、csv），源码一键可切 |
+| Git | 逐词高亮的并排差异、按块暂存、提交与推送、提交图与逐行追责 |
 | 项目 | 文件树、快速打开、遵循 `.gitignore` 的项目搜索 |
-| 终端 | 内置终端，支持自动加载项目内的 Python 虚拟环境 |
-| 远程 | 实验性的 SSH 远程：打开 Linux 主机上的目录，在其中编辑、搜索、格式化、使用 Git 和终端；Windows 上可打开 WSL 发行版中的目录 |
-| 界面 | 十六套内置主题，浅色、深色均有；完整的英文和简体中文界面 |
-| 模块 | Git、终端和 SSH 远程均可单独关闭；首次运行时在开始页设置外观、主题、语言和模块 |
-| 更新 | 三个平台都有签名的应用内更新，更新后可在应用内查看更新日志 |
+| 终端 | 内置终端，自动加载项目本地的 Python 环境 |
+| 远程 | 实验性的 SSH 远程：在 Linux 主机上打开目录并编辑、搜索、格式化、使用 Git、开终端；Windows 下还能打开 WSL 发行版里的目录 |
+| 界面 | 十六套内置主题、明暗两色，完整的英文与简体中文界面 |
+| 模块 | Git、终端、SSH 远程各自可关；开始页的首次设置里有外观、主题、语言与模块 |
+| 更新 | 三个平台都有带签名的应用内更新，更新后显示更新日志 |
 
-触摸屏支持点按按钮和定位光标、双击选词、单指滑动滚动，以及拖动滚动条和面板分隔条。
-Windows 上还可拖动标题栏移动窗口、双击标题栏最大化或还原，以及拖动窗口边缘改变大小。
-窗口拖动和边缘吸附与鼠标操作共用 Windows 原生行为。
-长按 500 毫秒打开当前位置的右键菜单。滑动始终作用于落指的区域，抬手后停止；多指接触会取消
-当前手势，所有手指离开后可继续操作。
+触摸屏支持点按按钮与定位光标、双击选词、滑动滚动、拖动滚动条与面板分隔条；长按 500 毫秒弹出上下文
+菜单。滑动不越出起始区域，抬手即停；多指操作会取消当前手势，抬起所有手指后才能开始下一次。在 Windows
+上拖动标题栏移动窗口、双击最大化或还原、拖动窗口边缘改变大小，窗口拖动与贴边使用与鼠标输入相同的
+原生行为。
 
-图片和 SVG 预览的缩放方式与 PDF 预览相同：按住 Ctrl（macOS 为 ⌘）滚动、触控板捏合，或按
-Ctrl/⌘ 加 `+`、`-`、`0`，缩放时鼠标所指的位置保持不动。放大后滚动或按住左键拖动查看，双击
-恢复适应窗口。SVG 分栏预览中的图片也支持这些操作。
+图片与 SVG 预览的缩放方式与 PDF 预览一致：按住 Ctrl（macOS 上是 ⌘）滚动、双指捏合，或按 Ctrl/⌘ 加
+`+`、`-`、`0`，指针下的位置保持不动。滚动或拖动可平移已放大的图片，双击回到适合窗口的大小；SVG 的
+分栏预览同样如此。
 
 ## 平台
 
 | 平台 | 要求 | 安装包 |
 | --- | --- | --- |
-| macOS | macOS 11 及以上，Apple 芯片或 Intel | 磁盘映像 |
-| Linux | x86_64，X11 或 Wayland | AppImage、deb、Arch 软件源 |
-| Windows | Windows 10 1809 及以上，x86_64 | NSIS、MSI、便携 ZIP |
+| macOS | macOS 11 及以上，Apple 芯片或 Intel | 磁盘镜像 |
+| Linux | x86_64，X11 或 Wayland | AppImage、deb、Arch 仓库 |
+| Windows | Windows 10 1809 及以上，x86_64 | NSIS、MSI、绿色版 ZIP |
 
-便携 ZIP 将设置和状态保存在 `winc.exe` 旁边的 `data` 目录中；删除该目录后改为保存在用户目录中。
+绿色版 ZIP 把设置与状态放在 `winc.exe` 旁边的 `data` 目录里；删掉该目录即改回存到用户目录。
 
-主要在 macOS 上开发和测试。可从 [winc.si](https://winc.si/#download) 下载，所有版本见
+winc 主要在 macOS 上开发与测试。发行版见 [winc.si](https://winc.si/#download)，历史版本在
 [GitHub Releases](https://github.com/DEEIX-AI/Winc/releases)。
 
 ## 命令行
 
 ```bash
 winc .                  # 打开当前目录
-winc file.rs:12:5       # 打开文件并跳到指定的行和列
+winc file.rs:12:5       # 打开文件并定位到某行某列
 winc --wait file        # 等标签关闭后再退出，例如作为 Git 的编辑器
-cargo build 2>&1 | winc -   # 读取标准输入
+cargo build 2>&1 | winc -   # 读标准输入
 ```
 
-Windows 安装包、Linux deb 包和 Arch 包会把 `winc` 加入 `PATH`；Windows 便携版不修改 `PATH`。macOS 请在菜单栏选择「Winc → 安装 winc 命令…」，或在命令面板中运行「Shell 命令：安装 winc 命令」；Linux AppImage 请使用命令面板。
+Windows 安装包与 Linux 的 deb、Arch 包会把 `winc` 加进 `PATH`；Windows 绿色版 ZIP 不改 `PATH`。
+macOS 上从菜单栏选 **Winc → Install winc Command…**，或在命令面板里运行 **Shell Command: Install
+winc Command**；Linux AppImage 用命令面板。
 
-在 macOS 上应用由系统启动，不继承 shell 的环境变量；需要保留时使用 `winc --new-instance`。
+macOS 上应用由系统启动，因此不继承 shell 的环境变量。用 `winc --new-instance` 保留它们。
 
-## 从源代码构建
+## 从源码构建
 
-需要 Rust 1.99.1，`rust-toolchain.toml` 会自动选用工具链。
+winc 用 Rust 1.99.1 构建，`rust-toolchain.toml` 会自动选择工具链。Windows 上还需要
+[Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/)（"使用 C++ 的桌面开发"
+工作负载，含 MSVC v143 与 Windows SDK）。
 
 ```bash
 cargo run --release                 # 构建并运行
-cargo run --release -- <路径>        # 打开文件或目录
+cargo run --release -- <path>       # 打开文件或目录
 ```
 
-版本同步、签名配置和发布流程见[发布说明](release/README.md)。
+版本号、签名配置与发布流程见 [Releasing winc](release/README.md)。
 
 ## 开发
 
 ```bash
-cargo xtask test                    # 只测和 HEAD 相比改动涉及的 crate
-cargo xtask test --all              # 测整个 workspace
+cargo xtask test                    # 测试与 HEAD 相比有改动的 crate
+cargo xtask test --all              # 测试整个工作区
 cargo clippy --workspace --all-targets -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-cargo xtask bench                   # 测启动、内存、滚动，对照性能预算
+cargo xtask bench                   # 对照预算测启动、内存与滚动
 ```
 
-界面由 Rust 编写，窗口用 winit，渲染由 winc 自己的 CPU 光栅化完成；在 macOS 上直接写入 IOSurface。
+界面用 Rust 写。窗口来自 winit，渲染由 winc 自研的 CPU 光栅化器完成；macOS 上帧直接写进 IOSurface。
 
-代码按 crate 分层：
+工作区按职责拆成若干 crate：
 
 | crate | 职责 |
 | --- | --- |
-| `winc-core` | 文本、编辑、撤销、差异等与界面无关的基础 |
+| `winc-core` | 文本、编辑、撤销与差异，与界面无关 |
 | `winc-syntax` | 语法高亮的词法分析 |
-| `winc-editor` | 文档、文件树、查找、Git、格式化等编辑器逻辑 |
-| `winc-vim` | Vim 模式的无界面部分：按键记法、命令表、命令的解析与求值 |
-| `winc-backend` | 文件系统的访问入口，区分本机路径与远端主机上的路径 |
-| `winc-server` | 运行在远端主机上的服务进程，经 SSH 为本机执行文件操作 |
-| `winc-watch` | 在文件所在的机器上监视目录（WSL 发行版内、远端主机上） |
-| `winc-render` | 渲染层：字形、光栅化、呈现 |
-| `winc-preview` | 图片、SVG、Markdown、PDF、Word 文档、表格预览 |
+| `winc-editor` | 编辑器逻辑：文档、文件树、搜索、Git 与格式化 |
+| `winc-vim` | 不含界面的 Vim 模式：键位记法、命令表、解析与求值 |
+| `winc-backend` | 本地路径与远端主机路径的文件访问 |
+| `winc-server` | 在远端主机上运行、通过 SSH 提供文件操作的服务进程 |
+| `winc-watch` | 监视文件所在的机器（WSL 发行版、远端主机）上的目录 |
+| `winc-render` | 渲染：字形、光栅化与呈现 |
+| `winc-preview` | 图片、SVG、Markdown、PDF、Word 与表格的预览 |
 | `winc-typeset` | Markdown 预览的排版 |
-| `winc-pty` | 终端仿真和伪终端的辅助进程 |
-| `winc-config` | 配置和状态文件 |
-| `winc-i18n` | 界面文案（Fluent 语言包） |
-| `winc-version` | 产品版本号，取自 `VERSION` 文件 |
-| `winc-app` | 应用本体：窗口、事件、各个界面 |
-| `winc` | 可执行文件的入口，只调用 `winc-app` |
-| `xtask` | 开发自动化：测试、基准、打包 |
+| `winc-pty` | 终端模拟与伪终端辅助进程 |
+| `winc-config` | 配置文件与状态文件 |
+| `winc-i18n` | 界面文案（Fluent 文案包） |
+| `winc-version` | 产品版本，读自 `VERSION` 文件 |
+| `winc-app` | 应用本体：窗口、事件与视图 |
+| `winc` | 可执行文件入口，只调用 `winc-app` |
+| `xtask` | 开发自动化：测试、基准与打包 |
 
-## 参与贡献
+本次二次开发新增或改动的部分集中在：
 
-欢迎贡献。提交合并请求前请阅读 [CONTRIBUTING.md](.github/CONTRIBUTING.md)，合并请求请提到
-`dev` 分支。所有贡献者都要签署[贡献者许可协议](.github/CLA.md)，并遵守
-[行为准则](.github/CODE_OF_CONDUCT.md)。报告安全漏洞见 [SECURITY.md](.github/SECURITY.md)。
+| 位置 | 内容 |
+| --- | --- |
+| `crates/winc-config/src/config/panels.rs` | 面板种类与左右两栏的默认排法 |
+| `crates/winc-app/src/layout/columns.rs` | 三栏布局里各面板的几何 |
+| `crates/winc-app/src/app/workspace/columns.rs` | 面板属于哪一栏、焦点与右栏开关 |
+| `crates/winc-app/src/app/workspace/workspaces.rs` | 工作区登记表与各自的现场 |
+| `crates/winc-app/src/app/workspace/switch.rs` | 工作区的切换、关闭与新增 |
+| `crates/winc-app/src/app/workspace/bar.rs` | 顶栏里的工作区切换条 |
+| `crates/winc-app/src/app/settings/panels.rs` | 「面板」设置页的操作 |
+| `crates/winc-app/src/layout/settings/panels.rs` | 「面板」设置页的几何 |
+| `crates/winc-app/src/view/workspace/columns.rs` | 左右两栏的绘制 |
 
-## 联系我们
+## 与上游同步
 
-- 网站：[winc.si](https://winc.si)
-- 邮箱：[support@deeix.com](mailto:support@deeix.com)
-- Telegram：[t.me/deeix_chat](https://t.me/deeix_chat)
+本仓库保留上游的历史，`upstream` 远程指向官方仓库，`origin` 指向本仓库。同步步骤、冲突高发区与
+分支约定见 **[UPSTREAM.md](./UPSTREAM.md)**。
+
+```bash
+git remote -v                       # origin: 本仓库；upstream: DEEIX-AI/Winc
+git fetch upstream
+git merge upstream/dev              # 把上游的改动并进来
+```
+
+## 贡献
+
+上游的贡献指南见 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)，上游项目在 `dev` 分支上开发。
+本仓库的改动以提交信息说明，见 [CHANGELOG.md](./CHANGELOG.md)。
+
+## 联系方式
+
+- 上游主页：<https://winc.si>
+- 上游邮箱：<support@deeix.com>
+- Telegram：<t.me/deeix_chat>
 - X：[@DEEIX_AI](https://x.com/DEEIX_AI)
 
-## 友情链接
+## 相关链接
 
+- 本仓库：<https://github.com/xinggaoya/winc>
+- 上游项目：<https://github.com/DEEIX-AI/Winc>
 - [Rust](https://www.rust-lang.org)
 - [DEEIX AI](https://deeix.com)
 - [LINUX DO](https://linux.do)
 
-## 许可证
+## 许可
 
-winc 以 [Apache License 2.0](LICENSE) 授权，另见 [NOTICE](NOTICE)。
+winc 按 [Apache License 2.0](LICENSE) 授权，详见 [NOTICE](NOTICE)。本仓库是上游的二次开发版本，
+沿用同一许可，并保留上游的版权声明。

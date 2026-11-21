@@ -2,10 +2,11 @@
   <img src="./crates/winc-app/assets/icon.svg" alt="winc" width="128" />
 </p>
 
-<h1 align="center">Winc</h1>
+<h1 align="center">Winc · Secondary Development</h1>
 
 <p align="center">
-  A lighter, faster, more comfortable desktop editor.
+  A lighter, faster, more comfortable desktop editor — with multi-workspace mode, a three-column
+  layout, and a configurable panel arrangement on top of upstream.
 </p>
 
 <p align="center">
@@ -22,6 +23,93 @@
 <p align="center">
   <a href="https://winc.si/#download"><img alt="Download Winc" src="./.github/assets/download-en.svg" /></a>
 </p>
+
+## What this is
+
+This is a **secondary development branch** of the upstream project
+[Winc](https://github.com/DEEIX-AI/Winc) — a desktop editor written in Rust with its own rendering
+engine: it starts in 0.1 seconds and uses just 52 MB of memory with 100,000 lines open. Multiple
+cursors, find and replace, and side-by-side diffs are all there, and every keystroke and scroll
+responds instantly.
+
+This repository adds three interface changes on top of upstream (see
+[Secondary development](#secondary-development)):
+
+1. **Multi-workspace mode** — run several projects in one window and switch between them freely;
+2. **A three-column layout** — files on the left, editor and terminal in the fixed middle column,
+   Git and other panels on the right;
+3. **A configurable panel arrangement** — drag panels between the columns, reorder them, and have
+   the arrangement persisted in the configuration.
+
+The upstream address, the sync workflow, and the change records live in
+**[UPSTREAM.md](./UPSTREAM.md)** and **[CHANGELOG.md](./CHANGELOG.md)**.
+
+| Repository | Address |
+| --- | --- |
+| This repository (secondary development) | <https://github.com/xinggaoya/winc> |
+| Upstream project | <https://github.com/DEEIX-AI/Winc> |
+| Upstream website | <https://winc.si> |
+
+## Secondary development
+
+### 1. Multi-workspace mode
+
+Several projects live in one window at the same time. Each one keeps its own state — open tabs, the
+expanded state of the file tree, the Git status, and the terminal session — and switching back finds
+everything as it was.
+
+- The projects open in the window are listed at the left of the top bar; click one to switch. The
+  folder button at the end opens another project.
+- Opening a folder no longer closes the previous one: it stays as another workspace (turn the mode
+  off in the settings to get the old behaviour back).
+- Closing a project closes only that one; the others keep running.
+- Shortcuts: `⌘⌃→` / `⌘⌃←` switch to the next and previous workspace, `⌘⌃W` closes the current one
+  (`Ctrl+Alt+N` / `Ctrl+Alt+P` / `Ctrl+Alt+W` on Windows and Linux).
+
+### 2. A three-column layout
+
+The window is split into three columns:
+
+| Column | Contents |
+| --- | --- |
+| Left | The file tree and other panels, with the project name and menu on top |
+| Middle (fixed) | The tab bar, the editor, and the terminal |
+| Right | The Git commit view and other panels |
+
+- The panel button at the top right of the window collapses and expands the right column. The button
+  stays where it is, so it can be pressed again to bring the column back.
+- The divider on the left edge of the right column resizes it.
+- The middle column is not configurable: the editor and the terminal always stay together.
+
+### 3. A configurable panel arrangement
+
+The **Panels** page of the settings (`⌘,` → Panels) can:
+
+- drag the `≡` handle at the start of a row to move a panel to another column or another position;
+- move a panel up or down, send it to the other column, or hide it with the buttons at the end of
+  the row;
+- change the width of the right column.
+
+The arrangement is written to the configuration file (see [Configuration](#configuration)) and is
+restored on the next start.
+
+### Configuration
+
+The `panels` section of the configuration file says which panels are in which column and in what
+order; `multiWorkspace` turns multi-workspace mode on and off:
+
+```jsonc
+{
+  "panels": {
+    "left": ["files"],              // left column: the file tree
+    "right": ["commit", "search"],  // right column: the commit view, the search
+    "rightWidth": 320               // width of the right column (180–720)
+  },
+  "multiWorkspace": true           // multi-workspace mode (on by default)
+}
+```
+
+Panel names: `files` (file tree), `search` (project-wide search), `commit` (the Git commit view).
 
 ## Overview
 
@@ -94,7 +182,9 @@ On macOS the app is started by the system, so it does not inherit the environmen
 
 ## Building from Source
 
-winc builds with Rust 1.99.1; `rust-toolchain.toml` selects the toolchain automatically.
+winc builds with Rust 1.99.1; `rust-toolchain.toml` selects the toolchain automatically. On Windows
+the [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/) are needed as well
+(the "Desktop development with C++" workload, with MSVC v143 and the Windows SDK).
 
 ```bash
 cargo run --release                 # build and run
@@ -138,26 +228,55 @@ The workspace is split into crates by responsibility:
 | `winc` | The executable's entry point, which only calls into `winc-app` |
 | `xtask` | Development automation: tests, benchmarks, and packaging |
 
+The secondary development is concentrated in these places:
+
+| Location | Contents |
+| --- | --- |
+| `crates/winc-config/src/config/panels.rs` | The panel kinds and the default arrangement of the two columns |
+| `crates/winc-app/src/layout/columns.rs` | The geometry of the panels inside a column |
+| `crates/winc-app/src/app/workspace/columns.rs` | Which column a panel is in, the focus, and the right column's switch |
+| `crates/winc-app/src/app/workspace/workspaces.rs` | The workspace registry and the state of each workspace |
+| `crates/winc-app/src/app/workspace/switch.rs` | Switching, closing, and adding workspaces |
+| `crates/winc-app/src/app/workspace/bar.rs` | The workspace switcher in the top bar |
+| `crates/winc-app/src/app/settings/panels.rs` | The actions of the Panels settings page |
+| `crates/winc-app/src/layout/settings/panels.rs` | The geometry of the Panels settings page |
+| `crates/winc-app/src/view/workspace/columns.rs` | Drawing the two side columns |
+
+## Syncing with upstream
+
+This repository keeps the upstream history. The `upstream` remote points at the official repository
+and `origin` at this one. The sync steps, the areas where conflicts are likely, and the branch
+conventions are in **[UPSTREAM.md](./UPSTREAM.md)**.
+
+```bash
+git remote -v                       # origin: this repository; upstream: DEEIX-AI/Winc
+git fetch upstream
+git merge upstream/dev              # bring the upstream changes in
+```
+
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](.github/CONTRIBUTING.md) before you open a
-pull request, and open it against the `dev` branch. All contributors sign the [Contributor License
-Agreement](.github/CLA.md) and follow the [Code of Conduct](.github/CODE_OF_CONDUCT.md). To report a
-vulnerability, see [SECURITY.md](.github/SECURITY.md).
+The upstream contribution guide is in [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md); the
+upstream project develops on the `dev` branch. The changes in this repository are described in the
+commit messages and in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Contact
 
-- Website: [winc.si](https://winc.si)
-- Email: [support@deeix.com](mailto:support@deeix.com)
-- Telegram: [t.me/deeix_chat](https://t.me/deeix_chat)
+- Upstream website: <https://winc.si>
+- Upstream email: <support@deeix.com>
+- Telegram: <t.me/deeix_chat>
 - X: [@DEEIX_AI](https://x.com/DEEIX_AI)
 
 ## Links
 
+- This repository: <https://github.com/xinggaoya/winc>
+- Upstream project: <https://github.com/DEEIX-AI/Winc>
 - [Rust](https://www.rust-lang.org)
 - [DEEIX AI](https://deeix.com)
 - [LINUX DO](https://linux.do)
 
 ## License
 
-winc is licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE).
+winc is licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE). This
+repository is a secondary development of the upstream project, keeps the same license, and preserves
+the upstream copyright notices.
