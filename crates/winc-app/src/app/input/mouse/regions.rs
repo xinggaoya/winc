@@ -1,10 +1,10 @@
-//! 各区域的点击：全局搜索面板、设置浮层、快速打开、输入框、文件树、编辑区。
+//! 各区域的点击：全局搜索弹窗、设置浮层、快速打开、输入框、文件树、编辑区。
 
 use super::*;
 use winc_config::Panel;
 
 impl App {
-    /// 返回侧栏顶部切换按钮和搜索面板中的悬停目标；不在这些位置时返回 `None`。
+    /// 返回侧栏顶部切换按钮里的悬停目标；不在这些位置时返回 `None`。
     pub(super) fn panel_hover_at(&self, x: f32, y: f32) -> Option<Hover> {
         let spilled = self.in_commit_overflow(x, y) || self.in_result_overflow(x, y);
         // 左右两栏：点在其中一栏里（或溢出到栏外的行）才算。
@@ -39,15 +39,17 @@ impl App {
             return Some(hit(&self.hits.commit, x, y).map_or(Hover::None, Hover::Commit));
         }
 
-        // 面板只负责顶栏以下、分隔条以左的区域；侧栏开关和分隔条由后面的判断处理。写全名的结果行
-        // 覆盖在分隔条和滚动条之上，伸出侧栏的那一段同样属于这一行。
-        let panel = self.panel_card(Panel::Search);
-        let over_overflow = self.over_result_overflow_row(y);
-        let on_splitter =
-            self.panels.sidebar.visible && self.layout.splitter.contains(x, y) && !over_overflow;
-        let in_panel = panel.contains(x, y) || self.in_result_overflow(x, y);
+        None
+    }
 
-        if !self.search_open() || !in_panel || on_splitter {
+    /// 返回全局搜索弹窗里的悬停目标；不在卡片里时返回 `None`。
+    ///
+    /// 卡片浮在编辑区上方：写全名的结果行可以伸出卡片之外，那一段仍算在卡片里。
+    pub(super) fn search_hover_at(&self, x: f32, y: f32) -> Option<Hover> {
+        if !self.search_open() {
+            return None;
+        }
+        if !self.layout.search_card.contains(x, y) && !self.in_result_overflow(x, y) {
             return None;
         }
 
@@ -58,7 +60,7 @@ impl App {
             return Some(Hover::Panel(button));
         }
 
-        if parts.results.contains(x, y) || (over_overflow && self.in_result_overflow(x, y)) {
+        if parts.results.contains(x, y) || self.in_result_overflow(x, y) {
             let index = self.result_row_at(y)?;
             let (replace, dismiss) = self.result_actions(index);
 
@@ -287,7 +289,7 @@ impl App {
             && !self.over_commit_overflow_row(y)
     }
 
-    /// 是否已处理对侧栏顶部切换按钮或搜索面板的点击。
+    /// 是否已处理对侧栏顶部切换按钮或提交面板的点击。
     pub(super) fn click_panel(&mut self, x: f32, y: f32) -> bool {
         let spilled = self.in_commit_overflow(x, y) || self.in_result_overflow(x, y);
         let left = self.layout.sidebar;
@@ -331,20 +333,21 @@ impl App {
             return true;
         }
 
-        let search = self.panel_card(Panel::Search);
-        if !self.search_open() || !(search.contains(x, y) || self.in_result_overflow(x, y)) {
+        false
+    }
+
+    /// 处理对全局搜索弹窗的点击：卡片里是按钮、结果行和输入框，卡片外关闭弹窗。
+    pub(super) fn click_global_search(&mut self, x: f32, y: f32) -> bool {
+        if !self.search_open() {
             return false;
         }
 
-        // 分隔条在侧栏右边缘，由后面的分支处理；写全名的结果行覆盖在分隔条之上。
-        if self.panels.sidebar.visible
-            && self.layout.splitter.contains(x, y)
-            && !self.over_result_overflow_row(y)
-        {
-            return false;
+        if !self.layout.search_card.contains(x, y) && !self.in_result_overflow(x, y) {
+            self.close_global_search();
+            return true;
         }
 
-        match self.panel_hover_at(x, y) {
+        match self.search_hover_at(x, y) {
             Some(Hover::Panel(button)) => self.press_panel_button(button),
             Some(Hover::RowAction(index, action)) => self.press_row_action(index, action),
             Some(Hover::Result(index)) => {

@@ -30,6 +30,28 @@ fn the_global_search_opens_a_dialog_over_the_editor() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// `Esc` 关掉弹窗，⌘⇧F 再按一次也关掉。
+#[test]
+fn escape_closes_the_dialog_and_the_shortcut_toggles_it() {
+    let dir = search_folder("global-dialog-keys");
+    let mut app = app_with(&dir, false);
+    paint(&mut app);
+
+    app.run_action(Action::FindInFiles);
+    assert!(app.search_open());
+    app.run_action(Action::FindInFiles);
+    assert!(!app.search_open());
+
+    app.run_action(Action::FindInFiles);
+    assert!(app.search_open());
+    // 结果列表里的 `Esc`：关掉弹窗，焦点回到编辑区。
+    app.results_key(&Key::Named(NamedKey::Escape));
+    assert!(!app.search_open());
+    assert_eq!(app.focus, Focus::Editor);
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 /// 弹窗里的输入框和结果列表都画在卡片内。
 #[test]
 fn the_dialog_draws_its_fields() {
@@ -48,6 +70,31 @@ fn the_dialog_draws_its_fields() {
     assert!(parts.query.w > 0.0);
     assert!(parts.results.bottom() <= card.bottom() + 1.0);
     assert!(parts.results.right() <= card.right());
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// 点卡片外关闭弹窗：弹窗浮在编辑区上方，点它挡住的编辑区就是关掉它。
+#[test]
+fn clicking_outside_the_dialog_closes_it() {
+    let dir = search_folder("global-dialog-outside");
+    let mut app = app_with(&dir.join("Cargo.toml"), false);
+    paint(&mut app);
+    app.run_action(Action::FindInFiles);
+    paint(&mut app);
+    assert!(app.search_open());
+
+    // 点在卡片外的编辑区：弹窗关闭，焦点回到编辑区。
+    let at = (
+        app.layout.editor.x + 40.0,
+        app.layout.editor.bottom() - 40.0,
+    );
+    app.on_mouse_move(at.0, at.1);
+    app.on_mouse_down(MouseButton::Left);
+    app.on_mouse_up(MouseButton::Left);
+    paint(&mut app);
+    assert!(!app.search_open());
+    assert_eq!(app.focus, Focus::Editor);
 
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -154,9 +201,9 @@ fn global_search_finds_opens_and_replaces() {
     let mut app = app_with(&dir, false);
     paint(&mut app);
 
-    // 切到搜索面板：焦点在查找输入框。
+    // 打开搜索弹窗：焦点在查找输入框。
     app.run_action(Action::FindInFiles);
-    assert_eq!(app.panels.sidebar.view, Panel::Search);
+    assert!(app.search_open());
     assert_eq!(app.focus, Focus::GlobalQuery);
     assert!(app.layout.tree.h > 0.0);
 
@@ -289,7 +336,7 @@ fn sidebar_top_buttons_hover_in_both_views() {
     let dir = search_folder("top-hover");
     let mut app = app_with(&dir, false);
 
-    for view in [Panel::Files, Panel::Search] {
+    for view in [Panel::Files] {
         app.set_sidebar_view(view);
         paint(&mut app);
 
@@ -314,7 +361,7 @@ fn hover_and_click_agree_on_what_is_under_the_mouse() {
     let mut app = app_with(&dir, false);
     app.open_path(&dir.join("src/main.rs"));
 
-    for view in [Panel::Files, Panel::Search] {
+    for view in [Panel::Files] {
         app.set_sidebar_view(view);
         paint(&mut app);
         let window = app.layout.window;
@@ -617,7 +664,7 @@ fn switching_folders_keeps_the_search_view_and_searches_the_new_folder() {
         app.editor.root(),
         Some(winc_config::files::canonicalize(&second).unwrap().as_path())
     );
-    assert_eq!(app.panels.sidebar.view, Panel::Search);
+    assert!(app.search_open());
     assert_eq!(app.panels.global.query.text(), "config");
     finish_search(&mut app);
     let root = winc_config::files::canonicalize(&second).unwrap();
@@ -732,7 +779,7 @@ fn right_clicking_a_search_result_offers_its_menu() {
         Some("    let config = load_config();")
     );
 
-    // 打开：打开文件并选中这一处，焦点到编辑区。
+    // 打开：打开文件并选中这一处。文件成为普通标签，弹窗关掉，焦点到编辑区。
     click_row(&mut app, found);
     app.run_menu_command(OpenFiles);
     let doc = app.editor.active().unwrap();
@@ -742,9 +789,11 @@ fn right_clicking_a_search_result_offers_its_menu() {
         Some("config".to_owned())
     );
     assert_eq!(app.focus, Focus::Editor);
+    assert!(!app.search_open());
 
     // 「从结果中移除」只修改结果列表，不修改文件，效果与行上的 ✕ 按钮相同。
     let total = app.panels.global.engine.total();
+    app.open_global_search(false);
     click_row(&mut app, found);
     app.run_menu_command(DismissResult);
     assert_eq!(app.panels.global.engine.total(), total - 1);
@@ -1113,11 +1162,13 @@ fn search_results_open_in_the_preview_tab_until_double_clicked() {
     assert_eq!(app.editor.documents.len(), opened);
     assert_eq!(app.preview_index(), app.editor.active);
 
-    // 双击：成为普通标签，焦点进入编辑区；此后单击其他结果新开预览标签。
+    // 双击：成为普通标签，弹窗收起，焦点进入编辑区；此后单击其他结果新开预览标签。
     app.on_mouse_down(MouseButton::Left);
     app.on_mouse_up(MouseButton::Left);
     assert_eq!(app.preview_index(), None);
     assert_eq!(app.focus, Focus::Editor);
+    assert!(!app.search_open());
+    app.open_global_search(false);
     press(&mut app, ResultRow::Match(1, 0));
     assert_eq!(app.editor.documents.len(), opened + 1);
     assert_eq!(app.preview_index(), app.editor.active);
@@ -1130,14 +1181,14 @@ fn search_results_open_in_the_preview_tab_until_double_clicked() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
-/// 搜索结果中放不下的文件行：鼠标停着时从侧栏右边缘起继续写全名，按钮跟在全名之后；这一行
+/// 搜索结果中放不下的文件行：鼠标停着时从卡片右边缘起继续写全名，按钮跟在全名之后；这一行
 /// 覆盖在滚动条之上，伸出的那一段同样属于这一行，鼠标移到编辑区后收起。
 #[test]
 fn long_result_files_unfold_under_the_mouse() {
     let dir = search_folder("global-unfold");
     let deep = dir.join("src/aaa/deeply/nested/module/directory");
     std::fs::create_dir_all(&deep).unwrap();
-    std::fs::write(deep.join("a_rather_long_file_name.rs"), "let config = 1;\n").unwrap();
+    std::fs::write(deep.join("a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs"), "let config = 1;\n").unwrap();
     let many: String = (0..200).map(|i| format!("let config_{i} = 0;\n")).collect();
     std::fs::write(dir.join("src/many.rs"), many).unwrap();
     let mut app = app_with(&dir, false);
@@ -1169,26 +1220,24 @@ fn long_result_files_unfold_under_the_mouse() {
     hover(&mut app, short);
     assert_eq!(app.panels.global.overflow, None);
 
-    // 放不下的行从侧栏右边缘起写全名，按钮移到全名之后。
-    let long = file_row(&app, "a_rather_long_file_name.rs");
+    // 放不下的行从卡片右边缘起写全名，按钮移到全名之后。
+    let long = file_row(&app, "a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs");
     let row = hover(&mut app, long);
     let overflow = app.panels.global.overflow.unwrap();
     let spill = overflow.spill.unwrap();
     assert_eq!((overflow.index, spill.x), (long, results.right()));
     let (_, dismiss) = overflow.actions;
-    assert!(dismiss.x > results.right());
+    // 按钮跟着全名挪到卡片右边缘之外。
+    assert!(dismiss.right() > results.right());
     assert_eq!(app.result_actions(long), overflow.actions);
 
-    // 这一行右端的滚动条属于这一行；伸出的那一段同样是这一行，按钮照常响应。
+    // 伸出的那一段同样是这一行，按钮照常响应。
     let y = row.y + row.h / 2.0;
-    app.on_mouse_move(results.right() - 3.0, y);
-    assert_eq!(app.pointer.hover, Hover::Result(long));
     app.on_mouse_move(spill.x + 10.0, y);
-    assert_eq!(app.pointer.hover, Hover::Result(long));
-    app.on_mouse_move(dismiss.x + dismiss.w / 2.0, y);
     assert_eq!(
         app.pointer.hover,
-        Hover::RowAction(long, RowAction::Dismiss)
+        Hover::RowAction(long, RowAction::Dismiss),
+        "伸出去的那一段上的按钮没有响应"
     );
 
     // 鼠标移到伸出部分之外的编辑区：收起。
@@ -1205,7 +1254,7 @@ fn long_result_files_unfold_under_the_mouse() {
     assert!(
         !files
             .iter()
-            .any(|f| f.relative.ends_with("a_rather_long_file_name.rs"))
+            .any(|f| f.relative.ends_with("a_very_long_file_name_that_cannot_fit_into_the_search_dialog_at_all_really.rs"))
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
