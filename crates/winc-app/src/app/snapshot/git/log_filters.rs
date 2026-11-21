@@ -116,8 +116,8 @@ fn the_branch_panel_lists_branches_like_the_picker_and_filters_by_one() {
     );
     git_in(&root, &["update-ref", "refs/remotes/upstream/main", "main"]);
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
-    app.layout.editor.w = app.layout.editor.w.max(1200.0);
     paint(&mut app);
     assert!(app.log_parts().branches.w > 0.0);
 
@@ -326,8 +326,8 @@ fn log_filters_pick_several_branches_and_authors() {
     };
     history_repo(&root, 10);
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
-    app.layout.editor.w = app.layout.editor.w.max(1200.0);
     paint(&mut app);
     let query = |app: &App| {
         app.editor
@@ -436,8 +436,8 @@ fn log_columns_can_be_hidden_shown_and_widened() {
     };
     history_repo(&root, 10);
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
-    app.layout.editor.w = app.layout.editor.w.max(1200.0);
     paint(&mut app);
     let has = |app: &App, f: &dyn Fn(&LogTarget) -> bool| app.hits.log.iter().any(|(_, t)| f(t));
 

@@ -551,14 +551,14 @@ fn the_picker_lines_up_with_the_context_rows() {
     };
     app.open_branch_picker(GitAnchor::Branch);
     paint(&mut app);
-    let (card, row, sidebar) = (
+    let (card, row, panel) = (
         app.layout.picker,
         app.commit_parts().branch,
-        app.layout.sidebar,
+        app.panel_card(Panel::Commit),
     );
     assert_eq!((card.x, card.right()), (row.x, row.right()));
-    assert_eq!(card.x - sidebar.x, sidebar.right() - card.right());
-    assert!(sidebar.bottom() - card.bottom() >= card.x - sidebar.x);
+    assert_eq!(card.x - panel.x, panel.right() - card.right());
+    assert!(panel.bottom() - card.bottom() >= card.x - panel.x);
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -875,7 +875,8 @@ fn the_switch_branch_command_opens_the_picker_where_it_can_be_seen() {
     app.open_path(&root.join("src/main.rs"));
     paint(&mut app);
     app.run_action(Action::GitSwitchBranch);
-    assert_eq!(app.overlays.picker.anchor, GitAnchor::Status);
+    // 分支行在提交面板里，选择器贴着那一行。
+    assert_eq!(app.overlays.picker.anchor, GitAnchor::Branch);
     app.close_picker();
     for action in [
         Action::GitFetch,

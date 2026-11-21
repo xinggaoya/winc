@@ -634,8 +634,9 @@ impl App {
                 GitAnchor::Location => parts.location.unwrap_or(parts.branch),
                 _ => parts.branch,
             };
-            let sidebar = self.layout.sidebar;
-            (row, sidebar.bottom() - (row.x - sidebar.x))
+            // 提交面板在自己的栏里，选择器贴着那一行，底下到面板的底边为止。
+            let panel = self.panel_card(winc_config::Panel::Commit);
+            (row, panel.bottom() - (row.x - panel.x))
         };
         let y = row.bottom() + GIT_PICKER_GAP;
         let room = bottom - y;

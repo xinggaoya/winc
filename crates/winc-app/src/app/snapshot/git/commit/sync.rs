@@ -606,7 +606,8 @@ fn holding_option_turns_commit_into_commit_and_push() {
     assert!(app.commit_parts().push.is_some());
     assert!(!app.commit_pushes());
     // 侧栏窄到放不下并排的按钮时，⌥ 才把主按钮换成「提交并推送」。
-    app.panels.sidebar.width = crate::theme::MIN_PANEL_WIDTH;
+    app.panels.layout.right_width = *winc_config::Config::PANEL_WIDTH_RANGE.start();
+    app.relayout();
     paint(&mut app);
     assert!(app.commit_parts().push.is_none());
     let button = app.commit_parts().commit;
@@ -638,9 +639,10 @@ fn the_classic_card_keeps_amend_above_the_message_and_buttons_on_the_left() {
     let amend_item = MenuEntry::Item(MenuCommand::CommitAmend, true);
     for width in [
         crate::theme::DEFAULT_PANEL_WIDTH,
-        crate::theme::MIN_PANEL_WIDTH,
+        *winc_config::Config::PANEL_WIDTH_RANGE.start(),
     ] {
-        app.panels.sidebar.width = width;
+        app.panels.layout.right_width = width;
+        app.relayout();
         paint(&mut app);
         let parts = app.commit_parts();
         let (card, amend) = (parts.card.unwrap(), parts.amend.unwrap());
@@ -658,7 +660,8 @@ fn the_classic_card_keeps_amend_above_the_message_and_buttons_on_the_left() {
         assert_eq!(parts.push.is_some(), wide, "{width}");
     }
     // 修改上一次提交时没有并排的「提交并推送…」，勾选框仍在原处。
-    app.panels.sidebar.width = crate::theme::DEFAULT_PANEL_WIDTH;
+    app.panels.layout.right_width = crate::theme::DEFAULT_PANEL_WIDTH;
+    app.relayout();
     app.git.commit.amend = true;
     paint(&mut app);
     let parts = app.commit_parts();

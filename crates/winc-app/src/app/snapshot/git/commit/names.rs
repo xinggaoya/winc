@@ -942,7 +942,7 @@ fn the_full_name_row_covers_the_splitter_like_the_file_tree() {
     paint(&mut app);
     assert!(app.git.commit.overflow.is_some_and(|o| o.row == i));
 
-    let splitter = app.layout.splitter;
+    let splitter = app.layout.right_splitter;
     let row = Hover::Commit(CommitTarget::File(index));
     for x in [
         splitter.x + 1.0,

@@ -12,6 +12,7 @@ fn log_commit_menu_checks_out_branches_picks_reverts_and_resets() {
     };
     history_repo(&root, 10);
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
     paint(&mut app);
     let row_of = |app: &App, subject: &str| {
@@ -292,6 +293,7 @@ fn arrows_walk_to_parent_and_child_commits() {
     };
     history_repo(&root, 10);
     app.git_refresh();
+    widen(&mut app);
     show_all_log(&mut app);
     paint(&mut app);
     let row_of = |app: &App, subject: &str| {

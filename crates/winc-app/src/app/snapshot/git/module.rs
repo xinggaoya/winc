@@ -736,7 +736,7 @@ fn the_project_leads_the_second_row_and_git_context_sits_below_it() {
     let branch = hit(&app, CommitTarget::Branch).unwrap();
     let sync = hit(&app, CommitTarget::Sync).unwrap();
     assert!(branch.right() <= sync.x);
-    assert!(sync.right() <= app.layout.sidebar.right());
+    assert!(sync.right() <= app.panel_card(Panel::Commit).right());
     let _ = std::fs::remove_dir_all(&root);
 }
 

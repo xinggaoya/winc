@@ -147,6 +147,10 @@ impl App {
             self.panels.global.open = true;
         }
         self.open_folder_now(&target);
+        // 新工作区里没有提交面板时，焦点回到文件树：否则键入的文字会进入看不见的输入框。
+        if !self.panel_available(self.panels.sidebar.view) {
+            self.set_sidebar_view(winc_config::Panel::Files);
+        }
     }
 
     /// 把窗口里的现场收进当前工作区的格子。
