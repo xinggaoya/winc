@@ -2,9 +2,14 @@
 //! （`installer`）检查新版本，下载核对后安装。其他安装方式（deb、rpm、Arch 包、Windows 便携版）
 //! 同样检查，找到新版本时只提醒，由下载页或包管理器取得（[`Delivery`]）。
 //!
-//! 更新通道和 EdDSA 公钥在构建时由 `WINC_UPDATE_CHANNELS`、`WINC_UPDATE_PUBLIC_KEY` 给出，两者
-//! 都有才启用；应用在启动后 [`FIRST_CHECK`]、之后每隔 [`CHECK_INTERVAL`] 检查一次。用户选择
-//! 状态栏的提示后才下载（[`install`]），核对长度和签名后提示重新启动（[`restart`]）。
+//! 新版本来自两个地方，用哪个由构建时给出的配置决定：
+//! - GitHub 的发布（[`github`]）：仓库的发布订阅源里最新的版本，附件从发布里下载，校验值
+//!   取自发布里的 `SHA256SUMS`。仓库由 `WINC_UPDATE_REPOSITORY` 给出，默认是自己的仓库。
+//! - appcast 通道：构建时由 `WINC_UPDATE_CHANNELS` 给出的地址，内容由 `WINC_UPDATE_PUBLIC_KEY`
+//!   给出的公钥核对签名。
+//!
+//! 应用在启动后 [`FIRST_CHECK`]、之后每隔 [`CHECK_INTERVAL`] 检查一次。用户选择状态栏的提示后
+//! 才下载（[`install`]），核对长度和校验值后提示重新启动（[`restart`]）。
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -14,6 +19,7 @@ use std::sync::{Mutex, OnceLock, PoisonError, mpsc};
 use std::time::Duration;
 
 use ed25519_dalek::{Signature, VerifyingKey};
+use sha2::Digest;
 
 use crate::web::{Failure, curl, fetch, wget};
 use crate::winc::UpdateState;
@@ -22,6 +28,13 @@ use appimage as platform;
 #[cfg(windows)]
 use installer as platform;
 pub use platform::FEED_FILE;
+
+mod github;
+
+/// 默认从哪个仓库的发布里取更新。
+///
+/// 构建时可用 `WINC_UPDATE_REPOSITORY` 改（`所有者/仓库`）。
+const DEFAULT_REPOSITORY: &str = "xinggaoya/winc";
 
 /// 启动后第一次检查前的等待时间。
 ///
@@ -55,10 +68,19 @@ pub struct Item {
     pub version: String,
     /// 下载地址。
     pub url: String,
-    /// 文件大小（字节）。
+    /// 文件大小（字节）；不知道时为 0。
     pub length: u64,
-    /// 整个文件的 Ed25519 签名。
-    pub signature: [u8; 64],
+    /// 核对内容用的凭据。
+    pub proof: Proof,
+}
+
+/// 更新包的核对方式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Proof {
+    /// appcast 里给的 Ed25519 签名。
+    Signature([u8; 64]),
+    /// 发布里给的 SHA-256 校验值。
+    Checksum([u8; 32]),
 }
 
 /// 应用交给更新器的回调，可在任意线程调用。
@@ -82,10 +104,12 @@ pub enum Delivery {
 
 /// 启用后的更新器。
 struct Updater {
+    /// 从哪个仓库的发布里取更新；没有时只看 appcast 通道。
+    repository: Option<String>,
     /// 各通道 appcast 的完整下载地址。
     feeds: Vec<String>,
-    /// 核对签名用的公钥。
-    key: VerifyingKey,
+    /// 核对签名用的公钥；没有时只看 GitHub 的发布。
+    key: Option<VerifyingKey>,
     /// 由应用自己更新的安装路径：AppImage 文件，或安装包安装的 `winc.exe`；其他安装方式为
     /// `None`，只提醒。
     target: Option<PathBuf>,
@@ -116,7 +140,8 @@ static RELAUNCH: AtomicBool = AtomicBool::new(false);
 
 /// 返回是否启用了更新检查。
 ///
-/// 构建时同时给出了更新通道和公钥时启用；当前安装不由应用自己更新时只提醒（[`Delivery`]）。
+/// 构建时给出了 GitHub 仓库，或同时给出了更新通道和公钥时启用；当前安装不由应用自己更新时
+/// 只提醒（[`Delivery`]）。
 ///
 /// `tick` 在启动后 [`FIRST_CHECK`]、之后每隔 [`CHECK_INTERVAL`] 在后台线程上调用。
 /// 是否调用 [`check`] 由应用按设置决定。
@@ -125,11 +150,10 @@ pub fn start(
     state: impl Fn(UpdateState) + Send + Sync + 'static,
     tick: impl Fn() + Send + 'static,
 ) -> bool {
+    let repository = repository();
     let feeds = feeds(option_env!("WINC_UPDATE_CHANNELS").unwrap_or_default());
-    let Some(key) = option_env!("WINC_UPDATE_PUBLIC_KEY").and_then(public_key) else {
-        return false;
-    };
-    if feeds.is_empty() {
+    let key = option_env!("WINC_UPDATE_PUBLIC_KEY").and_then(public_key);
+    if repository.is_none() && (feeds.is_empty() || key.is_none()) {
         return false;
     }
     let target = platform::locate();
@@ -143,6 +167,7 @@ pub fn start(
         state: Box::new(state),
     };
     let updater = Updater {
+        repository,
         feeds,
         key,
         target,
@@ -193,10 +218,10 @@ pub fn check() {
     }
     report(UpdateState::Checking);
     std::thread::spawn(move || {
-        // `Err` 是各通道都失败的原因；`Ok(None)` 表示没有更新的版本。
-        let newer = race(&updater.feeds, &updater.key).map(|xml| {
-            newest(&xml, std::env::consts::ARCH)
-                .filter(|item| newer(&item.version, winc_version::VERSION))
+        // `Err` 是取不到更新的原因；`Ok(None)` 表示没有更新的版本。
+        let newer = github_item(updater).or_else(|failure| {
+            // GitHub 的发布取不到时，退回 appcast 通道。
+            feeds_item(updater).map_err(|_| failure)
         });
         work(|w| {
             w.busy = false;
@@ -216,6 +241,78 @@ pub fn check() {
             }
         }
     });
+}
+
+/// 从 GitHub 的发布里找新版本：版本号、附件的地址和校验值。
+///
+/// 发布订阅源里没有比当前版本新的发布时返回 `Ok(None)`。
+fn github_item(updater: &Updater) -> Result<Option<Item>, Failure> {
+    let Some(repository) = updater.repository.as_deref() else {
+        return Ok(None);
+    };
+    let Some(name) = asset_name() else {
+        return Ok(None);
+    };
+    let xml = fetch(&github::feed(repository), FEED_TIMEOUT, None)?;
+    let text = String::from_utf8(xml).map_err(|_| Failure::Invalid)?;
+    let Some(tag) = github::tags(&text)
+        .into_iter()
+        .find(|tag| newer(tag.trim_start_matches('v'), winc_version::VERSION))
+    else {
+        return Ok(None);
+    };
+    let version = tag.trim_start_matches('v').to_owned();
+    let name = name.replace("{version}", &version);
+    // 校验值与附件一起上传：取回清单，按文件名找出这一份的校验值。
+    let sums = fetch(
+        &github::download(repository, &tag, github::CHECKSUMS),
+        FEED_TIMEOUT,
+        None,
+    )?;
+    let sums = String::from_utf8(sums).map_err(|_| Failure::Invalid)?;
+    let checksum = github::checksum(&sums, &name).ok_or(Failure::Invalid)?;
+    Ok(Some(Item {
+        version,
+        url: github::download(repository, &tag, &name),
+        length: 0,
+        proof: Proof::Checksum(checksum),
+    }))
+}
+
+/// 从 appcast 通道里找新版本。
+///
+/// 没有配置通道或公钥时返回 `Ok(None)`。
+fn feeds_item(updater: &Updater) -> Result<Option<Item>, Failure> {
+    let Some(key) = updater.key.as_ref() else {
+        return Ok(None);
+    };
+    if updater.feeds.is_empty() {
+        return Ok(None);
+    }
+    let xml = race(&updater.feeds, key)?;
+    Ok(
+        newest(&xml, std::env::consts::ARCH)
+            .filter(|item| newer(&item.version, winc_version::VERSION)),
+    )
+}
+
+/// 从哪个仓库的发布里取更新；构建时可用 `WINC_UPDATE_REPOSITORY` 改。
+fn repository() -> Option<String> {
+    let name = option_env!("WINC_UPDATE_REPOSITORY").unwrap_or(DEFAULT_REPOSITORY);
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// 本机的更新包在发布里的文件名；发布里没有这一份时返回 `None`。
+///
+/// 发布只给 `x86_64` 的包：其他架构没有可用的更新。
+fn asset_name() -> Option<String> {
+    if cfg!(target_os = "windows") {
+        Some("Winc-{version}-windows-x64-setup.exe".to_owned())
+    } else if cfg!(target_arch = "x86_64") {
+        Some("Winc-{version}-linux-x64.AppImage".to_owned())
+    } else {
+        None
+    }
 }
 
 /// 在后台下载上次检查找到的更新包，核对后准备安装。
@@ -244,7 +341,7 @@ pub fn install() {
                 report(UpdateState::Downloading(item.version.clone(), percent));
             }
         };
-        let result = platform::prepare(&item, target, &updater.key, &progress);
+        let result = platform::prepare(&item, target, updater.key.as_ref(), &progress);
         work(|w| {
             w.busy = false;
             if let Ok(program) = &result {
@@ -462,21 +559,34 @@ pub(crate) fn percent(done: u64, length: u64) -> u8 {
     u8::try_from(done.min(length) * 100 / length).unwrap_or(100)
 }
 
-/// 核对下载的内容：长度与 appcast 中的一致，且签名由 `key` 对应的私钥签出。
+/// 核对下载的内容：长度与更新包里写的一致，且内容与凭据相符。
 ///
 /// # Errors
 ///
-/// 长度或签名不符时返回错误信息。
-fn verify(item: &Item, bytes: &[u8], key: &VerifyingKey) -> Result<(), String> {
-    if bytes.len() as u64 != item.length {
+/// 长度或校验值不符时返回错误信息。
+fn verify(item: &Item, bytes: &[u8], key: Option<&VerifyingKey>) -> Result<(), String> {
+    if item.length != 0 && bytes.len() as u64 != item.length {
         return Err(format!(
             "大小不对：应为 {} 字节，下载到 {} 字节",
             item.length,
             bytes.len()
         ));
     }
-    key.verify_strict(bytes, &Signature::from_bytes(&item.signature))
-        .map_err(|_| "签名不对".to_owned())
+    match &item.proof {
+        Proof::Signature(signature) => {
+            let key = key.ok_or("没有核对签名的公钥")?;
+            key.verify_strict(bytes, &Signature::from_bytes(signature))
+                .map_err(|_| "签名不对".to_owned())
+        }
+        Proof::Checksum(sum) => {
+            let digest = sha2::Sha256::digest(bytes);
+            if digest.as_slice() == sum.as_slice() {
+                Ok(())
+            } else {
+                Err("校验值不对".to_owned())
+            }
+        }
+    }
 }
 
 /// 返回 appcast 中本机架构 `arch`（如 `x86_64`）上版本号最大的一项。
@@ -516,7 +626,7 @@ fn newest_for_installer(xml: &str, arch: &str, installer: Option<&str>) -> Optio
             version: version.to_owned(),
             url: enclosure.attribute("url")?.to_owned(),
             length: enclosure.attribute("length")?.parse().ok()?,
-            signature: decode_base64(signature)?.try_into().ok()?,
+            proof: Proof::Signature(decode_base64(signature)?.try_into().ok()?),
         })
     });
     parsed.max_by(|a, b| winc_config::compare_versions(&a.version, &b.version))

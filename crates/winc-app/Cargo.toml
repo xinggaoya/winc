@@ -97,10 +97,12 @@ windows-sys = { workspace = true, features = [
 # 其他平台上读剪贴板中的图片：arboard 把图片解码成 RGBA 像素，再由 winc-editor 编码为 PNG。
 # macOS 上直接取系统剪贴板中的 PNG（TIFF 由系统转换），不开该项，不带进图片编解码库。
 # 应用内更新（以 AppImage 运行或由安装包安装时，见 updates.rs）：核对更新包的 Ed25519 签名（与
-# macOS 的 Sparkle 同一把密钥），读 appcast。网络请求交给系统的 curl、wget，不带 TLS 实现。
+# macOS 的 Sparkle 同一把密钥）或 GitHub 发布里的 SHA-256 校验值，读 appcast 和发布订阅源。
+# 网络请求交给系统的 curl、wget，不带 TLS 实现。
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 arboard = { workspace = true, features = ["image-data"] }
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+sha2 = { version = "0.10", default-features = false, features = ["std"] }
 roxmltree.workspace = true
 
 [dev-dependencies]

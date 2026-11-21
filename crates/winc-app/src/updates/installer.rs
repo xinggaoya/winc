@@ -77,7 +77,7 @@ pub fn locate() -> Option<PathBuf> {
 pub fn prepare(
     item: &Item,
     exe: &Path,
-    key: &VerifyingKey,
+    key: Option<&VerifyingKey>,
     progress: &dyn Fn(u8),
 ) -> Result<PathBuf, String> {
     let kind = kind_at(exe).ok_or("无法识别安装类型")?;
@@ -89,7 +89,7 @@ pub fn prepare(
 fn prepare_in(
     dir: &Path,
     item: &Item,
-    key: &VerifyingKey,
+    key: Option<&VerifyingKey>,
     kind: Kind,
     progress: &dyn Fn(u8),
 ) -> Result<PathBuf, String> {
