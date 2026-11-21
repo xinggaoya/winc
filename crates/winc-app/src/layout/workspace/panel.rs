@@ -225,6 +225,35 @@ impl PanelParts {
         }
     }
 
+    /// 返回条件区（标题行到统计行）的高度（逻辑像素）。
+    ///
+    /// 与 [`PanelParts::new`] 里结果列表上沿相对于面板顶边的距离一致：全局搜索弹窗的
+    /// 高度按它算，卡片内部的几何也按同一套数算，两者不会打架。
+    pub fn chrome(
+        replace_shown: f32,
+        details_shown: f32,
+        summary: bool,
+        heights: (f32, f32),
+    ) -> f32 {
+        let replace = if replace_shown > 0.0 {
+            (PANEL_GAP + heights.1) * replace_shown.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let details = if details_shown > 0.0 {
+            2.0 * (PANEL_GAP + PANEL_FIELD) * details_shown.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        PANEL_HEADER
+            + SIDEBAR_FIRST
+            + heights.0
+            + replace
+            + details
+            + SIDEBAR_LIST_GAP
+            + if summary { 24.0 } else { 0.0 }
+    }
+
     /// 返回面板中 `(x, y)` 处的按钮；没有时返回 `None`。
     ///
     /// `replace_open` 为 `false` 时，不包含「全部替换」按钮。

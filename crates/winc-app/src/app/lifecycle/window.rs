@@ -313,6 +313,7 @@ impl App {
             &right,
             rows,
             picker_rows,
+            0.0,
             self.gutter_width(),
             status_height,
         );

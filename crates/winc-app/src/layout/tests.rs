@@ -16,6 +16,32 @@ fn compute(
     gutter_width: f32,
     status_height: f32,
 ) -> Layout {
+    compute_with(
+        width,
+        height,
+        panel_width,
+        shown,
+        search_rows,
+        picker_rows,
+        0.0,
+        gutter_width,
+        status_height,
+    )
+}
+
+/// 同 [`compute`]，另外给出全局搜索卡片的高度（0 为没有卡片）。
+#[allow(clippy::too_many_arguments)]
+fn compute_with(
+    width: f32,
+    height: f32,
+    panel_width: f32,
+    shown: f32,
+    search_rows: usize,
+    picker_rows: usize,
+    search_height: f32,
+    gutter_width: f32,
+    status_height: f32,
+) -> Layout {
     Layout::compute(
         width,
         height,
@@ -27,9 +53,45 @@ fn compute(
         &[],
         search_rows,
         picker_rows,
+        search_height,
         gutter_width,
         status_height,
     )
+}
+
+/// 条件区（标题行到统计行）的高度必须等于卡片里结果列表上沿的位置：
+/// 卡片高度按它算，卡片内部的几何也按同一套数算，两者不能打架。
+#[test]
+fn the_chrome_height_matches_the_parts() {
+    for replace in [0.0_f32, 0.5, 1.0] {
+        for details in [0.0_f32, 1.0] {
+            for summary in [false, true] {
+                let rect = Rect::new(0.0, 0.0, 720.0, 400.0);
+                let parts = PanelParts::new(rect, replace, details, summary, (24.0, 24.0));
+                let chrome = PanelParts::chrome(replace, details, summary, (24.0, 24.0));
+                assert_eq!(
+                    parts.results.y - rect.y,
+                    chrome,
+                    "replace={replace} details={details} summary={summary}"
+                );
+            }
+        }
+    }
+}
+
+/// 全局搜索卡片浮在编辑区顶部居中，宽度不超过编辑区；高度为 0 时没有卡片。
+#[test]
+fn the_search_card_sits_at_the_top_of_the_editor() {
+    let layout = compute(1000.0, 600.0, 260.0, 1.0, 0, 0, 40.0, STATUS_HEIGHT);
+    assert_eq!(layout.search_card, Rect::default());
+
+    let layout = compute_with(1000.0, 600.0, 260.0, 1.0, 0, 0, 320.0, 40.0, STATUS_HEIGHT);
+    let card = layout.search_card;
+    assert_eq!(card.y, layout.editor.y + 8.0);
+    assert_eq!(card.h, 320.0);
+    assert!(card.x >= layout.editor.x && card.right() <= layout.editor.right());
+    // 宽度以编辑区为基准：编辑区窄时卡片跟着收窄。
+    assert_eq!(card.w, SEARCH_DIALOG_WIDTH.min(layout.editor.w - 48.0));
 }
 
 #[test]
