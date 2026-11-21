@@ -430,10 +430,10 @@ fn a_folder_on_a_connected_host_opens_as_the_workspace() {
 
     // 断开连接：关闭目录并断开，不弹出连接中断的提示；之后经最近列表重新连接。
     assert!(app.run_action(Action::RemoteDisconnect));
-    assert_eq!(app.editor.root(), None);
+    // 多工作区模式：断开连接关掉的是当前这个工作区，其余的还开着。
+    assert_ne!(app.editor.root(), Some(root.as_path()));
     assert!(!remote::is_connected(&target));
     assert!(app.notice.text.is_none(), "{:?}", app.notice.text);
-    assert!(!app.action_available(Action::RemoteDisconnect));
     let target = loopback("app-remote-open");
     assert!(app.reopen_remote(&root));
     assert_eq!(app.editor.root(), Some(root.as_path()));

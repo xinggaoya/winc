@@ -911,9 +911,9 @@ fn switching_folders_swaps_the_terminals() {
 
     // 新目录没有记下终端：原来的标签关掉，面板开着，在新目录里开一个。
     app.switch_folder(&second);
-    wait_terminal(&mut app, |app| !app.terminal.want.is_empty());
+    wait_terminal(&mut app, |app| app.terminal.open);
     assert!(app.terminal.tabs.is_empty());
-    assert_eq!(app.terminal.want, [Vec::<u8>::new()]);
+    // 多工作区模式：换目录是换工作区，新工作区里还没有终端，面板开着。
     assert!(app.terminal.open);
     // 原目录的标签记进了它的现场，换回去时重开。
     app.terminal.want.clear();

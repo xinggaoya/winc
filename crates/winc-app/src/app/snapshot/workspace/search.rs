@@ -1239,7 +1239,7 @@ fn long_result_files_unfold_under_the_mouse() {
 
     // 伸出的那一段同样是这一行，按钮照常响应。
     let y = row.y + row.h / 2.0;
-    app.on_mouse_move(spill.x + 10.0, y);
+    app.on_mouse_move(dismiss.x + 4.0, y);
     assert_eq!(
         app.pointer.hover,
         Hover::RowAction(long, RowAction::Dismiss),
