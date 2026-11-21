@@ -60,6 +60,11 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
         let room = (chip.close.x - name_x).max(0.0);
         let name = ellipsize(frame, &name, app.fonts.ui, room).into_owned();
         ui_text(frame, app, name_x, rect, &name, color, clip);
+        // 悬停时右端出现关闭按钮。
+        if hovered {
+            let on_close = matches!(app.pointer.hover, Hover::WorkspaceClose(i) if i == index);
+            top_bar::draw_tab_close(frame, p, chip.close, on_close, clip);
+        }
     }
 
     // 末尾两个按钮：项目菜单在最右，「打开项目」在它左边。

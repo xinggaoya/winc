@@ -231,3 +231,91 @@ fn the_workspace_tabs_are_in_the_left_column() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 读取窗口坐标 (`x`, `y`) 处的像素颜色（RGB 三元组）。
+fn pixel(app: &App, (x, y): (f32, f32)) -> (u8, u8, u8) {
+    let image = app.frame.renderer.as_ref().unwrap().image().unwrap();
+    let at = (y * SCALE) as usize * image.width as usize + (x * SCALE) as usize;
+    let px = image.pixels[at];
+    (
+        ((px >> 16) & 0xff) as u8,
+        ((px >> 8) & 0xff) as u8,
+        (px & 0xff) as u8,
+    )
+}
+
+/// 标签悬停时右端出现关闭按钮。
+#[test]
+fn the_close_button_shows_on_hover() {
+    let a = search_folder("workspace-hover-a");
+    let b = search_folder("workspace-hover-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    paint(&mut app);
+
+    let chip = app.workspace_bar.chips[1];
+    let at = (
+        chip.close.x + chip.close.w / 2.0,
+        chip.close.y + chip.close.h / 2.0,
+    );
+    let before = pixel(&app, at);
+
+    // 悬停标签：右端出现关闭按钮。
+    app.on_mouse_move(chip.rect.x + chip.rect.w / 2.0, chip.rect.y + 4.0);
+    paint(&mut app);
+    assert_ne!(before, pixel(&app, at), "悬停时标签右端应有关闭按钮");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 标签上的关闭按钮只关掉这一个工作区：关掉非当前的那个，当前工作区不受影响。
+#[test]
+fn the_close_button_on_a_workspace_tab_closes_only_that_workspace() {
+    let a = search_folder("workspace-close-a");
+    let b = search_folder("workspace-close-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    paint(&mut app);
+
+    // 悬停到标签上时，关闭按钮可以命中。
+    let chip = app.workspace_bar.chips[0];
+    app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
+    assert_eq!(app.pointer.hover, Hover::WorkspaceClose(chip.index));
+
+    // 点它只关掉这个工作区。
+    app.on_mouse_down(MouseButton::Left);
+    app.on_mouse_up(MouseButton::Left);
+    paint(&mut app);
+    assert_eq!(app.workspaces.slots.len(), 1);
+    assert_eq!(root(&app), winc_config::files::canonicalize(&b).unwrap());
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 关掉当前的工作区时切到相邻的一个。
+#[test]
+fn closing_the_current_workspace_switches_to_the_neighbour() {
+    let a = search_folder("workspace-close-current-a");
+    let b = search_folder("workspace-close-current-b");
+    let mut app = app_with(&a, false);
+    let root_a = root(&app);
+    open_workspace(&mut app, &b);
+    paint(&mut app);
+
+    // 当前工作区是第二个，关掉它之后切回第一个。
+    let chip = app.workspace_bar.chips[1];
+    app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
+    app.on_mouse_down(MouseButton::Left);
+    app.on_mouse_up(MouseButton::Left);
+    paint(&mut app);
+    assert_eq!(app.workspaces.slots.len(), 1);
+    assert_eq!(
+        root(&app),
+        winc_config::files::canonicalize(&root_a).unwrap()
+    );
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
