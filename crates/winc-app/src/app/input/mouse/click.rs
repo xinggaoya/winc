@@ -190,6 +190,9 @@ impl App {
             Target::Picker => {
                 self.click_picker(x, y);
             }
+            Target::GlobalSearch => {
+                self.click_global_search(x, y);
+            }
             _ if self.overlays.picker.open => self.close_picker(),
             Target::Scrollbar(
                 bar @ (Scrollbar::Panel
@@ -200,6 +203,9 @@ impl App {
             ) => {
                 self.grab_scrollbar(bar, grab);
             }
+            // 全局搜索弹窗在别的东西上面：点它挡住的编辑区、标签栏等就是关掉它，
+            // 这一次点击不再传给下面的部件。
+            _ if self.search_open() => self.close_global_search(),
             Target::Panel(_) => {
                 self.click_panel(x, y);
             }

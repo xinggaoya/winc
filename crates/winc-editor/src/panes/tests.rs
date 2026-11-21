@@ -5,8 +5,10 @@ use crate::{Command, Document, Editor};
 use winc_core::Selection;
 
 /// 前台窗格开着三个未命名文档，内容各是十行。
+///
+/// 文档编号在整个进程里发号，测试里从 1 开始编号，断言里的编号才是稳定的。
 fn editor() -> Editor {
-    let mut editor = Editor::default();
+    let mut editor = Editor::with_id_base(1);
     for _ in 0..3 {
         let index = editor.new_untitled();
         let text = (0..10).map(|i| format!("line {i}\n")).collect::<String>();
@@ -140,6 +142,7 @@ fn removing_a_tab_from_another_pane_closes_the_pane_when_it_empties() {
 #[test]
 fn restoring_drops_closed_documents_and_empty_panes() {
     let mut editor = editor();
+    // 恢复时按编号找文档：文档的编号就是 1、2、3。
     let tree = Node::Split {
         axis: Axis::Row,
         share: 0.3,

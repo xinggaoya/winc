@@ -367,10 +367,13 @@ impl App {
     /// 返回卡片的目标高度（逻辑像素）：条件区的高度加上结果行的高度。
     ///
     /// 结果多到放不下时按编辑区高度的 70% 截断，超出的部分在结果列表里滚动。
-    pub(crate) fn search_card_height(&self) -> f32 {
+    pub(crate) fn search_card_height(&mut self) -> f32 {
         if !self.panels.global.open {
             return 0.0;
         }
+
+        // 结果行在绘制时才同步；这里先同步一次，卡片高度才与刚到的结果一致。
+        self.panels.global.sync_rows();
 
         let g = &self.panels.global;
         // 条件区按展开后的高度算：展开、收起动画途中卡片高度不动，只挪动里面的行。
@@ -471,6 +474,18 @@ impl App {
         self.panels.global.open
     }
 
+    /// 焦点是否在全局搜索弹窗里：条件输入框或结果列表。
+    pub(crate) fn focus_in_search(&self) -> bool {
+        matches!(
+            self.focus,
+            Focus::GlobalQuery
+                | Focus::GlobalReplace
+                | Focus::GlobalInclude
+                | Focus::GlobalExclude
+                | Focus::Results
+        )
+    }
+
     /// 把侧栏切换到视图 `view`（文件树或搜索）。
     pub(in crate::app) fn set_sidebar_view(&mut self, view: Panel) {
         if self.panels.sidebar.view == view {
@@ -548,11 +563,9 @@ impl App {
 
     /// 关闭全局搜索弹窗，焦点交还编辑区。
     pub(in crate::app) fn close_global_search(&mut self) {
+        eprintln!("DEBUG close_global_search");
         self.panels.global.open = false;
-        if matches!(
-            self.focus,
-            Focus::GlobalQuery | Focus::GlobalReplace | Focus::GlobalInclude | Focus::GlobalExclude
-        ) {
+        if self.focus_in_search() {
             self.focus = Focus::Editor;
         }
         self.ime.field_preedit.clear();
@@ -1220,11 +1233,18 @@ impl App {
             self.preview_path_then(&path, then);
         }
 
-        self.focus = if focus_editor {
-            Focus::Editor
+        // 打开成普通标签：弹窗关掉，焦点交给编辑区，用户接着改文件。
+        // 只在预览标签中打开时弹窗留着，焦点仍在结果列表，可以接着看下一处。
+        if focus_editor && self.search_open() {
+            self.close_global_search();
+            self.focus = Focus::Editor;
         } else {
-            Focus::Results
-        };
+            self.focus = if focus_editor {
+                Focus::Editor
+            } else {
+                Focus::Results
+            };
+        }
         self.request_redraw();
     }
 
