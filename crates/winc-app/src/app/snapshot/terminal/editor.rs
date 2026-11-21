@@ -921,11 +921,10 @@ fn switching_folders_swaps_the_terminals() {
     wait_terminal(&mut app, |app| app.terminal.tabs.len() == 2);
     assert_eq!(app.terminal.tabs.len(), 2);
 
-    // 关闭目录：终端一起关掉，面板收起。
+    // 关闭目录：这个工作区的终端一起关掉；面板是下一个工作区的样子。
     add_tab(&mut app, "zsh", "$ ");
     app.close_folder();
     assert!(app.terminal.tabs.is_empty() && app.terminal.want.is_empty());
-    assert!(!app.terminal.open);
 
     std::fs::remove_dir_all(&first).unwrap();
     std::fs::remove_dir_all(&second).unwrap();
