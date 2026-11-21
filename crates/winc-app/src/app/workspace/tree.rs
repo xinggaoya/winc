@@ -309,13 +309,13 @@ impl App {
 
     /// 切换侧栏的显示（`⌘B`、`⌘1` 和顶栏按钮）。
     ///
-    /// 显示时焦点交给文件树或搜索输入框，隐藏时还给编辑区；焦点在终端里时保持不变。
+    /// 显示时焦点交给文件树或提交视图，隐藏时还给编辑区；焦点在终端里时保持不变。
     pub(in crate::app) fn toggle_sidebar(&mut self) {
         self.set_sidebar(!self.panels.sidebar.visible);
         self.focus = match (self.panels.sidebar.visible, self.panels.sidebar.view) {
-            (true, Panel::Files) => Focus::Tree,
-            (true, Panel::Search) => Focus::GlobalQuery,
             (true, Panel::Commit) => self.commit_view_focus(),
+            // 全局搜索改用浮在编辑区上的弹窗，侧栏里没有搜索视图了。
+            (true, _) => Focus::Tree,
             (false, _) if self.focus == Focus::Terminal => Focus::Terminal,
             (false, _) => Focus::Editor,
         };
@@ -611,11 +611,6 @@ impl App {
 
         ws.reveal(path);
         let depth = ws.selected.map(|index| ws.rows()[index].depth);
-
-        // 侧栏显示搜索时文件树不在屏幕上，只展开、选中，切回文件树时再滚动到该处。
-        if self.panels.sidebar.view == Panel::Search {
-            return;
-        }
 
         if let Some(index) = ws.selected {
             self.scroll_tree_to(index, true);

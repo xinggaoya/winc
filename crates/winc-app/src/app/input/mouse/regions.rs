@@ -42,6 +42,12 @@ impl App {
         None
     }
 
+    /// 点 (`x`, `y`) 是否在全局搜索弹窗的卡片里：写全名的结果行可以伸出卡片之外，
+    /// 那一段仍算在卡片里。
+    pub(in crate::app) fn in_search_card(&self, x: f32, y: f32) -> bool {
+        self.layout.search_card.contains(x, y) || self.in_result_overflow(x, y)
+    }
+
     /// 返回全局搜索弹窗里的悬停目标；不在卡片里时返回 `None`。
     ///
     /// 卡片浮在编辑区上方：写全名的结果行可以伸出卡片之外，那一段仍算在卡片里。
@@ -49,7 +55,7 @@ impl App {
         if !self.search_open() {
             return None;
         }
-        if !self.layout.search_card.contains(x, y) && !self.in_result_overflow(x, y) {
+        if !self.in_search_card(x, y) {
             return None;
         }
 

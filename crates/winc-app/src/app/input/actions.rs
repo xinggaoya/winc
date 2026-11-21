@@ -371,8 +371,9 @@ impl App {
                 }
                 self.press_search_button(SearchButton::Filter);
             }
+            // 「在文件中查找」再按一次关掉弹窗；「在文件中替换」只展开替换行。
             FindInFiles => self.toggle_global_search(false),
-            ReplaceInFiles => self.toggle_global_search(true),
+            ReplaceInFiles => self.open_global_search(true),
             ReplaceAllInFiles => self.ask_replace_all(),
             NextResult => self.next_result(false),
             PreviousResult => self.next_result(true),

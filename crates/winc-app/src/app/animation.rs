@@ -393,6 +393,7 @@ impl App {
         settle(&mut self.git.commit.undo.motion, |m| m.1);
         settle(&mut self.panels.global.field_motion, |m| m.2);
         settle(&mut self.panels.global.motion, |m| m.clock);
+        settle(&mut self.panels.global.card_motion, |m| m.clock);
         settle(&mut self.motion.fold_motion, |m| m.clock);
         self.finish_diff_fold(false);
         settle(&mut self.scroll.glide, |g| g.clock);
