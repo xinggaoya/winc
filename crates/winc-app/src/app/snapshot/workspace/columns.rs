@@ -111,37 +111,54 @@ fn the_window_has_a_left_a_middle_and_a_right_column() {
 fn the_config_decides_which_panels_are_in_which_column() {
     let dir = sample_folder("columns-config");
     let mut app = app_with(&dir, false);
-    app.config.panels_left = Some(vec![Panel::Files, Panel::Search]);
+    app.settings_toggle(Setting::GitModule);
+    app.config.panels_left = Some(vec![Panel::Files, Panel::Commit]);
     app.config.panels_right = Some(vec![]);
     app.adopt_panels();
     paint(&mut app);
 
-    // 左栏里从上到下是文件树和搜索，右栏空着。
+    // 左栏里从上到下是文件树和提交视图，右栏空着。
     assert_eq!(app.layout.left_count, 2);
     assert_eq!(
         app.panel_slot(Panel::Files).unwrap().panel,
         Some(Panel::Files)
     );
     assert_eq!(
-        app.panel_slot(Panel::Search).unwrap().panel,
-        Some(Panel::Search)
+        app.panel_slot(Panel::Commit).unwrap().panel,
+        Some(Panel::Commit)
     );
     assert_eq!(app.layout.right_count, 0);
 
-    // 两个面板各占一半高：文件树在上面，搜索在下面。
+    // 两个面板各占一半高：文件树在上面，提交视图在下面。
     let files = app.panel_slot(Panel::Files).unwrap();
-    let search = app.panel_slot(Panel::Search).unwrap();
-    assert!(files.card.y < search.card.y);
-    assert_eq!(files.card.bottom() + 4.0, search.card.y);
+    let commit = app.panel_slot(Panel::Commit).unwrap();
+    assert!(files.card.y < commit.card.y);
+    assert_eq!(files.card.bottom() + 4.0, commit.card.y);
 
-    // 换个配置：搜索挪到右栏。
+    // 换个配置：提交视图挪到右栏。
     app.config.panels_left = Some(vec![Panel::Files]);
-    app.config.panels_right = Some(vec![Panel::Search]);
+    app.config.panels_right = Some(vec![Panel::Commit]);
     app.adopt_panels();
     paint(&mut app);
     assert_eq!(app.layout.left_count, 1);
     assert_eq!(app.layout.right_count, 1);
-    assert!(app.panel_slot(Panel::Search).unwrap().card.x >= app.layout.right.x);
+    assert!(app.panel_slot(Panel::Commit).unwrap().card.x >= app.layout.right.x);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 全局搜索改用弹窗：配置里留着 `"search"` 时，两栏里也不出现搜索面板。
+#[test]
+fn the_search_panel_is_not_in_the_columns() {
+    let dir = sample_folder("columns-no-search");
+    let mut app = app_with(&dir, false);
+    app.config.panels_left = Some(vec![Panel::Files, Panel::Search]);
+    app.adopt_panels();
+    paint(&mut app);
+
+    assert_eq!(app.columns().0, vec![Panel::Files]);
+    assert!(app.panel_slot(Panel::Search).is_none());
+    assert_eq!(app.layout.left_count, 1);
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -153,11 +170,11 @@ fn the_panels_page_moves_hides_and_reorders_panels() {
     let mut app = app_with(&dir, false);
     open_panels_page(&mut app);
 
-    // 默认：左栏是文件树，右栏是提交视图，搜索藏在一边。
+    // 默认：左栏是文件树，右栏是提交视图，没有藏起来的面板。
     let (left, right, hidden) = app.panel_groups();
     assert_eq!(left, vec![Panel::Files]);
     assert_eq!(right, vec![Panel::Commit]);
-    assert_eq!(hidden, vec![Panel::Search]);
+    assert!(hidden.is_empty());
 
     // 把文件树移到右栏：配置跟着变。
     use crate::app::settings::panels::PanelButton;
@@ -193,26 +210,27 @@ fn the_panels_page_moves_hides_and_reorders_panels() {
 fn the_panels_page_reorders_the_panels_of_a_column() {
     let dir = sample_folder("columns-order");
     let mut app = app_with(&dir, false);
-    app.config.panels_left = Some(vec![Panel::Files, Panel::Search]);
+    app.settings_toggle(Setting::GitModule);
+    app.config.panels_left = Some(vec![Panel::Files, Panel::Commit]);
     app.config.panels_right = Some(vec![]);
     app.adopt_panels();
     open_panels_page(&mut app);
 
     use crate::app::settings::panels::PanelButton;
-    // 把搜索上移一位：文件树和搜索换了位置。
-    let at = button_point(&app, PanelButton::Up(Panel::Search));
+    // 把提交视图上移一位：文件树和提交视图换了位置。
+    let at = button_point(&app, PanelButton::Up(Panel::Commit));
     click(&mut app, at);
     paint(&mut app);
     let (left, _, _) = app.panel_groups();
-    assert_eq!(left, vec![Panel::Search, Panel::Files]);
+    assert_eq!(left, vec![Panel::Commit, Panel::Files]);
     assert_eq!(app.config.panels_left, Some(left));
 
     // 再下移回去。
-    let at = button_point(&app, PanelButton::Down(Panel::Search));
+    let at = button_point(&app, PanelButton::Down(Panel::Commit));
     click(&mut app, at);
     paint(&mut app);
     let (left, _, _) = app.panel_groups();
-    assert_eq!(left, vec![Panel::Files, Panel::Search]);
+    assert_eq!(left, vec![Panel::Files, Panel::Commit]);
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -222,8 +240,9 @@ fn the_panels_page_reorders_the_panels_of_a_column() {
 fn the_right_column_width_is_configurable() {
     let dir = sample_folder("columns-width");
     let mut app = app_with(&dir, false);
+    app.settings_toggle(Setting::GitModule);
     app.config.panels_left = Some(vec![Panel::Files]);
-    app.config.panels_right = Some(vec![Panel::Search]);
+    app.config.panels_right = Some(vec![Panel::Commit]);
     app.adopt_panels();
     paint(&mut app);
 
@@ -289,8 +308,9 @@ fn dragging_a_panel_row_moves_it_to_another_column() {
 fn the_right_column_can_be_hidden() {
     let dir = sample_folder("columns-hide");
     let mut app = app_with(&dir, false);
+    app.settings_toggle(Setting::GitModule);
     app.config.panels_left = Some(vec![Panel::Files]);
-    app.config.panels_right = Some(vec![Panel::Search]);
+    app.config.panels_right = Some(vec![Panel::Commit]);
     app.adopt_panels();
     paint(&mut app);
 
@@ -312,16 +332,17 @@ fn the_right_column_can_be_hidden() {
 fn the_panels_of_a_column_do_not_overlap() {
     let dir = sample_folder("columns-slots");
     let mut app = app_with(&dir, false);
-    app.config.panels_left = Some(vec![Panel::Files, Panel::Search]);
-    app.config.panels_right = Some(vec![Panel::Commit]);
+    app.settings_toggle(Setting::GitModule);
+    app.config.panels_left = Some(vec![Panel::Files, Panel::Commit]);
+    app.config.panels_right = Some(vec![]);
     app.adopt_panels();
     paint(&mut app);
 
     let files = app.panel_slot(Panel::Files).unwrap();
-    let search = app.panel_slot(Panel::Search).unwrap();
-    assert!(files.card.bottom() <= search.card.y);
+    let commit = app.panel_slot(Panel::Commit).unwrap();
+    assert!(files.card.bottom() <= commit.card.y);
     assert!(files.body.bottom() <= files.card.bottom());
-    assert!(search.body.bottom() <= search.card.bottom());
+    assert!(commit.body.bottom() <= commit.card.bottom());
     // 面板的正文在它自己的卡片里。
     assert!(files.body.x >= files.card.x);
     assert!(files.body.right() <= files.card.right());

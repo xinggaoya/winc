@@ -771,6 +771,14 @@ fn vim_mappings_are_read_in_order_and_bad_items_are_reported() {
     assert_eq!((problems.len(), config.vim_keys.len()), (1, 0));
 }
 
+/// 旧配置里的 `"search"` 仍要读得出：全局搜索改用弹窗，但配置格式不变。
+#[test]
+fn old_panels_with_search_still_parse() {
+    let (config, problems) = Config::parse(r#"{"panels":{"left":["files","search"]}}"#);
+    assert!(problems.is_empty(), "{problems:?}");
+    assert_eq!(config.panels_left, Some(vec![Panel::Files, Panel::Search]));
+}
+
 #[test]
 fn open_worktree_reads_its_three_values_and_rejects_others() {
     for (text, expected) in [

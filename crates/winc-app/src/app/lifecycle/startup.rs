@@ -42,16 +42,21 @@ impl App {
             cap_height: 9.0,
         };
         let panel_visible = editor.workspace.is_some();
-        // 左右两栏里各有哪些面板：配置里没写时用默认的排法。
+        // 左右两栏里各有哪些面板：配置里没写时用默认的排法。配置里旧的 `"search"`
+        // 丢掉：全局搜索改用弹窗，不再占侧栏的位置。
         let panel_layout = crate::app::workspace::PanelLayout {
-            left: config
-                .panels_left
-                .clone()
-                .unwrap_or_else(|| winc_config::Panel::DEFAULT_LEFT.to_vec()),
-            right: config
-                .panels_right
-                .clone()
-                .unwrap_or_else(|| winc_config::Panel::DEFAULT_RIGHT.to_vec()),
+            left: crate::app::workspace::columns::without_search(
+                &config
+                    .panels_left
+                    .clone()
+                    .unwrap_or_else(|| winc_config::Panel::DEFAULT_LEFT.to_vec()),
+            ),
+            right: crate::app::workspace::columns::without_search(
+                &config
+                    .panels_right
+                    .clone()
+                    .unwrap_or_else(|| winc_config::Panel::DEFAULT_RIGHT.to_vec()),
+            ),
             right_width: config
                 .panel_right_width
                 .unwrap_or(winc_config::Config::PANEL_RIGHT_WIDTH)

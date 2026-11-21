@@ -12,10 +12,10 @@ impl App {
         let config = &self.config;
         let layout = &mut self.panels.layout;
         if let Some(left) = &config.panels_left {
-            layout.left = left.clone();
+            layout.left = crate::app::workspace::columns::without_search(left);
         }
         if let Some(right) = &config.panels_right {
-            layout.right = right.clone();
+            layout.right = crate::app::workspace::columns::without_search(right);
         }
         if let Some(width) = config.panel_right_width {
             layout.right_width = width;

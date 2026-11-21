@@ -6,6 +6,18 @@
 use super::*;
 use crate::layout::PanelSlot;
 
+/// 去掉两栏里不再显示的面板：全局搜索改用浮在编辑区上的弹窗，不再占侧栏的位置。
+///
+/// 配置里旧的 `"search"` 读进来时丢掉：它在两栏里没有位置，放进去只会让设置页列出
+/// 一个点不动的面板。
+pub(crate) fn without_search(panels: &[Panel]) -> Vec<Panel> {
+    panels
+        .iter()
+        .copied()
+        .filter(|panel| *panel != Panel::Search)
+        .collect()
+}
+
 impl App {
     /// 面板 `panel` 现在能不能显示。
     ///
