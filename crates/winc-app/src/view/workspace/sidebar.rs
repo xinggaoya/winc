@@ -139,10 +139,7 @@ fn draw_workspace_badge(
     clip: Rect,
 ) {
     let main = current.then(|| app.git.main_worktree()).flatten();
-    let color = match main {
-        Some(main) => app.state.badge_color(&main.path),
-        None => app.state.badge_color(folder),
-    };
+    let color = app.state.badge_color(folder);
     let badge = app.palette.project_badge(project, color);
     frame.rect_clipped(rect, badge.background, 6.0, clip);
 
@@ -168,6 +165,7 @@ fn draw_workspace_badge(
         );
     }
     if main.is_some() {
+        // 当前工作区是附属工作树时，右下角加一个工作树记号。
         let colors = (app.palette.sidebar_bg, badge.background, badge.text);
         icons::worktree_mark(
             frame,

@@ -91,6 +91,7 @@ impl App {
             chip.close.x -= scroll;
         }
         bar.view = Rect::new(left, y, room, TAB_HEIGHT);
+        // 标签条的位置也记在布局里（上游的同名区域在顶栏，本仓库把它搬到了左栏）。
         self.layout.workspaces = bar.view;
     }
 }

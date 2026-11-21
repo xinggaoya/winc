@@ -503,3 +503,25 @@ fn the_columns_have_the_same_gap_on_both_sides() {
     assert_eq!(left_gap, ISLAND_GAP);
     assert_eq!(right_gap, ISLAND_GAP);
 }
+
+/// 两栏都收起时，中栏卡片与窗口两端都隔 `ISLAND_MARGIN`。
+#[test]
+fn the_middle_card_keeps_a_margin_when_both_columns_hide() {
+    let layout = Layout::compute(
+        1280.0,
+        820.0,
+        300.0,
+        0.0,
+        320.0,
+        0.0,
+        &[Panel::Files],
+        &[Panel::Commit],
+        0,
+        0,
+        0.0,
+        60.0,
+        STATUS_HEIGHT,
+    );
+    assert_eq!(layout.editor.x, ISLAND_MARGIN);
+    assert_eq!(layout.window.right() - layout.editor.right(), ISLAND_MARGIN);
+}

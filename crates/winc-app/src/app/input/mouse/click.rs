@@ -248,10 +248,16 @@ impl App {
                 };
             }
             Target::RightButton => self.toggle_right_column(),
-            // 左栏顶部的工作区标签：点了切到那个工作区，并记下拖动的起点。
+            // 左栏顶部的工作区标签：记下抓取点，切到那个工作区。
             Target::Workspace(index) => {
-                self.switch_workspace(index);
+                let scroll = self.workspace_bar.scroll;
                 self.press_workspace(index, (x, y));
+                self.switch_workspace(index);
+                // 切换后标签条可能滚动（当前工作区的标签要始终可见），抓取点跟着标签一起平移。
+                let delta = self.workspace_bar.scroll - scroll;
+                if delta != 0.0 {
+                    self.shift_workspace_grab(delta);
+                }
             }
             // 标签上的关闭按钮：只关掉这一个工作区。
             Target::WorkspaceClose(index) => self.close_workspace(index),

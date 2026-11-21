@@ -27,6 +27,10 @@ fn swap_slot(app: &mut App, index: usize) {
     std::mem::swap(&mut slot.tree, &mut panels.tree);
     std::mem::swap(&mut slot.global, &mut panels.global);
     std::mem::swap(&mut slot.outline, &mut panels.outline);
+    // 名字跟着现场一起收进格子：用户给这一组起了名字时，标签上显示的是新名字。
+    if let Some(workspace) = slot.editor.workspace.as_ref() {
+        slot.name = workspace.name.clone();
+    }
 }
 
 impl App {
@@ -177,11 +181,12 @@ impl App {
 
     /// 把第 `from` 号工作区移到第 `to` 号的位置；`to` 是把它移除之后的下标。
     ///
-    /// 当前工作区跟着走：被移的正是当前工作区时它落到新位置上，其余时候下标相应前移或后移。
-    pub(in crate::app) fn move_workspace(&mut self, from: usize, to: usize) {
+    /// 返回被移动的工作区新的下标。当前工作区跟着走：被移的正是当前工作区时它落到新位置上，
+    /// 其余时候下标相应前移或后移。
+    pub(in crate::app) fn move_workspace(&mut self, from: usize, to: usize) -> usize {
         let count = self.workspaces.slots.len();
         if from >= count || to >= count || from == to {
-            return;
+            return from;
         }
         let slot = self.workspaces.slots.remove(from);
         self.workspaces.slots.insert(to, slot);
@@ -196,6 +201,7 @@ impl App {
             active
         };
         self.request_redraw();
+        to
     }
 
     /// 关闭第 `index` 号工作区；关掉的是当前工作区时切到相邻的一个。

@@ -222,14 +222,24 @@ fn narrow_sidebar_folds_tools_before_the_name() {
     app.panels.sidebar.width = 400.0;
     paint(&mut app);
     assert_eq!(app.hits.tree_tools.len(), 5);
-    let full = app.hits.project.w;
 
-    // 从宽到窄一点点收：项目名在自己的行里，只按行宽截短，不受文件面板标题行里的工具影响。
+    // 从宽到窄一点点收：工作区标签条在自己的行里，不受文件面板标题行里的工具影响。
     let mut width = app.panels.sidebar.width;
     while width >= MIN_PANEL_WIDTH {
         app.panels.sidebar.width = width;
         paint(&mut app);
-        assert!(app.hits.project.w <= full, "宽 {width} 时项目名变长了");
+        let active = app.workspaces.active;
+        let chip = app
+            .workspace_bar
+            .chips
+            .iter()
+            .find(|c| c.index == active)
+            .unwrap();
+        let view = app.workspace_bar.view;
+        assert!(
+            chip.rect.right() <= view.right() + 1.0,
+            "宽 {width} 时当前工作区的标签看不见了"
+        );
         width -= 2.0;
     }
 

@@ -360,3 +360,98 @@ fn dragging_a_workspace_tab_reorders_the_workspaces() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 拖动越过两个以上的标签时，动的是被拖的那个工作区。
+#[test]
+fn dragging_a_workspace_tab_past_two_neighbours_moves_the_dragged_one() {
+    let a = search_folder("ka");
+    let b = search_folder("kb");
+    let c = search_folder("kc");
+    let mut app = app_with(&a, false);
+    // 侧栏宽一些，三个标签都放得下，拖动时标签条不会滚动。
+    app.panels.sidebar.width = 400.0;
+    open_workspace(&mut app, &b);
+    open_workspace(&mut app, &c);
+    paint(&mut app);
+    assert_eq!(app.workspaces.slots.len(), 3);
+
+    let chips = app.workspace_bar.chips.clone();
+    // 按住第一个标签，先拖过第二个的中线，再拖过第三个的中线。
+    app.on_mouse_move(chips[0].rect.x + 4.0, chips[0].rect.y + 4.0);
+    app.on_mouse_down(MouseButton::Left);
+    app.on_mouse_move(
+        chips[1].rect.x + chips[1].rect.w / 2.0 + 8.0,
+        chips[0].rect.y + 4.0,
+    );
+    app.on_mouse_move(
+        chips[2].rect.x + chips[2].rect.w / 2.0 + 8.0,
+        chips[0].rect.y + 4.0,
+    );
+    app.on_mouse_up(MouseButton::Left);
+    paint(&mut app);
+
+    // 被拖的工作区到了末尾，其余两个次序不变，当前工作区跟着它走。
+    assert_eq!(app.workspaces.slots[0].name, "kb");
+    assert_eq!(app.workspaces.slots[1].name, "kc");
+    assert_eq!(app.workspaces.slots[2].name, "ka");
+    assert_eq!(app.workspaces.active, 2);
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+    let _ = std::fs::remove_dir_all(&c);
+}
+
+/// 标签放不下时横向滚动，当前工作区的标签始终可见。
+#[test]
+fn the_workspace_tabs_scroll_to_keep_the_current_one_visible() {
+    let a = search_folder("workspace-scroll-a");
+    let b = search_folder("workspace-scroll-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    // 名字长到标签条放不下。
+    app.workspaces.slots[0].name = "一个很长的项目名字-用来把标签条撑开".to_owned();
+    app.workspaces.slots[1].name = "另一个很长的项目名字-也放不下".to_owned();
+    paint(&mut app);
+
+    // 标签条滚动过，当前工作区的标签在可见范围内。
+    assert!(app.workspace_bar.scroll > 0.0);
+    let active = app.workspaces.active;
+    let chip = app
+        .workspace_bar
+        .chips
+        .iter()
+        .find(|c| c.index == active)
+        .unwrap();
+    let view = app.workspace_bar.view;
+    assert!(chip.rect.x >= view.x - 1.0 && chip.rect.right() <= view.right() + 1.0);
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 左栏收起时标签条跟着收起（切换仍可用快捷键）。
+#[test]
+fn the_workspace_tabs_hide_with_the_left_column() {
+    let a = search_folder("workspace-hidden-a");
+    let b = search_folder("workspace-hidden-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    paint(&mut app);
+
+    app.toggle_sidebar();
+    paint(&mut app);
+    for chip in &app.workspace_bar.chips {
+        assert!(
+            chip.rect.right() <= app.layout.sidebar.right(),
+            "左栏收起后标签还在可见范围内"
+        );
+    }
+
+    // 快捷键仍然能切换工作区。
+    app.run_action(Action::NextWorkspace);
+    paint(&mut app);
+    assert_eq!(app.workspaces.active, 0);
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}

@@ -86,7 +86,9 @@ impl App {
             ..drag
         });
         let at = self.workspace_drop_index(x);
-        self.move_workspace(drag.index, at);
+        // 换位后被拖的工作区换了位置：记下它的新下标，否则下一次移动会动到别的工作区。
+        let index = self.move_workspace(drag.index, at);
+        self.workspace_bar.drag = Some(WorkspaceDrag { index, ..drag });
         self.request_redraw();
     }
 
@@ -94,6 +96,17 @@ impl App {
     pub(in crate::app) fn release_workspace(&mut self) {
         if self.workspace_bar.drag.take().is_some() {
             self.request_redraw();
+        }
+    }
+
+    /// 标签条整体平移了 `delta`（逻辑像素）时，把拖动中的抓取点跟着平移：抓取点是相对标签
+    /// 左边的距离，标签平移后它也要跟着动，拖动中的标签才留在鼠标下。
+    pub(in crate::app) fn shift_workspace_grab(&mut self, delta: f32) {
+        if let Some(drag) = self.workspace_bar.drag {
+            self.workspace_bar.drag = Some(WorkspaceDrag {
+                grab: drag.grab + delta,
+                ..drag
+            });
         }
     }
 
