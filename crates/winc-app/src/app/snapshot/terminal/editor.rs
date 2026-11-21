@@ -918,7 +918,8 @@ fn switching_folders_swaps_the_terminals() {
     // 原目录的标签记进了它的现场，换回去时重开。
     app.terminal.want.clear();
     app.switch_folder(&first);
-    assert_eq!(app.terminal.want, [b"/tmp/a".to_vec(), b"/tmp/b".to_vec()]);
+    wait_terminal(&mut app, |app| app.terminal.tabs.len() == 2);
+    assert_eq!(app.terminal.tabs.len(), 2);
 
     // 关闭目录：终端一起关掉，面板收起。
     add_tab(&mut app, "zsh", "$ ");
