@@ -8,11 +8,6 @@ use std::time::{Duration, Instant};
 use winc_pty::protocol::Decoder;
 
 impl App {
-    /// 测试用：连着辅助进程没有。
-    pub(crate) fn terminal_connected(&self) -> bool {
-        self.terminal_client.is_some()
-    }
-
     /// 测试用：接上一个把收到的消息原样记进 `dir` 下的文件的「辅助进程」，标签当作已经可以用了。
     ///
     /// 返回记下的文件，交给 [`App::sent_to_helper`] 读。辅助进程由整个窗口共用，标签的编号全局

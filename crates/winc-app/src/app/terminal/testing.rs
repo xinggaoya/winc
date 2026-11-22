@@ -29,4 +29,9 @@ impl App {
         self.terminal_client = Client::start(&idle_program(), || {}).ok();
         self.helper_ready = true;
     }
+
+    /// 测试用：连着辅助进程没有。
+    pub(crate) fn terminal_connected(&self) -> bool {
+        self.terminal_client.is_some()
+    }
 }
