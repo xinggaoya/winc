@@ -300,9 +300,11 @@ fn the_close_button_shows_after_the_pointer_rests_on_the_tab() {
 /// 鼠标从标签上划过时关闭按钮不出现：那一段仍属于标签，点它切换工作区。
 #[test]
 fn the_close_button_does_not_appear_while_the_mouse_passes_over() {
-    let a = search_folder("workspace-pass-a");
-    let b = search_folder("workspace-pass-b");
+    let a = search_folder("wbp");
+    let b = search_folder("wbp2");
     let mut app = app_with(&a, false);
+    // 侧栏宽一些，两个标签都在可见范围内：第一个标签的关闭按钮点得到。
+    app.panels.sidebar.width = 400.0;
     open_workspace(&mut app, &b);
     paint(&mut app);
 
@@ -318,9 +320,11 @@ fn the_close_button_does_not_appear_while_the_mouse_passes_over() {
 /// 标签上的关闭按钮只关掉这一个工作区：关掉非当前的那个，当前工作区不受影响。
 #[test]
 fn the_close_button_on_a_workspace_tab_closes_only_that_workspace() {
-    let a = search_folder("workspace-close-a");
-    let b = search_folder("workspace-close-b");
+    let a = search_folder("wbc");
+    let b = search_folder("wbc2");
     let mut app = app_with(&a, false);
+    // 侧栏宽一些，两个标签都在可见范围内：第一个标签的关闭按钮点得到。
+    app.panels.sidebar.width = 400.0;
     open_workspace(&mut app, &b);
     paint(&mut app);
 

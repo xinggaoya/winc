@@ -173,13 +173,29 @@ impl App {
 
     /// 关闭目录（项目名菜单中的「关闭目录」）：先记录它的现场，再关闭所有标签和终端，回到开始页。
     pub(in crate::app) fn close_folder(&mut self) {
+        self.close_folder_inner(true);
+    }
+
+    /// 同 [`App::close_folder`]，不在提示条上留「撤销」。
+    ///
+    /// 断开远端连接时用：关掉工作区是断开连接的结果，不是用户想关掉这个项目。
+    pub(in crate::app) fn close_folder_without_undo(&mut self) {
+        self.close_folder_inner(false);
+    }
+
+    /// 关闭目录；`undoable` 为真时提示条上留一个「撤销」。
+    fn close_folder_inner(&mut self, undoable: bool) {
         if self.editor.workspace.is_none() {
             return;
         }
         // 多工作区模式：关掉的是当前这个工作区，其余的还开着。
         if self.multi_workspace() && self.workspaces.slots.len() > 1 {
             let active = self.workspaces.active;
-            self.close_workspace(active);
+            if undoable {
+                self.close_workspace(active);
+            } else {
+                self.close_workspace_without_undo(active);
+            }
             return;
         }
         self.remember_session();

@@ -1167,7 +1167,8 @@ impl App {
         };
         // 已提示过：关闭目录的过程中不再弹出连接中断的提示。
         self.remote.lost = true;
-        self.close_folder();
+        // 关掉工作区是断开连接的结果，不是用户想关掉这个项目：不留下撤销的提示。
+        self.close_folder_without_undo();
         remote::disconnect(&target);
     }
 

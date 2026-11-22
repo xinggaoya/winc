@@ -208,6 +208,18 @@ impl App {
     ///
     /// 关掉后在提示条上留一个「撤销」：重新打开这个项目，位置回到关闭前的地方。
     pub(in crate::app) fn close_workspace(&mut self, index: usize) {
+        self.close_workspace_inner(index, true);
+    }
+
+    /// 同 [`App::close_workspace`]，不在提示条上留「撤销」。
+    ///
+    /// 断开远端连接时用：关掉工作区是断开连接的结果，不是用户想关掉这个项目；撤销也开不回来。
+    pub(in crate::app) fn close_workspace_without_undo(&mut self, index: usize) {
+        self.close_workspace_inner(index, false);
+    }
+
+    /// 关闭第 `index` 号工作区；`undoable` 为真时在提示条上留一个「撤销」。
+    fn close_workspace_inner(&mut self, index: usize, undoable: bool) {
         if index >= self.workspaces.slots.len() {
             return;
         }
@@ -223,26 +235,29 @@ impl App {
             if self.workspaces.slots.is_empty() {
                 self.workspaces.active = 0;
                 self.close_folder_now();
-                self.notify_closed_workspace(&folder, &name, index);
+                self.notify_closed_workspace(&folder, &name, index, undoable);
                 return;
             }
             let next = index.min(self.workspaces.slots.len() - 1);
             self.workspaces.active = next;
             self.take_workspace(next);
             self.after_workspace_switch();
-            self.notify_closed_workspace(&folder, &name, index);
+            self.notify_closed_workspace(&folder, &name, index, undoable);
             return;
         }
         self.workspaces.slots.remove(index);
         if index < active {
             self.workspaces.active -= 1;
         }
-        self.notify_closed_workspace(&folder, &name, index);
+        self.notify_closed_workspace(&folder, &name, index, undoable);
         self.request_redraw();
     }
 
     /// 提示工作区 `folder` 已关闭，可以在提示条上撤销。
-    fn notify_closed_workspace(&mut self, folder: &Path, name: &str, index: usize) {
+    fn notify_closed_workspace(&mut self, folder: &Path, name: &str, index: usize, undoable: bool) {
+        if !undoable {
+            return;
+        }
         self.notify_with(
             NoticeKind::Info,
             winc_i18n::t!("workspace-notice-workspace-closed", name = name),
