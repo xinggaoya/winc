@@ -1,11 +1,4 @@
-//! LaTeX 文档转换成 Markdown 文本，交给 Markdown 预览排版（与 docx 的预览相同）：便于阅读，
-//! 不运行 TeX，不还原版式。
-//!
-//! 章节、段落、文字样式、列表、引用块、代码、表格、图片、脚注、链接和定理类的环境对应到
-//! Markdown；文献引用和交叉引用显示为标签的文字。识别不了的命令去掉，只留最后一个参数的
-//! 文字。公式原样保留，定界符统一写成 `\(…\)`、`\[…\]`（Markdown 预览认得）。
-//!
-//! 转换时记下原文每一行在结果中开始的行（[`LineMap`]），分栏时两侧按它对齐滚动。
+//! 把 LaTeX 文档转换成 Markdown，并记下原文各行在结果中的位置（[`LineMap`]）。
 
 mod envs;
 mod names;
@@ -21,7 +14,7 @@ pub struct Converted {
     pub map: LineMap,
 }
 
-/// 原文各行在转换结果中开始的行：分栏时两侧按它对齐滚动。
+/// 原文各行在转换结果中开始的行。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LineMap {
     /// 原文第 `i` 行（从 0 起）在结果中开始的行。
@@ -40,7 +33,7 @@ impl LineMap {
         a + (b - a).max(0.0) * (line - i)
     }
 
-    /// [`LineMap::line_of`] 的逆运算：结果第 `line` 行（带小数）对应原文的第几行（带小数）。
+    /// [`LineMap::line_of`] 的逆运算。
     pub fn source_of(&self, line: f64) -> f64 {
         let line = line.max(0.0);
         // 结果中开始的行不超过 `line` 的最后一行原文。
@@ -56,10 +49,7 @@ impl LineMap {
     }
 }
 
-/// 转换 LaTeX 原文 `text`。
-///
-/// 有 `\begin{document}` 时只转换正文，导言区里只取标题、作者、日期和定理的名字；没有时
-/// （`\input` 的章节文件）整篇都是正文。
+/// 转换 LaTeX 原文 `text`；有 `\begin{document}` 时导言区只取标题、作者、日期和定理名。
 pub fn to_markdown(text: &str) -> Converted {
     let mut conv = Conv::new(text, 0);
     if text.contains("\\begin{document}") {
@@ -70,8 +60,7 @@ pub fn to_markdown(text: &str) -> Converted {
     conv.finish()
 }
 
-/// 嵌套的层数上限（层）：每个 `{…}`、环境和表格单元格各算一层。超过后剩下的原文按文字跳过，
-/// 递归不会因为畸形的输入耗尽栈。
+/// 嵌套层数的上限（层），超过的部分跳过。
 const MAX_DEPTH: usize = 100;
 
 /// 一段正文在哪里结束。
@@ -89,11 +78,11 @@ enum Until<'a> {
 #[derive(Debug, Default)]
 struct Buf {
     text: String,
-    /// 当前行还没有写正文（只有每行的前缀，或刚写了列表项的标记）：行首的空白不写。
+    /// 当前行是否还没有写正文。
     fresh: bool,
-    /// 当前行是不是刚写了列表项的标记：另起一行时不能把它去掉。
+    /// 当前行是否刚写了列表项的标记。
     marker: bool,
-    /// 当前行到目前为止是不是只有数字：后面的 `.`、`)` 要转义，免得成了编号列表。
+    /// 当前行到目前为止是否只有数字。
     digits: bool,
 }
 
@@ -117,9 +106,9 @@ struct List {
 struct Conv<'a> {
     src: &'a str,
     pos: usize,
-    /// 已经记下行号的原文位置：参数先跳过再回头转换时，同一个换行不记两次。
+    /// 已经记下行号的原文位置。
     seen: usize,
-    /// 输出：最底下一层是结果，上面是正在收集的参数（标题、脚注、加粗的文字）。
+    /// 输出：最底下一层是结果，上面是正在收集的参数。
     bufs: Vec<Buf>,
     /// 结果已写的换行数，即当前是第几行。
     out_lines: usize,
@@ -128,7 +117,7 @@ struct Conv<'a> {
     prefix: Vec<String>,
     lists: Vec<List>,
     depth: usize,
-    /// 还在导言区：输出写进丢弃的一层，`\begin{document}` 时去掉。
+    /// 是否还在导言区。
     preamble: bool,
     /// 遇到了 `\end{document}`，后面的不再转换。
     stopped: bool,
@@ -244,7 +233,7 @@ impl<'a> Conv<'a> {
         self.close_of(open, b'{', b'}')
     }
 
-    /// `open` 处的开括号 `l` 配对的 `r` 之后的位置：跳过转义的字和注释，`[…]` 里的 `{…}` 整个跳过。
+    /// 返回 `open` 处的开括号 `l` 配对的 `r` 之后的位置。
     fn close_of(&self, open: usize, l: u8, r: u8) -> Option<usize> {
         let bytes = self.src.as_bytes();
         let (mut depth, mut braces, mut i) = (0usize, 0usize, open);
@@ -326,7 +315,7 @@ impl<'a> Conv<'a> {
         self.bufs.last().is_some_and(|b| b.fresh)
     }
 
-    /// 结果换行：写在结果里时换行后写上每行的前缀。
+    /// 换行，并写上每行的前缀。
     fn newline_out(&mut self) {
         let main = self.bufs.len() == 1;
         let prefix = if main {
@@ -343,7 +332,7 @@ impl<'a> Conv<'a> {
         }
     }
 
-    /// 原样写入（已转换好的文字、Markdown 记号、公式）；其中的换行按 [`Conv::newline_out`]。
+    /// 原样写入 `s`，换行按 [`Conv::newline_out`]。
     fn push_raw(&mut self, s: &str) {
         for (i, part) in s.split('\n').enumerate() {
             if i > 0 {
@@ -401,8 +390,7 @@ impl<'a> Conv<'a> {
         }
     }
 
-    /// 回到行首：当前行已有正文时换行；只有前缀时按现在的前缀重写这一行（进出列表、引用块
-    /// 之后前缀变了）。刚写了列表项标记的行保留。
+    /// 回到行首：已有正文时换行，否则按现在的前缀重写这一行。
     fn line_start(&mut self) {
         if !self.fresh() || self.bufs.last().is_some_and(|b| b.marker) {
             self.newline_out();
@@ -420,7 +408,7 @@ impl<'a> Conv<'a> {
         buf.text.push_str(&prefix);
     }
 
-    /// 当前行还没有正文时并回上一行的末尾（证明结尾的 ∎ 接在最后一句后面）。
+    /// 当前行还没有正文时并回上一行的末尾。
     fn join_line(&mut self) {
         if !self.fresh() {
             return;
@@ -483,8 +471,7 @@ impl<'a> Conv<'a> {
                 }
                 '$' => self.dollar(),
                 '\n' => {
-                    // 只有命令、没有写出正文的一行不留空行：TeX 里只有空行才分段。列表项的
-                    // 标记后面换行时，内容接着写在标记后面。
+                    // 只有空行才分段。
                     let from = self.src[..self.pos].rfind('\n').map_or(0, |i| i + 1);
                     let blank = self.src[from..self.pos].trim().is_empty();
                     let marker = self.bufs.last().is_some_and(|b| b.marker);
@@ -530,8 +517,7 @@ impl<'a> Conv<'a> {
         self.depth -= 1;
     }
 
-    /// `%` 到行尾是注释，连同换行和下一行开头的空白一起去掉，与 TeX 相同；下一行是空行时
-    /// 换行留着，照常分段。
+    /// 跳过 `%` 注释及其后的换行；下一行是空行时保留换行。
     fn comment(&mut self) {
         let eol = self
             .rest()
@@ -580,7 +566,7 @@ impl<'a> Conv<'a> {
         self.push_text(shown);
     }
 
-    /// `$…$`、`$$…$$` 写成 `\(…\)`、`\[…\]`：Markdown 的 `$` 两边不能有空格，LaTeX 里常有。
+    /// 把 `$…$`、`$$…$$` 写成 `\(…\)`、`\[…\]`。
     fn dollar(&mut self) {
         let display = self.rest().starts_with("$$");
         let (open, close) = if display { (2, "$$") } else { (1, "$") };
@@ -701,7 +687,7 @@ impl<'a> Conv<'a> {
         false
     }
 
-    /// `\\`、`\newline`：段落里的硬换行；后面本来就换行时只在行尾加两个空格。
+    /// 写一个硬换行（`\\`、`\newline`）。
     fn hard_break(&mut self) {
         if self.peek() == Some('*') {
             self.bump();
@@ -740,8 +726,7 @@ impl<'a> Conv<'a> {
         self.push_text(&names::accent(mark, &base));
     }
 
-    /// 把收集到的 `inner` 用 `open`、`close` 包起来写入；两头的空白留在外面，Markdown 的强调
-    /// 记号紧贴文字才生效。
+    /// 用 `open`、`close` 包住 `inner` 写入，两头的空白留在外面。
     fn wrap(&mut self, inner: &str, open: &str, close: &str) {
         let trimmed = inner.trim();
         if trimmed.is_empty() {
@@ -903,7 +888,7 @@ impl<'a> Conv<'a> {
                 let title = self.fragment(title);
                 self.theorems.insert(env, title);
             }
-            // 作者之间的 `\and`：前面的空白去掉，写成逗号。
+            // 作者之间的 `\and` 写成逗号。
             "and" => {
                 let buf = self.buf();
                 buf.text
@@ -924,7 +909,7 @@ impl<'a> Conv<'a> {
             _ if names::SILENT.contains(&name) => {}
             _ => {
                 if let Some(text) = names::symbol(name) {
-                    // 后面紧跟的 `{}` 只是把命令和后面的字隔开（`\LaTeX{}`）。
+                    // 跳过紧跟的 `{}`。
                     if self.rest().starts_with("{}") {
                         self.advance_to(self.pos + 2);
                     }
@@ -957,7 +942,7 @@ impl<'a> Conv<'a> {
         }
     }
 
-    /// 识别不了的命令：去掉，只留最后一个 `{…}` 参数的文字（`\foo{a}{字}` 留下「字」）。
+    /// 识别不了的命令：只留最后一个 `{…}` 参数的文字。
     fn unknown(&mut self) {
         let (mut at, mut last) = (self.pos, None);
         loop {
@@ -1041,7 +1026,7 @@ fn escape(text: &str) -> String {
     conv.bufs.swap_remove(0).text
 }
 
-/// 去掉 [`escape`] 加的转义，还原成文字（行内代码里不转义）。
+/// 去掉 [`escape`] 加的转义。
 fn unescape(text: &str) -> String {
     let text = text.replace("&#91;", "[").replace("&#93;", "]");
     let mut out = String::with_capacity(text.len());

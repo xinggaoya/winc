@@ -106,8 +106,7 @@ impl Screen<'_> {
         );
     }
 
-    /// 书签绘制在行号左侧的空白处（开着逐行追溯时在那一栏右边）；LaTeX 编译出错的行在同一处
-    /// 画一个红点，有书签时画书签。
+    /// 书签绘制在行号左侧的空白处（开着逐行追溯时在那一栏右边），没有书签时画 LaTeX 的错误红点。
     pub(super) fn draw_bookmark(&self, frame: &mut Frame<'_>, row: &Row<'_>) {
         let gutter = self.gutter;
         let center = (

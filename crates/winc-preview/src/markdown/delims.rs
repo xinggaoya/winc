@@ -1,9 +1,4 @@
-//! LaTeX 的公式定界符：`\(…\)` 是行内公式，`\[…\]` 和 `\begin{equation}…\end{equation}` 这类
-//! 环境是单独成行的公式。
-//!
-//! pulldown-cmark 只认 `$…$`、`$$…$$`，`\(` 在 Markdown 里是转义的括号。解析前把定界符原地
-//! 换成等长的 `$$`（环境的名字换成 `x`），字节位置不变，原文对照照常；行内代码、代码块、HTML
-//! 和链接里的不换。解析出的公式按原文的定界符还原（[`restore`]）。
+//! LaTeX 的公式定界符（`\(…\)`、`\[…\]`、公式环境）：解析前原地换成等长的 `$$`，解析后还原。
 
 use std::borrow::Cow;
 use std::ops::Range;
@@ -43,14 +38,12 @@ pub(super) fn mask(text: &str) -> Cow<'_, str> {
         i = close.end;
     }
     match out {
-        // 只把 ASCII 换成 ASCII，仍是合法的 UTF-8。
         Some(out) => Cow::Owned(String::from_utf8(out).unwrap_or_else(|_| text.to_owned())),
         None => Cow::Borrowed(text),
     }
 }
 
-/// 还原 [`mask`] 换掉的公式：`source` 是公式在原文中的一段（含定界符），`text` 是解析出的
-/// 内容。返回是否为行内公式（`\(…\)`）和公式的 LaTeX 原文；环境的公式带着 `\begin`、`\end`。
+/// 还原 [`mask`] 换掉的公式，返回是否为行内公式和公式的原文；`source` 含定界符。
 pub(super) fn restore<'a>(source: &str, text: &'a str) -> (bool, Cow<'a, str>) {
     if source.starts_with("\\(") {
         return (true, Cow::Borrowed(text));
@@ -63,7 +56,7 @@ pub(super) fn restore<'a>(source: &str, text: &'a str) -> (bool, Cow<'a, str>) {
     ) else {
         return (false, Cow::Borrowed(text));
     };
-    // 解析出的内容去掉了两头的 `$$`，各剩下名字换成的 `x`。
+    // 两头各剩下环境名换成的 `x`。
     let (head, tail) = (open - 1, source.len() - close - 2);
     if head + tail > text.len() {
         return (false, Cow::Borrowed(text));
@@ -77,7 +70,7 @@ pub(super) fn restore<'a>(source: &str, text: &'a str) -> (bool, Cow<'a, str>) {
     }
 }
 
-/// 从 `at` 处的 `\` 开始的一个公式：开头和收尾定界符的范围。收尾在同一段里，内容不能为空。
+/// 返回从 `at` 开始的公式的开头和收尾定界符的范围。
 fn span(text: &str, at: usize, skip: &[Range<usize>]) -> Option<(Range<usize>, Range<usize>)> {
     let rest = &text[at..];
     let (open, close) = if rest.starts_with("\\(") {
@@ -85,7 +78,7 @@ fn span(text: &str, at: usize, skip: &[Range<usize>]) -> Option<(Range<usize>, R
     } else if rest.starts_with("\\[") {
         (2, "\\]".to_owned())
     } else {
-        // 环境名很短：只在开头几个字里找 `}`，不为没写完的 `\begin{` 扫到文末。
+        // 只在开头几个字里找 `}`。
         let name = rest.strip_prefix("\\begin{")?;
         let len = name
             .char_indices()
@@ -102,7 +95,7 @@ fn span(text: &str, at: usize, skip: &[Range<usize>]) -> Option<(Range<usize>, R
         )
     };
     let start = at + open;
-    // 公式不跨过空行：收尾只在这一段里找。
+    // 收尾只在这一段里找。
     let end = paragraph_end(text, start);
     let mut from = start;
     loop {
@@ -116,7 +109,7 @@ fn span(text: &str, at: usize, skip: &[Range<usize>]) -> Option<(Range<usize>, R
     }
 }
 
-/// 从 `from` 起这一段结束的位置：下一个只有空白的行的开头；没有空行时是原文末尾。
+/// 返回从 `from` 起这一段结束的位置。
 fn paragraph_end(text: &str, from: usize) -> usize {
     let mut at = from;
     while let Some(nl) = text[at..].find('\n') {
@@ -130,8 +123,7 @@ fn paragraph_end(text: &str, from: usize) -> usize {
     text.len()
 }
 
-/// 原文中不换定界符的范围，按起点排列、互不重叠：行内代码、代码块、HTML、链接，以及已经用
-/// `$` 写的公式。
+/// 返回不换定界符的范围（代码、HTML、链接、`$` 公式），按起点排列、互不重叠。
 fn verbatim(text: &str) -> Vec<Range<usize>> {
     let mut skip: Vec<Range<usize>> = Vec::new();
     for (event, range) in Parser::new_ext(text, super::options()).into_offset_iter() {
@@ -144,7 +136,7 @@ fn verbatim(text: &str) -> Vec<Range<usize>> {
                 | Event::InlineMath(_)
                 | Event::DisplayMath(_)
         );
-        // 已记下的范围里面的（代码块里的文字、链接里的行内代码）不再记。
+        // 已记下的范围里面的不再记。
         let nested = skip.last().is_some_and(|last| last.end >= range.end);
         if whole && !nested {
             skip.push(range);
@@ -159,7 +151,7 @@ fn inside(skip: &[Range<usize>], at: usize) -> bool {
     k > 0 && skip[k - 1].contains(&at)
 }
 
-/// `at` 处的 `\` 是否被前面的 `\` 转义：前面紧挨着奇数个 `\`。
+/// `at` 处的 `\` 是否被转义。
 fn escaped(bytes: &[u8], at: usize) -> bool {
     bytes[..at]
         .iter()

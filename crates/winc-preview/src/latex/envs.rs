@@ -2,13 +2,13 @@
 
 use super::{Conv, List, ListKind, MAX_DEPTH, Until, escape, names};
 
-/// 原样保留的公式环境（Markdown 预览认得，见 `markdown::delims`）。
+/// 原样保留的公式环境。
 const MATH: &[&str] = &[
     "equation", "align", "alignat", "gather", "multline", "flalign", "eqnarray",
 ];
 
 impl<'a> Conv<'a> {
-    /// `\begin{name}` 之后（`start` 是 `\begin` 的位置）：转换到 `\end{name}` 为止。
+    /// 转换环境 `name` 到 `\end{name}` 为止；`start` 是 `\begin` 的位置。
     pub(super) fn environment(&mut self, name: &'a str, start: usize) {
         let base = name.strip_suffix('*').unwrap_or(name);
         if self.depth >= MAX_DEPTH {
@@ -118,7 +118,7 @@ impl<'a> Conv<'a> {
         self.advance_to(end);
     }
 
-    /// 列表：每一项另起一行写标记，内容按标记的宽度缩进，嵌套的列表缩进在外层之内。
+    /// 转换列表，内容按标记的宽度缩进。
     fn list(&mut self, name: &'a str, kind: ListKind) {
         self.skip_opts();
         self.blank_line();
@@ -140,7 +140,7 @@ impl<'a> Conv<'a> {
             self.opt_raw().map(|raw| self.fragment(raw))
         };
         let Some(list) = self.lists.last_mut() else {
-            // 列表外的 `\item`：当作一项无序列表。
+            // 列表外的 `\item` 当作无序列表的一项。
             self.line_start();
             self.push_raw("- ");
             return;
@@ -151,7 +151,7 @@ impl<'a> Conv<'a> {
             (ListKind::Number, None) => format!("{count}. "),
             _ => "- ".to_owned(),
         };
-        // 标记写在外层的缩进处：先去掉这一层的缩进再回到行首。
+        // 标记写在外层的缩进处。
         if let Some(top) = self.prefix.last_mut() {
             top.clear();
         }
@@ -182,7 +182,7 @@ impl<'a> Conv<'a> {
         self.blank_line();
     }
 
-    /// 代码块：内容原样写进围栏代码块，`lang` 是语言。
+    /// 把内容原样写进语言为 `lang` 的围栏代码块。
     fn code(&mut self, name: &str, lang: &str) {
         let close = format!("\\end{{{name}}}");
         let end = self
@@ -205,7 +205,6 @@ impl<'a> Conv<'a> {
         for line in body.split('\n') {
             self.newline_out();
             let to = self.pos + line.len();
-            // 原文里的制表符和空白原样保留。
             let buf = self.buf();
             buf.text.push_str(line);
             buf.fresh = false;
@@ -217,7 +216,7 @@ impl<'a> Conv<'a> {
         self.blank_line();
     }
 
-    /// 公式环境：连同 `\begin`、`\end` 原样写入。
+    /// 连同 `\begin`、`\end` 原样写入公式环境。
     fn math_env(&mut self, name: &str, start: usize) {
         let close = format!("\\end{{{name}}}");
         let Some(end) = self.rest().find(&close).map(|i| self.pos + i) else {
@@ -228,8 +227,7 @@ impl<'a> Conv<'a> {
         self.advance_to(end + close.len());
     }
 
-    /// 定理类的环境：加粗的标题（`[…]` 写的名字在括号里）接着内容；证明的标题是斜体，
-    /// 结尾加 ∎。
+    /// 转换定理类的环境：加粗的标题接着内容，证明以 ∎ 结尾。
     fn theorem(&mut self, name: &'a str, title: &str, proof: bool) {
         let note = self.opt_raw().map(|raw| self.fragment(raw));
         self.blank_line();
@@ -250,7 +248,7 @@ impl<'a> Conv<'a> {
         self.blank_line();
     }
 
-    /// 表格：每行一行，第一行作表头；`spec` 是列格式，决定各列的对齐。
+    /// 转换表格，第一行作表头；`spec` 是列格式。
     fn table(&mut self, name: &str, spec: &str) {
         let close = format!("\\end{{{name}}}");
         let end = self
@@ -310,7 +308,7 @@ impl<'a> Conv<'a> {
     }
 }
 
-/// 把表格的原文分成行和单元格：`\\` 分行，`&` 分格，`{…}` 里的不算。
+/// 把表格的原文分成行和单元格。
 fn split_rows(body: &str) -> Vec<Vec<&str>> {
     let bytes = body.as_bytes();
     let (mut rows, mut row, mut start, mut depth, mut i) = (Vec::new(), Vec::new(), 0, 0usize, 0);
@@ -320,7 +318,7 @@ fn split_rows(body: &str) -> Vec<Vec<&str>> {
                 row.push(&body[start..i]);
                 rows.push(std::mem::take(&mut row));
                 i += 2;
-                // `\\[2pt]` 写的行距不是内容。
+                // 跳过 `\\[2pt]` 写的行距。
                 let rest = &body[i..];
                 if rest.trim_start().starts_with('[') {
                     let skipped = rest.len() - rest.trim_start().len();
@@ -331,7 +329,7 @@ fn split_rows(body: &str) -> Vec<Vec<&str>> {
             }
             b'\\' => i += 1,
             b'%' => {
-                // 注释到行尾：记在单元格里，转换时去掉。
+                // 注释留给转换时去掉。
                 i = body[i..].find('\n').map_or(bytes.len(), |n| i + n);
                 continue;
             }
@@ -359,7 +357,7 @@ fn multicolumn(cell: &str) -> usize {
         .unwrap_or(1)
 }
 
-/// 列格式（`|l|c|r|`、`p{3cm}`、`*{3}{c}`）中各列的对齐：`l`、`c`、`r`，其余的列为 `-`。
+/// 返回列格式 `spec` 中各列的对齐（`l`、`c`、`r`，其余为 `-`）。
 fn alignments(spec: &str) -> Vec<char> {
     let mut out = Vec::new();
     let mut chars = spec.chars().peekable();

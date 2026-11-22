@@ -1,5 +1,4 @@
-//! LaTeX 的预览：编译出 PDF 时画 PDF，第一次编译时画说明页，否则画转换出的阅读视图；右上角写
-//! 编译状态。
+//! LaTeX 的预览：编译出的 PDF、第一次编译的说明页或阅读视图，右上角是编译状态。
 
 use winc_render::{FontKind, Frame, Rect};
 
@@ -17,7 +16,6 @@ pub(in crate::view) fn draw(app: &mut App, frame: &mut Frame<'_>, area: Rect) {
     if app.latex_pdf().is_some() {
         super::pdf::draw(app, frame, area);
     } else if app.latex_waiting() {
-        // 第一次编译：说明页写进行到哪一步，编译出 PDF 后直接换上。
         app.hits.latex_status = Rect::default();
         app.hide_latex_status();
         frame.rect(area, app.palette.editor_bg);
@@ -32,7 +30,7 @@ pub(in crate::view) fn draw(app: &mut App, frame: &mut Frame<'_>, area: Rect) {
     draw_status(app, frame, area);
 }
 
-/// 正在编译、出了错时在右上角写出来；有错误时可以点击，悬停时列出前几条。
+/// 在右上角画编译状态。
 fn draw_status(app: &mut App, frame: &mut Frame<'_>, area: Rect) {
     app.hits.latex_status = Rect::default();
     let Some((text, error)) = app.latex_status() else {
@@ -40,7 +38,6 @@ fn draw_status(app: &mut App, frame: &mut Frame<'_>, area: Rect) {
         return;
     };
     let p = app.palette;
-    // 文字换了时宽度渐变过去，右边缘不动；过渡中文字裁在框里。
     let target = frame.measure(FontKind::Ui, app.fonts.ui_small, &text) + PAD * 2.0;
     let w = app.latex_status_width(target).round();
     let bar = Rect::new(area.right() - MARGIN - w, area.y + MARGIN, w, HEIGHT);

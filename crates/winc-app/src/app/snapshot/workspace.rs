@@ -11,6 +11,7 @@ mod panes;
 pub(super) mod picker;
 pub(super) mod recent;
 pub(super) mod search;
+pub(super) mod search_dialog;
 pub(super) mod selection;
 pub(super) mod session;
 pub(super) mod shots;

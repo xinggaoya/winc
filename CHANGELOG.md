@@ -57,7 +57,7 @@ notes live in [upstream Releases](https://github.com/DEEIX-AI/Winc/releases) and
 | --- | --- |
 | 上游 | <https://github.com/DEEIX-AI/Winc>（分支 `dev`） |
 | 本仓库 | <https://github.com/xinggaoya/winc>（分支 `main`） |
-| 本次改动所基于的上游提交 | `16a7785f`（`Merge pull request #336 from DEEIX-AI/support_latex`） |
+| 本次改动所基于的上游提交 | `89cc886d`（`Merge pull request #355 from DEEIX-AI/perf_shotcuts`） |
 
 本仓库保留了上游的完整历史，同步方式与冲突处理见 [UPSTREAM.md](./UPSTREAM.md)。
 
@@ -67,3 +67,10 @@ notes live in [upstream Releases](https://github.com/DEEIX-AI/Winc/releases) and
 
 - `01309f12` 预览 LaTeX 文档，并在 Markdown 中渲染 LaTeX 公式。
 - `43a2e692` 版本号升到 v0.1.852。
+- `28976afe` 焦点在终端里时，Ctrl+J 不再收起终端面板，交给终端程序自己处理。
+- `3ea8667d` Markdown 里嵌入代码的注释，按代码本身的语言显示。
+- `8c9fab5c` Windows 的终端默认用 UTF-8，并在终端设置里列出 MSYS2 的 shell。
+- `8d4bc9bc` 预览模式（编辑、分栏等）在重启后仍然记住。
+- `3174aa97` macOS 的编辑器新增 Emacs 键位。
+- `62829d16` Markdown 预览里显示换行与行末空格。
+- `600c6725` 每套键位方案都能绑定 macOS 的控制键（`⌃A` `⌃E` 等）。

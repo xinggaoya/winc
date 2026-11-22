@@ -429,16 +429,9 @@ impl App {
         });
     }
 
-    /// 按 `state.json` 记下的方式设定之后打开的各类能预览的文件的显示方式（启动、新开窗口时）。
+    /// 按 `state.json` 记下的方式设定之后打开的各类能预览的文件的显示方式（新开窗口时）。
     pub(crate) fn apply_preview_state(&mut self) {
-        for kind in PreviewKind::ALL {
-            let saved = self.state.preview_modes.get(preview_key(kind));
-            self.editor.preview_defaults[kind as usize] = match saved.map(String::as_str) {
-                Some("split") => PreviewMode::Split,
-                Some("preview") => PreviewMode::Preview,
-                _ => PreviewMode::Source,
-            };
-        }
+        self.editor.preview_defaults = preview_defaults(&self.state);
     }
 
     /// 当前标签换成 `mode` 显示（标签栏右端的三段切换）。
@@ -518,6 +511,23 @@ pub(crate) struct PictureCache {
     /// SVG 整张图的低分辨率位图：`sharp` 尚未覆盖的位置（缩放、平移之后）先放大显示它，
     /// 不留空白。位图不使用。
     pub(crate) base: Option<Pixels>,
+}
+
+/// 返回 `state` 中记下的各类能预览的文件的显示方式，按 [`PreviewKind::ALL`] 的顺序。
+pub(crate) fn preview_defaults(
+    state: &winc_config::State,
+) -> [PreviewMode; PreviewKind::ALL.len()] {
+    PreviewKind::ALL.map(|kind| {
+        match state
+            .preview_modes
+            .get(preview_key(kind))
+            .map(String::as_str)
+        {
+            Some("split") => PreviewMode::Split,
+            Some("preview") => PreviewMode::Preview,
+            _ => PreviewMode::Source,
+        }
+    })
 }
 
 /// 返回 `state.json` 中记录种类 `kind` 显示方式的键。

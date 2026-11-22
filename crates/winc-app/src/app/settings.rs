@@ -1298,7 +1298,7 @@ impl App {
         self.request_redraw();
     }
 
-    /// 设置编译 LaTeX 的程序；`None` 表示自动查找。随即按新的设置找一次，设置里显示结果。
+    /// 设置编译 LaTeX 的程序，`None` 表示自动查找。
     pub(in crate::app) fn set_latex_path(&mut self, path: Option<String>) {
         if self.config.latex_path == path {
             return;

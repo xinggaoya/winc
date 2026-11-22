@@ -1,9 +1,4 @@
-//! LaTeX 的预览：用本机的 TeX 编译，显示编译出的 PDF；编译不了时（没有 TeX、远端主机上的文件、
-//! 系统不能显示 PDF、还没编译出来）显示转换成 Markdown 的阅读视图。
-//!
-//! 预览显示时编译一次，之后每次保存 `.tex` 文件后重新编译，新的编译取消正在进行的那次。编译
-//! 失败时继续显示上一次的 PDF，错误数写在预览右上角，行号栏标出出错的行。分栏时右侧按 `SyncTeX`
-//! 对齐左侧的位置，⌘ 点击 PDF 回到源码。
+//! LaTeX 的预览：用本机的 TeX 编译并显示 PDF，编译不了时显示转换出的阅读视图。
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -20,28 +15,28 @@ use crate::app::animation::{Clock, LATEX_STATUS_MOTION};
 use crate::app::input::context_menu::{MenuLabel, MenuTarget};
 use crate::app::{App, UserEvent};
 
-/// 找主文件时向上看几层目录：章节文件通常在主文件旁边或下一层。
+/// 找主文件时向上看的目录层数。
 const ROOT_SEARCH_DEPTH: usize = 3;
-/// 找主文件时读的 `.tex` 文件最大字节数：更大的不会是写着 `\input` 的主文件。
+/// 找主文件时读的 `.tex` 文件最大字节数。
 const MAX_CANDIDATE_BYTES: usize = 1 << 20;
-/// 错误列表的菜单最多列出几项，菜单不至于高出窗口。
+/// 错误列表的菜单最多列出的项数。
 const MENU_PROBLEMS: usize = 20;
 /// 行号栏里错误红点的点击范围：中心左右各多宽（逻辑像素）。
 const PROBLEM_HIT: f32 = 7.0;
-/// 分栏时左侧顶端那一行与右侧对齐的位置：基线往上让出一行（bp）。
+/// 分栏对齐时基线往上让出的距离（bp）。
 const SYNC_LEAD: f32 = 12.0;
 
 /// 各文档的编译。
 pub(crate) struct LatexBuilds {
-    /// 找到的 TeX 程序；还没找到时为 `None`，下次编译时再找（可能刚装好）。
+    /// 找到的 TeX 程序；还没找到时为 `None`。
     tool: Option<Toolchain>,
-    /// 上一次找的时候没有找到：设置里写「未找到」。
+    /// 上一次找的时候是否没有找到。
     missing: bool,
-    /// 设置的程序改过几次：按旧设置找到的程序、编译用的程序都不再记下。
+    /// 设置的程序改过几次，旧设置下的结果不再记下。
     generation: u64,
-    /// 正在为设置页找程序（按第几次的设置找）。
+    /// 正在为设置页找程序时，按第几次的设置找。
     finding: Option<u64>,
-    /// 上一帧设置是否开着：打开时重新找一次，刚装好的 TeX 也能显示出来。
+    /// 上一帧设置是否开着。
     settings_open: bool,
     /// 显示过预览的各文档的编译。
     builds: HashMap<DocumentId, Build>,
@@ -49,7 +44,7 @@ pub(crate) struct LatexBuilds {
     serial: u64,
     sender: mpsc::Sender<Done>,
     receiver: mpsc::Receiver<Done>,
-    /// 上一次对齐时的（文档、PDF 的序号、左侧的滚动位置）：没变时不再对齐。
+    /// 上一次对齐时的（文档、PDF 的序号、左侧的滚动位置）。
     synced: Option<(DocumentId, u64, u64)>,
     /// 右上角编译状态的宽度（逻辑像素）；没有显示时为 `None`。
     status_width: Option<f32>,
@@ -78,7 +73,7 @@ impl Default for LatexBuilds {
 }
 
 impl LatexBuilds {
-    /// 文档 `id` 关闭：取消它的编译，丢掉结果。
+    /// 取消文档 `id` 的编译并丢掉结果。
     pub(crate) fn forget(&mut self, id: DocumentId) {
         if let Some(build) = self.builds.remove(&id)
             && let Some((_, cancel)) = build.running
@@ -87,13 +82,13 @@ impl LatexBuilds {
         }
     }
 
-    /// 是否有编译正在进行（测试中等待用；用脚本冒充 TeX 的测试只在 macOS 上运行）。
+    /// 是否有编译正在进行。
     #[cfg(all(test, target_os = "macos"))]
     pub(crate) fn running(&self) -> bool {
         self.builds.values().any(|b| b.running.is_some())
     }
 
-    /// 设置的 TeX 程序改了：下次编译时重新找。
+    /// 设置的 TeX 程序改了，丢掉找到的程序。
     pub(crate) fn forget_tool(&mut self) {
         self.generation += 1;
         self.tool = None;
@@ -107,17 +102,17 @@ struct Build {
     /// 正在进行的编译的序号和取消标记，以及它进行到哪一步。
     running: Option<(u64, Cancel)>,
     progress: Option<Progress>,
-    /// 编译完成过：第一次完成之前预览显示「正在编译」，不先显示阅读视图。
+    /// 是否完成过一次编译。
     done: bool,
-    /// 保存过 `.tex` 文件、结果可能过时：下次显示预览时重新编译。
+    /// 结果是否可能过时。
     stale: bool,
-    /// 最近一次可以显示的 PDF 和它的序号（序号变了就重新打开）。
+    /// 最近一次可以显示的 PDF 和它的序号。
     pdf: Option<(PathBuf, u64)>,
     synctex: Option<Arc<Synctex>>,
     /// 最近一次编译的错误，和下一次点击跳到第几个。
     problems: Vec<Problem>,
     next: usize,
-    /// 编译没能进行或失败又读不出错误时的原因。
+    /// 编译没能完成又读不出错误时的原因。
     failure: Option<String>,
 }
 
@@ -143,7 +138,7 @@ struct Built {
 }
 
 impl App {
-    /// 当前标签能编译成 PDF 的 LaTeX 文档和它的路径：本机的文件，系统能显示 PDF。
+    /// 返回当前标签里能编译成 PDF 的 LaTeX 文档和它的路径。
     fn latex_doc(&self) -> Option<(DocumentId, PathBuf)> {
         let doc = self.editor.active()?;
         if doc.preview_kind() != Some(PreviewKind::Latex) || !winc_preview::pdf::supported() {
@@ -153,7 +148,7 @@ impl App {
         Some((doc.id, path))
     }
 
-    /// 当前标签显示的是编译出的 PDF 时：文档、PDF 的路径和序号。
+    /// 当前标签显示编译出的 PDF 时，返回文档、PDF 的路径和序号。
     pub(crate) fn latex_pdf(&self) -> Option<(DocumentId, PathBuf, u64)> {
         let doc = self.editor.active()?;
         let shown = doc.preview_kind() == Some(PreviewKind::Latex)
@@ -162,8 +157,7 @@ impl App {
         shown.then_some((doc.id, path, serial))
     }
 
-    /// 预览显示着、还没编译过或保存后结果过时时，开始编译；设置刚打开时重新找 TeX 程序。
-    /// 每次绘制前调用。
+    /// 按需开始编译，设置刚打开时重新找 TeX 程序；每次绘制前调用。
     pub(crate) fn advance_latex(&mut self) {
         let open = self.settings.open;
         if open && !std::mem::replace(&mut self.preview.latex.settings_open, true) {
@@ -182,7 +176,7 @@ impl App {
         }
     }
 
-    /// 文档 `id` 保存后：是 `.tex` 文件时各个编译的结果都可能过时，正在显示的预览马上重新编译。
+    /// 文档 `id` 保存后，`.tex` 文件的预览重新编译。
     pub(in crate::app) fn latex_saved(&mut self, id: DocumentId) {
         let tex = self.editor.document(id).and_then(|d| d.preview_kind());
         if tex != Some(PreviewKind::Latex) {
@@ -199,7 +193,7 @@ impl App {
         }
     }
 
-    /// 在后台编译文档 `id`：找 TeX 程序和主文件，运行编译，读回 `SyncTeX` 的对照。
+    /// 在后台编译文档 `id`。
     fn build_latex(&mut self, id: DocumentId) {
         let Some(doc) = self.editor.document(id) else {
             return;
@@ -225,7 +219,7 @@ impl App {
         build.stale = false;
         let (tool, sender, generation) =
             (latex.tool.clone(), latex.sender.clone(), latex.generation);
-        // 编译的输出在读取的线程上逐段送来：送给界面的通道放在锁里，和上一步相同的不送。
+        // 进度在读取输出的线程上送来，和上一步相同的不送。
         let report = Mutex::new((sender.clone(), proxy.clone(), None));
         let progress = move |step: Progress| {
             let Ok(mut report) = report.lock() else {
@@ -279,7 +273,7 @@ impl App {
         });
     }
 
-    /// 在后台找 TeX 程序，结果写在设置的「LaTeX 程序」一行。
+    /// 在后台找 TeX 程序。
     pub(in crate::app) fn find_latex_tool(&mut self) {
         let latex = &mut self.preview.latex;
         let generation = latex.generation;
@@ -300,7 +294,7 @@ impl App {
         });
     }
 
-    /// 设置里「LaTeX 程序」留空时显示的文字：自动找到的程序，没找到时说明。
+    /// 返回设置里「LaTeX 程序」留空时显示的文字。
     pub(crate) fn latex_tool_label(&self) -> String {
         let latex = &self.preview.latex;
         let name = |path: &Path| path.file_name().map(|n| n.to_string_lossy().into_owned());
@@ -316,9 +310,7 @@ impl App {
         }
     }
 
-    /// 编译产物的存放处：系统的缓存目录（macOS 的 `~/Library/Caches`、Windows 的
-    /// `%LOCALAPPDATA%`、其他系统的 `~/.cache`）下的 `winc`。不放在状态文件旁边：macOS 上那里
-    /// 的路径有空格，文献工具不认。没有状态文件（测试）时在系统的临时目录。
+    /// 返回编译产物的存放处：系统缓存目录下的 `winc`；没有状态文件时在临时目录。
     fn latex_cache(&self) -> PathBuf {
         if self.store.state_path.is_none() {
             return std::env::temp_dir();
@@ -343,7 +335,6 @@ impl App {
         let mut changed = false;
         while let Ok(done) = latex.receiver.try_recv() {
             let built = match done {
-                // 按改之前的设置找到的不算。
                 Done::Found(generation, found) => {
                     if generation == latex.generation {
                         latex.finding = None;
@@ -381,7 +372,7 @@ impl App {
             build.done = true;
             changed = true;
             let (Some(job), Some(compiled)) = (built.job, built.compiled) else {
-                // 没有 TeX、找不到主文件：显示阅读视图，不提示。
+                // 没有 TeX 或主文件时不提示。
                 build.problems.clear();
                 build.failure = None;
                 continue;
@@ -399,7 +390,7 @@ impl App {
         }
     }
 
-    /// 当前标签的编译状态，写在预览右上角：正在编译、出错的条数；都没有时为 `None`。
+    /// 返回当前标签的编译状态和它是否是错误。
     pub(crate) fn latex_status(&self) -> Option<(String, bool)> {
         let (id, _) = self.latex_doc()?;
         if self.editor.active()?.preview_mode() == PreviewMode::Source {
@@ -422,8 +413,7 @@ impl App {
         }
     }
 
-    /// 编译状态这一帧画多宽：文字换了、宽度 `target` 变了时从当前宽度过渡过去；刚出现时直接用
-    /// `target`。
+    /// 返回编译状态这一帧的宽度，宽度 `target` 变了时从当前宽度过渡过去。
     pub(crate) fn latex_status_width(&mut self, target: f32) -> f32 {
         let latex = &self.preview.latex;
         let shown = match latex.status_motion {
@@ -439,7 +429,6 @@ impl App {
             let animated = motion.is_some();
             let latex = &mut self.preview.latex;
             (latex.status_width, latex.status_motion) = (Some(target), motion);
-            // 不播放动画（关闭了动态效果）时这一帧就用新宽度。
             if !animated {
                 return target;
             }
@@ -447,14 +436,13 @@ impl App {
         shown
     }
 
-    /// 编译状态不显示了：下次出现时不从旧宽度过渡。
+    /// 编译状态不显示了。
     pub(crate) fn hide_latex_status(&mut self) {
         let latex = &mut self.preview.latex;
         (latex.status_width, latex.status_motion) = (None, None);
     }
 
-    /// 第一次编译还没有结果、本机可能有 TeX 时，预览显示「正在编译」的说明页，编译出 PDF
-    /// 后直接换上，不先显示阅读视图。确定没有 TeX、编译过却没有 PDF 时显示阅读视图。
+    /// 是否在等第一次编译的结果。
     pub(crate) fn latex_waiting(&self) -> bool {
         let Some((id, _)) = self.latex_doc() else {
             return false;
@@ -469,7 +457,7 @@ impl App {
                 .is_none_or(|b| b.pdf.is_none() && !b.done)
     }
 
-    /// 悬停在编译状态上时的说明：失败的原因；有错误时提示点击查看。
+    /// 返回悬停在编译状态上时的说明。
     pub(crate) fn latex_status_tip(&self) -> Option<String> {
         let (id, _) = self.latex_doc()?;
         let build = self.preview.latex.builds.get(&id)?;
@@ -479,19 +467,19 @@ impl App {
         }
     }
 
-    /// 当前标签最近一次编译的错误；菜单里最多列出 [`MENU_PROBLEMS`] 条。
+    /// 返回当前标签最近一次编译的前 [`MENU_PROBLEMS`] 条错误。
     fn latex_problems(&self) -> &[Problem] {
         let build = (self.latex_doc()).and_then(|(id, _)| self.preview.latex.builds.get(&id));
         let problems = build.map_or(&[][..], |b| b.problems.as_slice());
         &problems[..problems.len().min(MENU_PROBLEMS)]
     }
 
-    /// 错误列表里有几项。
+    /// 返回错误列表的项数。
     pub(crate) fn latex_problem_count(&self) -> usize {
         self.latex_problems().len()
     }
 
-    /// 错误列表第 `i` 项的文字：错误信息，下面一行是文件和行号。
+    /// 返回错误列表第 `i` 项的文字。
     pub(crate) fn latex_problem_label(&self, i: usize) -> MenuLabel {
         let Some(problem) = self.latex_problems().get(i) else {
             return MenuLabel::plain("");
@@ -504,7 +492,7 @@ impl App {
         }
     }
 
-    /// 点击编译状态：有错误时在它下方列出各处错误。
+    /// 在编译状态下方列出各处错误。
     pub(in crate::app) fn open_latex_problems(&mut self) {
         if self.latex_problem_count() == 0 {
             return;
@@ -526,7 +514,7 @@ impl App {
         self.show_source_line(&file, problem.line.unwrap_or(1));
     }
 
-    /// 窗口坐标 (`x`, `y`) 处行号栏里的错误红点所在的行（从 0 起）。
+    /// 返回窗口坐标 (`x`, `y`) 处错误红点所在的行（从 0 起）。
     pub(in crate::app) fn latex_problem_at(&self, x: f32, y: f32) -> Option<usize> {
         let doc = self.editor.active()?;
         let l = self.layout;
@@ -541,7 +529,7 @@ impl App {
         lines.binary_search(&line).is_ok().then_some(line)
     }
 
-    /// 悬停在第 `line` 行（从 0 起）的错误红点上时的说明：这一行的各条错误。
+    /// 返回第 `line` 行（从 0 起）错误红点的位置和说明。
     pub(crate) fn latex_problem_tip(&self, line: usize) -> Option<(winc_render::Rect, String)> {
         let doc = self.editor.active()?;
         let path = doc.path.as_deref()?;
@@ -566,14 +554,14 @@ impl App {
         Some((rect, unique.join("\n")))
     }
 
-    /// 点击行号栏里的错误红点：光标移到这一行的开头。
+    /// 把光标移到第 `line` 行（从 0 起）的开头。
     pub(in crate::app) fn go_to_latex_problem_line(&mut self, line: usize) {
         if let Some(path) = self.editor.active().and_then(|d| d.path.clone()) {
             self.show_source_line(&path, line + 1);
         }
     }
 
-    /// 文档 `id` 中出错的行（从 0 起）：编译的错误里写的是这个文件的那些。
+    /// 返回文档 `id` 中出错的行（从 0 起）。
     pub(crate) fn latex_problem_lines(&self, id: DocumentId) -> Vec<usize> {
         let Some(doc) = self.editor.document(id) else {
             return Vec::new();
@@ -598,7 +586,7 @@ impl App {
         lines
     }
 
-    /// 分栏时把右侧的 PDF 滚到左侧顶端那一行排出的位置。每次绘制前调用。
+    /// 分栏时让 PDF 对齐左侧顶端那一行；每次绘制前调用。
     pub(crate) fn sync_latex_pdf(&mut self) {
         let Some((id, _, serial)) = self.latex_pdf() else {
             return;
@@ -637,7 +625,7 @@ impl App {
         }
     }
 
-    /// ⌘ 点击编译出的 PDF 上 (`x`, `y`)：按 `SyncTeX` 回到源码中排出这里的那一行。返回是否找到。
+    /// 跳到 PDF 上 (`x`, `y`) 处对应的源码行，返回是否找到。
     pub(in crate::app) fn latex_source_at(&mut self, x: f32, y: f32) -> bool {
         let Some((id, _, _)) = self.latex_pdf() else {
             return false;
@@ -663,7 +651,7 @@ impl App {
         true
     }
 
-    /// 在源码中显示文件 `file` 的第 `line` 行（从 1 起）：是当前标签时移动光标，否则先打开。
+    /// 在源码中显示文件 `file` 的第 `line` 行（从 1 起）。
     fn show_source_line(&mut self, file: &Path, line: usize) {
         let line = line.saturating_sub(1);
         let here = self.editor.active().and_then(|d| d.path.as_deref()) == Some(file);
@@ -687,11 +675,10 @@ impl App {
     }
 }
 
-/// 各个产物目录的编译顺序：拿到锁的那次编译写这个目录。
+/// 各个产物目录的锁，同一目录的编译依次进行。
 static BUILDING: LazyLock<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> = LazyLock::new(Mutex::default);
 
-/// 找主文件并编译（`folder` 是打开的目录，`cache` 是产物的存放处）：主文件找不到、编译被取消
-/// 时为 `None`。
+/// 找主文件并编译；找不到主文件或被取消时为 `None`。
 #[allow(
     clippy::disallowed_methods,
     reason = "编译只在本机进行，见 `latex::compiles_here`"
@@ -716,7 +703,6 @@ fn compile(
         .iter()
         .find_map(|name| std::fs::read_to_string(dir.join(name)).ok());
     let out = latex::out_dir(cache, &root);
-    // 同一个主文件的两次编译（主文件和章节文件各开着预览）依次进行，不同时写同一个目录。
     let turn = {
         let mut building = BUILDING
             .lock()
@@ -737,8 +723,7 @@ fn compile(
     Some((job, compiled))
 }
 
-/// 可能引入了 `path` 的主文件：`path` 所在的目录和往上几层（不出打开的目录 `folder`）里的
-/// `.tex` 文件和原文。
+/// 返回 `path` 所在目录和往上几层里的 `.tex` 文件和原文，不出打开的目录 `folder`。
 #[allow(
     clippy::disallowed_methods,
     reason = "编译只在本机进行，见 `latex::compiles_here`"
@@ -783,7 +768,7 @@ fn read_synctex(job: &Job) -> Option<Synctex> {
     Synctex::read(&std::fs::read(&job.synctex).ok()?, &job.dir)
 }
 
-/// 错误所在的文件名和行号（`main.tex:12`）。
+/// 返回错误所在的文件名和行号。
 fn problem_place(problem: &Problem) -> String {
     let name = (problem.file.as_deref())
         .and_then(Path::file_name)

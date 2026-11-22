@@ -173,7 +173,7 @@ pub enum PreviewKind {
     Markdown,
     /// csv、tsv：预览为表格（`Document::table`）。
     Table,
-    /// LaTeX：转换成 Markdown 后与 Markdown 一样排版；预览只读，改动在源代码中进行。
+    /// LaTeX：预览只读。
     Latex,
 }
 

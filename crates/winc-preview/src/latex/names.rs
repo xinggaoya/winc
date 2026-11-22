@@ -1,6 +1,6 @@
 //! LaTeX 转换用到的名称表：去掉的命令、印出符号的命令、重音和定理类的环境。
 
-/// 连同参数一起去掉的命令：排版设置、定义、标签和目录这类不印出正文的命令。
+/// 连同参数一起去掉的命令。
 pub(super) const DROP: &[&str] = &[
     "documentclass",
     "usepackage",
@@ -103,7 +103,7 @@ pub(super) const DROP: &[&str] = &[
     "subtitle",
 ];
 
-/// 不印出东西、也不带参数的命令：字号、字体、对齐、分页和间距的声明。
+/// 不印出东西、也不带参数的命令。
 pub(super) const SILENT: &[&str] = &[
     "noindent",
     "indent",
@@ -233,7 +233,7 @@ pub(super) fn symbol(name: &str) -> Option<&'static str> {
     })
 }
 
-/// 用字母命名的重音（`\c{c}`、`\v{s}`）对应的记号，与 `\'`、`\"` 这类写法统一。
+/// 返回用字母命名的重音（`\c`、`\v`）对应的记号。
 pub(super) fn letter_accent(name: &str) -> Option<char> {
     Some(match name {
         "c" => 'c',
@@ -248,9 +248,7 @@ pub(super) fn letter_accent(name: &str) -> Option<char> {
     })
 }
 
-/// 字母 `base` 加上重音 `mark`（`\'`、`` \` ``、`\^`、`\"`、`\~`、`\=`、`\.` 或字母命名的重音）。
-///
-/// 常见的组合给出合成好的字；其余的在字母后面接组合用的重音符号。
+/// 返回字母 `base` 加上重音 `mark` 后的字。
 pub(super) fn accent(mark: char, base: &str) -> String {
     // 无点的 i（`\'{\i}`）与 i 同样处理。
     let base = match base.trim() {
@@ -303,7 +301,7 @@ pub(super) fn accent(mark: char, base: &str) -> String {
     format!("{letter}{combining}")
 }
 
-/// 没有用 `\newtheorem` 定义时也按定理类处理的环境：名字的首字母大写后作为标题。
+/// 没有用 `\newtheorem` 定义时也按定理类处理的环境。
 pub(super) const THEOREMS: &[&str] = &[
     "theorem",
     "lemma",
@@ -326,7 +324,7 @@ pub(super) const THEOREMS: &[&str] = &[
     "note",
 ];
 
-/// 带参数的环境要跳过的参数个数（`{0.5\textwidth}` 这类宽度不是正文）。
+/// 返回环境 `name` 开头要跳过的参数个数。
 pub(super) fn env_args(name: &str) -> usize {
     match name {
         "minipage" | "subfigure" | "subtable" | "multicols" | "multicols*" | "adjustbox"

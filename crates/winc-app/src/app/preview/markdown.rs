@@ -52,8 +52,7 @@ type Converted = (Markdown, Media, Option<Arc<[TocEntry]>>);
 
 /// 后台任务的结果。
 enum Done {
-    /// 文档、所依据的文档版本、解析结果、解析所用的时间，以及 LaTeX 原文各行在转换结果中的
-    /// 位置（Markdown 原文为 `None`）。
+    /// 文档、文档版本、解析结果、解析耗时，以及 LaTeX 原文各行的位置。
     Parsed(
         DocumentId,
         u64,
@@ -146,7 +145,7 @@ pub(crate) struct MarkdownPreview {
     pub doc: Option<DocumentId>,
     /// 最近一次解析的结果。
     pub parsed: Option<Arc<Markdown>>,
-    /// LaTeX 原文各行在转换出的 Markdown 中的位置，分栏同步滚动按它换算；Markdown 为 `None`。
+    /// LaTeX 原文各行在转换出的 Markdown 中的位置；Markdown 为 `None`。
     pub lines: Option<Arc<LineMap>>,
     /// 最新解析过的文档版本号（`revision`）。
     checked: Option<u64>,
@@ -1261,8 +1260,7 @@ impl App {
     }
 }
 
-/// 文字顶端那一行在预览所排的文字中是第几行（小数），以及那段文字的行数：Markdown 就是原文，
-/// LaTeX 按转换时记下的行对照（`lines`）换算。
+/// 返回文字顶端那一行在预览所排文字中的行（小数）和那段文字的行数。
 pub(super) fn preview_line(doc: &winc_editor::Document, lines: Option<&LineMap>) -> (f32, usize) {
     let line = text_line(doc);
     match lines {
