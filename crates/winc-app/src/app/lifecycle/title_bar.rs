@@ -75,6 +75,11 @@ impl App {
         // 右栏开关也在右上角：让到窗口按钮左边。
         if l.right_button.w > 0.0 {
             l.right_button.x = end - BUTTON;
+            // 标签栏在它左边停下：标签栏右端的按钮（预览切换、在浏览器中打开）不与它重叠。
+            let stop = l.right_button.x - TAB_GAP;
+            if l.tabs.right() > stop {
+                l.tabs.w = (stop - l.tabs.x).max(0.0);
+            }
         }
     }
 

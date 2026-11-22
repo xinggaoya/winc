@@ -398,6 +398,44 @@ fn the_panels_in_the_right_column_are_clickable() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// 右栏收起时（应用自己绘制标题栏），标签栏右端的按钮不与右栏开关重叠。
+#[test]
+fn the_top_bar_buttons_do_not_overlap_the_right_column_button() {
+    let dir = sample_folder("columns-right-button");
+    std::fs::write(dir.join("doc.md"), "# 标题\n").unwrap();
+    let mut app = app_with(&dir, false);
+    // 应用自己绘制标题栏（Windows 与 Linux 上如此）：窗口按钮在顶栏右端。
+    app.window.controls = true;
+    app.settings_toggle(Setting::GitModule);
+    app.config.panels_left = Some(vec![Panel::Files]);
+    app.config.panels_right = Some(vec![Panel::Commit]);
+    app.adopt_panels();
+    app.open_path(&dir.join("doc.md"));
+    paint(&mut app);
+
+    // 收起右栏：中间那栏一直伸到窗口右端，标签栏的右端也在那里。
+    app.toggle_right_column();
+    paint(&mut app);
+
+    let button = app.layout.right_button;
+    assert!(button.w > 0.0, "右栏收起后开关还在");
+    assert!(
+        app.layout.tabs.right() <= button.x,
+        "标签栏与右栏开关重叠：{:?} {:?}",
+        app.layout.tabs,
+        button
+    );
+    assert!(app.layout.preview.w > 0.0, "预览切换按钮在");
+    assert!(
+        app.layout.preview.right() <= button.x,
+        "预览切换按钮与右栏开关重叠：{:?} {:?}",
+        app.layout.preview,
+        button
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// 顶栏由系统处理（Windows 上按标题栏）：其中的控件要登记为客户区，否则点击被当成拖动
 /// 窗口，按钮点不动。
 #[test]

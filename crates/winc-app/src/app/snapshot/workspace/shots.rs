@@ -127,3 +127,26 @@ fn shoot_the_workspace_undo_notice() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 截图：右栏收起、顶栏右端由应用绘制时的样子（`shot-right-column-closed`）。
+#[test]
+#[ignore]
+fn shoot_the_right_column_closed() {
+    let dir = sample_folder("shot-right-closed");
+    std::fs::write(dir.join("doc.md"), "# 标题
+
+正文。
+").unwrap();
+    let mut app = app_with(&dir, false);
+    // 应用自己绘制标题栏（Windows 与 Linux 上如此）。
+    app.window.controls = true;
+    app.settings_toggle(Setting::GitModule);
+    app.config.panels_left = Some(vec![Panel::Files]);
+    app.config.panels_right = Some(vec![Panel::Commit]);
+    app.adopt_panels();
+    app.open_path(&dir.join("doc.md"));
+    app.toggle_right_column();
+    paint(&mut app);
+    shoot(&mut app, "shot-right-column-closed");
+    let _ = std::fs::remove_dir_all(&dir);
+}
