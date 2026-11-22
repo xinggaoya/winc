@@ -3,6 +3,35 @@
 use super::*;
 use crate::app::NoticeKind;
 
+/// 收掉一个工作区的终端面板：标签、等着建的标签都清掉，面板收起。
+///
+/// 保留面板高度和检测到的 shell：前者与面板无关（下次打开还是这个高度），后者与面板无关
+/// （设置中的「默认 Shell」菜单仍需列出）。
+fn reset_terminal_panel(panel: &mut TerminalPanel) {
+    *panel = TerminalPanel {
+        height: panel.height,
+        shells: std::mem::take(&mut panel.shells),
+        shells_detected: panel.shells_detected,
+        ..TerminalPanel::default()
+    };
+}
+
+/// 辅助进程没了：这个工作区里的终端都死了，标出来让用户能重新开始。
+///
+/// 标签和主程序这边的最后一屏留着，标签栏上写「终端组件已退出」，按 ↩ 或点「重新启动」重来
+/// （见 [`App::restart_terminal_tab`]）。
+fn mark_helper_gone(panel: &mut TerminalPanel) {
+    panel.find = None;
+    panel.errors = None;
+    panel.link = None;
+    panel.requests.clear();
+    panel.resize_due = None;
+    panel.crashed = !panel.tabs.is_empty();
+    if !panel.crashed {
+        panel.error = Some(winc_i18n::t!("terminal-helper-exited").into());
+    }
+}
+
 impl App {
     /// 竖向终端列表的区域，包含新建入口和终端条目。
     pub(crate) fn terminal_tab_list(&self) -> Option<Rect> {
@@ -195,21 +224,15 @@ impl App {
     /// 辅助进程意外退出了：标签和主程序这边的最后一屏留着，标签栏上写「终端组件已退出」，按 ↩
     /// 或点「重新启动」重来（[`App::restart_terminal_tab`]）。
     pub(in crate::app) fn terminal_helper_gone(&mut self) {
-        let t = &mut self.terminal;
         self.terminal_client = None;
         self.helper_ready = false;
-        t.find = None;
-        t.errors = None;
-        t.link = None;
-        t.requests.clear();
-        t.resize_due = None;
+        // 辅助进程是窗口共用的：各个工作区里的终端都跟着它一起没了，标出来让用户能重新开始。
+        mark_helper_gone(&mut self.terminal);
+        for slot in &mut self.workspaces.slots {
+            mark_helper_gone(&mut slot.terminal);
+        }
         if self.focus == Focus::TerminalFind {
             self.focus = Focus::Terminal;
-        }
-        let t = &mut self.terminal;
-        t.crashed = !t.tabs.is_empty();
-        if !t.crashed {
-            t.error = Some(winc_i18n::t!("terminal-helper-exited").into());
         }
     }
 
@@ -310,12 +333,11 @@ impl App {
         // 连接放掉，辅助进程自己退出，里面的 shell 跟着结束。
         self.terminal_client = None;
         self.helper_ready = false;
-        self.terminal = TerminalPanel {
-            height: self.terminal.height,
-            shells: std::mem::take(&mut self.terminal.shells),
-            shells_detected: self.terminal.shells_detected,
-            ..TerminalPanel::default()
-        };
+        // 各个工作区里的终端都跟着辅助进程一起没了：面板都收起来。
+        reset_terminal_panel(&mut self.terminal);
+        for slot in &mut self.workspaces.slots {
+            reset_terminal_panel(&mut slot.terminal);
+        }
         if self.focus.in_terminal() {
             self.focus = Focus::Editor;
         }
