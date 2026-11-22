@@ -197,7 +197,7 @@ impl App {
     pub(in crate::app) fn terminal_helper_gone(&mut self) {
         let t = &mut self.terminal;
         self.terminal_client = None;
-        t.ready = false;
+        self.helper_ready = false;
         t.find = None;
         t.errors = None;
         t.link = None;
@@ -307,6 +307,9 @@ impl App {
     ///
     /// 保留面板高度和检测到的 shell；后者与面板无关，设置中的「默认 Shell」菜单仍需列出。
     pub(crate) fn stop_terminal(&mut self) {
+        // 连接放掉，辅助进程自己退出，里面的 shell 跟着结束。
+        self.terminal_client = None;
+        self.helper_ready = false;
         self.terminal = TerminalPanel {
             height: self.terminal.height,
             shells: std::mem::take(&mut self.terminal.shells),
@@ -359,7 +362,7 @@ impl App {
             tab.shown = usize::from(size.rows);
             tab.slack = slack;
         }
-        if !self.terminal.ready {
+        if !self.helper_ready {
             return;
         }
         // 要建新标签：建好以后看的是别的标签，原来那个先失去焦点（1004）。
@@ -698,7 +701,7 @@ impl App {
         match message {
             FromHelper::Hello { magic, version, .. } => {
                 if magic == MAGIC && version == VERSION {
-                    t.ready = true;
+                    self.helper_ready = true;
                     self.relayout();
                 } else {
                     self.terminal_client = None;

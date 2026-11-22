@@ -21,6 +21,9 @@ pub(crate) mod strip;
 mod tab;
 pub(crate) mod upload;
 
+#[cfg(test)]
+mod testing;
+
 use helper::*;
 
 use std::path::PathBuf;
@@ -170,8 +173,6 @@ pub(crate) struct TerminalPanel {
     /// 测试里没有窗口、没有时钟：设置后面板的动画都停在这一时刻。
     #[cfg(test)]
     pub frozen: Option<Duration>,
-    /// 辅助进程握过手了，可以新建终端。
-    ready: bool,
     /// 各终端标签。
     pub tabs: Vec<TermTab>,
     /// 正在看的标签。
@@ -478,10 +479,15 @@ impl App {
         if t.height <= 0.0 {
             t.height = DEFAULT_HEIGHT;
         }
-        if t.tabs.is_empty() && t.want.is_empty() {
-            t.want.push(Vec::new());
-        }
         self.focus = Focus::Terminal;
+        self.ensure_terminal_tab();
+    }
+
+    /// 面板里还没有终端时开一个：辅助进程还没准备好时先记着，等它准备好了再建。
+    pub(in crate::app) fn ensure_terminal_tab(&mut self) {
+        if self.terminal.tabs.is_empty() && self.terminal.want.is_empty() {
+            self.terminal.want.push(Vec::new());
+        }
         self.start_terminal();
     }
 
@@ -598,16 +604,17 @@ impl App {
         t.want_into.clear();
         t.want_active = None;
         t.active = 0;
-        // 还有别的工作区开着终端时，辅助进程留着（各个工作区的终端标签是分开的）。
+        // 还有别的工作区开着终端（或还有等着建的标签）时，辅助进程留着（各个工作区的终端标签
+        // 是分开的，都挂在它上面）。
         let others = self
             .workspaces
             .slots
             .iter()
-            .any(|slot| !slot.terminal.tabs.is_empty());
+            .any(|slot| !slot.terminal.tabs.is_empty() || !slot.terminal.want.is_empty());
         if !others {
             self.terminal_client = None;
+            self.helper_ready = false;
         }
-        t.ready = false;
         t.crashed = false;
         for id in ids {
             self.forget_terminal_tab(id);
@@ -975,11 +982,18 @@ impl App {
         }
         // 最后一个关掉了（也没有等着建的）：辅助进程自己会退出，连接马上放掉（关掉它的
         // stdin）。之后新建的标签由下一个辅助进程建，不发给正在退出的这一个（发了也收不到，
-        // 还会被当成辅助进程中止）。
+        // 还会被当成辅助进程中止）。别的工作区还有终端时辅助进程留着：它们都挂在它上面。
         let last = t.tabs.is_empty() && t.want.is_empty() && t.run_queue.is_empty();
         if last {
-            self.terminal_client = None;
-            t.ready = false;
+            let others = self
+                .workspaces
+                .slots
+                .iter()
+                .any(|slot| !slot.terminal.tabs.is_empty() || !slot.terminal.want.is_empty());
+            if !others {
+                self.terminal_client = None;
+                self.helper_ready = false;
+            }
             t.crashed = false;
         }
         self.forget_terminal_tab(id);

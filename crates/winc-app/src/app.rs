@@ -892,6 +892,11 @@ pub struct App {
     ///
     /// 切换工作区时终端面板跟着换，辅助进程不动，别的项目里的程序仍在运行。
     pub(crate) terminal_client: Option<winc_pty::client::Client>,
+    /// 辅助进程握过手了，可以新建终端。
+    ///
+    /// 辅助进程是窗口共用的，这个状态也跟着窗口走，不跟着工作区走：切换工作区时面板换了，
+    /// 握手的状态还在，新工作区里的标签照样建得出来。
+    pub(crate) helper_ready: bool,
     /// 当前目录的运行配置。
     pub(crate) run: terminal::run::RunConfigs,
     /// 当前生效的配置。

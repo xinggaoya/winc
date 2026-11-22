@@ -540,6 +540,40 @@ fn the_workspace_tabs_hide_with_the_left_column() {
     let _ = std::fs::remove_dir_all(&b);
 }
 
+/// 辅助进程是窗口共用的：打开另一个项目（面板开着）时，那边也有终端。
+///
+/// 辅助进程只握手一次，握手的状态跟着窗口走，不跟着工作区走：否则新工作区里的面板永远
+/// 等不到握手，终端建不出来，面板是空的。
+#[test]
+fn a_new_workspace_gets_its_terminal_when_the_helper_is_already_running() {
+    let a = search_folder("workspace-terminal-a");
+    let b = search_folder("workspace-terminal-b");
+    let mut app = app_with(&a, false);
+    app.config.terminal_enabled = Some(true);
+    // 辅助进程已经跑着、握过手了。
+    app.attach_idle_helper();
+    // 第一个项目里开着终端面板。
+    app.toggle_terminal();
+    app.relayout();
+    app.sync_terminal();
+    assert_eq!(app.terminal.tabs.len(), 1, "第一个项目里有终端");
+
+    // 打开第二个项目：面板跟着开，里面也有终端（辅助进程是共用的，不用重新握手）。
+    open_workspace(&mut app, &b);
+    app.relayout();
+    app.sync_terminal();
+    assert_eq!(app.terminal.tabs.len(), 1, "第二个项目里也有终端");
+
+    // 切回第一个项目：它的终端还在。
+    app.switch_workspace(0);
+    app.relayout();
+    app.sync_terminal();
+    assert_eq!(app.terminal.tabs.len(), 1, "切回去终端还在");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
 /// 起了名字的工作区：切走再切回来，标签上还是新名字。
 #[test]
 fn a_renamed_workspace_keeps_its_name_in_the_tab() {

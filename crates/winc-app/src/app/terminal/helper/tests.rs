@@ -8,12 +8,6 @@ use std::time::{Duration, Instant};
 use winc_pty::protocol::Decoder;
 
 impl App {
-    /// 测试用：接上一个什么也不做的「辅助进程」，发出去的消息不处理，标签当作已经可以用了。
-    pub(crate) fn attach_idle_helper(&mut self) {
-        self.terminal_client = Client::start(std::path::Path::new("/usr/bin/true"), || {}).ok();
-        self.terminal.ready = true;
-    }
-
     /// 测试用：连着辅助进程没有。
     pub(crate) fn terminal_connected(&self) -> bool {
         self.terminal_client.is_some()
@@ -30,7 +24,7 @@ impl App {
         winc_backend::testing::write_script(&script, &body);
         let client = Client::start(&script, || {});
         self.terminal_client = Some(client.expect("启动记录消息的脚本"));
-        self.terminal.ready = true;
+        self.helper_ready = true;
         log
     }
 

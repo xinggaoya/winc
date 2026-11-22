@@ -155,6 +155,9 @@ impl App {
         self.open_folder_now(&target);
         if terminal_open {
             self.set_terminal_open(true);
+            // 新工作区里没有终端：面板开着，里面空着不像话，开一个（辅助进程是共用的，
+            // 不用重新握手）。
+            self.ensure_terminal_tab();
         }
         // 新工作区里没有提交面板时，焦点回到文件树：否则键入的文字会进入看不见的输入框。
         if !self.panel_available(self.panels.sidebar.view) {

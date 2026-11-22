@@ -73,6 +73,7 @@ impl App {
             editor,
             terminal: terminal::TerminalPanel::default(),
             terminal_client: None,
+            helper_ready: false,
             run: terminal::run::RunConfigs::default(),
             store: crate::app::settings::Store {
                 saved_config: config.clone(),
