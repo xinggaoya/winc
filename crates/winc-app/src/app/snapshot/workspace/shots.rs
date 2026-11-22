@@ -133,10 +133,7 @@ fn shoot_the_workspace_undo_notice() {
 #[ignore]
 fn shoot_the_right_column_closed() {
     let dir = sample_folder("shot-right-closed");
-    std::fs::write(dir.join("doc.md"), "# 标题
-
-正文。
-").unwrap();
+    std::fs::write(dir.join("doc.md"), "# 标题\n\n正文。\n").unwrap();
     let mut app = app_with(&dir, false);
     // 应用自己绘制标题栏（Windows 与 Linux 上如此）。
     app.window.controls = true;
