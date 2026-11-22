@@ -574,6 +574,38 @@ fn a_new_workspace_gets_its_terminal_when_the_helper_is_already_running() {
     let _ = std::fs::remove_dir_all(&b);
 }
 
+/// 关掉一个项目里的最后一个终端：辅助进程是共用的，别处还挂着终端，它不能断。
+#[test]
+fn closing_a_workspace_terminal_keeps_the_shared_helper_for_the_others() {
+    let a = search_folder("workspace-shared-a");
+    let b = search_folder("workspace-shared-b");
+    let mut app = app_with(&a, false);
+    app.config.terminal_enabled = Some(true);
+    app.attach_idle_helper();
+    app.toggle_terminal();
+    app.relayout();
+    app.sync_terminal();
+    assert_eq!(app.terminal.tabs.len(), 1, "第一个项目里有终端");
+
+    open_workspace(&mut app, &b);
+    app.relayout();
+    app.sync_terminal();
+    assert_eq!(app.terminal.tabs.len(), 1, "第二个项目里也有终端");
+
+    // 关掉第二个项目里的终端：第一个项目的终端还挂在同一个辅助进程上，它不能断。
+    app.close_terminal_pane();
+    assert_eq!(app.terminal.tabs.len(), 0, "第二个项目里的终端关掉了");
+    assert!(app.terminal_connected(), "辅助进程还连着");
+
+    // 切回第一个项目：它的终端还在。
+    app.switch_workspace(0);
+    app.relayout();
+    assert_eq!(app.terminal.tabs.len(), 1, "第一个项目的终端还在");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
 /// 起了名字的工作区：切走再切回来，标签上还是新名字。
 #[test]
 fn a_renamed_workspace_keeps_its_name_in_the_tab() {
