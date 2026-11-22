@@ -11,6 +11,7 @@ impl App {
             MenuCommand::OpenRecent(i) => self.recent_label(i),
             MenuCommand::GroupFolder(i, j) => self.group_folder_label(i, j),
             MenuCommand::ShowTab(i) => self.tab_list_label(i),
+            MenuCommand::ShowWorkspace(i) => self.workspace_list_label(i),
             MenuCommand::LatexProblem(i) => self.latex_problem_label(i),
             MenuCommand::ImportKeymap(i) => {
                 let source = self.settings.import_sources.get(i);
@@ -337,6 +338,18 @@ impl App {
                 .path
                 .as_deref()
                 .map(|p| winc_editor::display_path(p, None)),
+        }
+    }
+
+    /// 工作区列表中的一项：项目名，悬停时是它的目录。
+    fn workspace_list_label(&self, i: usize) -> MenuLabel {
+        let Some(slot) = self.workspaces.slots.get(i) else {
+            return MenuLabel::plain("");
+        };
+        MenuLabel {
+            title: self.workspace_name(i),
+            subtitle: None,
+            tooltip: Some(winc_editor::display_path(&slot.folder, None)),
         }
     }
 }

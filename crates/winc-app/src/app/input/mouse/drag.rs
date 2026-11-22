@@ -157,6 +157,18 @@ impl App {
                 }
             }
             Drag::OutlineDivider { start, size } => self.drag_outline_divider(start, size, y),
+            Drag::WorkspaceScroll {
+                start_x,
+                start_scroll,
+            } => {
+                // 标签条向右拖，内容向左移。
+                let scroll =
+                    (start_scroll - (x - start_x)).clamp(0.0, self.workspace_bar.max_scroll());
+                if scroll != self.workspace_bar.scroll {
+                    self.workspace_bar.scroll = scroll;
+                    self.request_redraw();
+                }
+            }
             Drag::TerminalDivider { start, size } => {
                 // 向上（面板在右侧时向左）拖动使面板变大；按排版允许的范围限制后再记录，
                 // 使记录的尺寸等于绘制的尺寸。拖过编辑区最小尺寸的一半时吸附为最大化，往回拖

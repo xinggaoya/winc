@@ -17,7 +17,7 @@ use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopClosed, EventLoopProxy};
 use winit::window::WindowId;
 
-use winc_config::State;
+use winc_config::{State, WorkspaceSet};
 use winc_editor::Editor;
 
 use crate::app::{App, UserEvent};
@@ -86,8 +86,8 @@ impl WindowProxy {
 pub enum Request {
     /// 新建一个窗口；带目录时在里面打开它，目录已经开在某个窗口里时切到那个窗口。
     NewWindow(Option<PathBuf>),
-    /// 启动时为上次开着的目录新建窗口：用该目录记下的大小和位置，不相对当前窗口错开。
-    RestoreWindow(PathBuf),
+    /// 启动时为上次开着的项目新建窗口：用该目录记下的大小和位置，不相对当前窗口错开。
+    RestoreWindow(WorkspaceSet),
     /// 把这个窗口切到前台（它开着要打开的目录）。
     Focus(WindowKey),
     /// 文件或目录从 `.0` 移到了 `.1`（在一个窗口剪切、到另一个窗口粘贴）：各窗口里打开的
@@ -314,31 +314,41 @@ impl Winc {
         self.launches = listener.map(|listener| (listener, lock));
     }
 
-    /// 启动时把上次退出时其他窗口开着的目录 `folders` 也各开一个窗口（还在的），最后把第一个
+    /// 启动时把上次退出时其他窗口开着的项目 `others` 也各开一个窗口（还在的），最后把第一个
     /// 窗口（上次的当前窗口）切回前台。
     ///
-    /// 第一个窗口在开始页上时（上次的当前窗口没开目录），第一个目录就开在它里面，不多留一个空
-    /// 窗口。新窗口在事件循环开始以后建。
-    pub fn restore_windows(&mut self, folders: &[PathBuf]) {
+    /// 每个窗口一组项目（多工作区模式下窗口里可以同时开着几个）。第一个窗口在开始页上时
+    /// （上次的当前窗口没开目录），第一组就开在它里面，不多留一个空窗口。新窗口在事件循环开始
+    /// 以后建。
+    pub fn restore_windows(&mut self, others: &[WorkspaceSet]) {
         let Some(slot) = self.windows.first_mut() else {
             return;
         };
         let first = slot.key;
         let root = slot.app.editor.root().map(Path::to_path_buf);
-        let mut folders = folders
+        let mut sets = others
             .iter()
-            .filter(|f| winc_backend::fs::is_dir(f) && Some(*f) != root.as_ref())
+            .map(|set| WorkspaceSet {
+                folders: set
+                    .folders
+                    .iter()
+                    .filter(|f| winc_backend::fs::is_dir(f) && Some(f.as_path()) != root.as_deref())
+                    .cloned()
+                    .collect(),
+                active: set.active,
+            })
+            .filter(|set| !set.folders.is_empty())
             .peekable();
         if root.is_none()
-            && let Some(folder) = folders.next()
+            && let Some(set) = sets.next()
         {
-            slot.app.open_folder_now(folder);
+            slot.app.open_workspaces(&set.folders, set.active);
         }
-        if folders.peek().is_none() {
+        if sets.peek().is_none() {
             return;
         }
-        for folder in folders {
-            self.shared.request(Request::RestoreWindow(folder.clone()));
+        for set in sets {
+            self.shared.request(Request::RestoreWindow(set));
         }
         self.shared.request(Request::Focus(first));
     }
@@ -583,10 +593,14 @@ impl Winc {
             for request in requests {
                 match request {
                     Request::NewWindow(folder) => {
-                        self.new_window(event_loop, folder, None, true);
+                        let set = WorkspaceSet {
+                            folders: folder.into_iter().collect(),
+                            active: 0,
+                        };
+                        self.new_window(event_loop, set, None, true);
                     }
-                    Request::RestoreWindow(folder) => {
-                        self.new_window(event_loop, Some(folder), None, false);
+                    Request::RestoreWindow(set) => {
+                        self.new_window(event_loop, set, None, false);
                     }
                     Request::Focus(key) => {
                         if let Some(app) = self.by_key(key) {
@@ -617,7 +631,7 @@ impl Winc {
         }
         // 不带目标再次启动：macOS 上切到当前窗口，与点击程序坞图标相同；其他系统上新建窗口。
         if launch.targets.is_empty() && !cfg!(target_os = "macos") {
-            self.new_window(event_loop, None, launch.token, true);
+            self.new_window(event_loop, WorkspaceSet::default(), launch.token, true);
             if let Some(app) = self.active_key().and_then(|key| self.by_key(key)) {
                 app.raise();
             }
@@ -657,7 +671,11 @@ impl Winc {
         let key = match self.window_for(targets) {
             Ok(key) => key,
             Err(folder) => {
-                self.new_window(event_loop, folder, token.take(), true);
+                let set = WorkspaceSet {
+                    folders: folder.into_iter().collect(),
+                    active: 0,
+                };
+                self.new_window(event_loop, set, token.take(), true);
                 let Some(key) = self.active_key() else {
                     return;
                 };
@@ -685,7 +703,7 @@ impl Winc {
         let key = match found.or_else(|| self.blank_window()) {
             Some(key) => key,
             None => {
-                self.new_window(event_loop, None, token.take(), true);
+                self.new_window(event_loop, WorkspaceSet::default(), token.take(), true);
                 let Some(key) = self.active_key() else {
                     return;
                 };
@@ -749,14 +767,18 @@ impl Winc {
     fn new_window(
         &mut self,
         event_loop: &ActiveEventLoop,
-        folder: Option<PathBuf>,
+        set: WorkspaceSet,
         token: Option<String>,
         cascade: bool,
     ) {
-        let folder = folder.map(|f| winc_config::files::canonicalize(&f).unwrap_or(f));
-        if let Some(key) = folder
-            .as_ref()
-            .and_then(|f| self.shared.window_with(f, None))
+        let folders: Vec<PathBuf> = set
+            .folders
+            .iter()
+            .map(|f| winc_config::files::canonicalize(f).unwrap_or_else(|_| f.clone()))
+            .collect();
+        if let Some(key) = folders
+            .iter()
+            .find_map(|f| self.shared.window_with(f, None))
         {
             if let Some(app) = self.by_key(key) {
                 app.set_activation(token);
@@ -782,9 +804,7 @@ impl Winc {
             .map(|s| s.key);
         if let Some(key) = hidden {
             if let Some(app) = self.by_key(key) {
-                if let Some(folder) = &folder {
-                    app.open_folder_now(folder);
-                }
+                app.open_workspaces(&folders, set.active);
                 app.set_activation(token);
                 app.raise();
                 if fullscreen {
@@ -832,16 +852,14 @@ impl Winc {
         let Some(app) = self.by_key(key) else {
             return;
         };
-        if let Some(folder) = &folder {
-            app.open_folder_now(folder);
-        }
+        app.open_workspaces(&folders, set.active);
         app.set_activation(token);
         app.resumed(event_loop);
         self.refresh_shared();
     }
 
-    /// 退出时记下其他窗口开着的目录（`State::others`），下次启动时各开一个窗口；当前窗口的是
-    /// `State::last`，由它自己记。
+    /// 退出时记下其他窗口开着的项目（`State::others`），下次启动时各开一个窗口；当前窗口的是
+    /// `State::workspaces`，由它自己记。
     ///
     /// 设置里关掉了「启动时打开上次的目录」时不记。
     fn remember_windows(&mut self) {
@@ -852,9 +870,10 @@ impl Winc {
         let reopen = (self.windows.iter())
             .find(|slot| Some(slot.key) == active)
             .is_none_or(|slot| slot.app.config.restore_folder != Some(false));
-        let others: Vec<PathBuf> = (self.windows.iter())
+        let others: Vec<WorkspaceSet> = (self.windows.iter())
             .filter(|slot| reopen && Some(slot.key) != active)
-            .filter_map(|slot| slot.app.editor.root().map(Path::to_path_buf))
+            .map(|slot| slot.app.workspace_set())
+            .filter(|set| !set.folders.is_empty())
             .collect();
         let (_, result) = State::update(&path, |state| state.others = others);
         if let Err(e) = result {

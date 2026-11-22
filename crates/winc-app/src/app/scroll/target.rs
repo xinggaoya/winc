@@ -24,6 +24,8 @@ pub(crate) enum ScrollTarget {
     Picker,
     /// 编辑区的标签栏。
     Tabs,
+    /// 左栏顶部的工作区标签条：横向排列，放不下时横向滚动。
+    Workspaces,
     /// 提交视图的提交信息框。
     CommitMessage,
     /// 提交视图的更改列表。
@@ -67,6 +69,7 @@ impl ScrollTarget {
             self,
             Self::Picker
                 | Self::Tabs
+                | Self::Workspaces
                 | Self::Commit
                 | Self::Outline
                 | Self::Results
@@ -115,6 +118,9 @@ impl App {
             ScrollTarget::Picker
         } else if l.tabs.contains(x, y) {
             ScrollTarget::Tabs
+        } else if self.workspace_bar.view.contains(x, y) {
+            // 左栏顶部的工作区标签条：横向排列，滚轮在上面时横向滚动它。
+            ScrollTarget::Workspaces
         } else if self.commit_shown() && self.commit_parts().message.contains(x, y) {
             ScrollTarget::CommitMessage
         } else if self.commit_shown() && in_list(self) {
@@ -198,6 +204,9 @@ impl App {
             }
             ScrollTarget::Picker if self.overlays.picker.places.is_some() => self.step_places(dy),
             ScrollTarget::Tabs => self.scroll_pane_by(target, along),
+            ScrollTarget::Workspaces => {
+                self.workspace_bar.scroll_by(along);
+            }
             ScrollTarget::CommitMessage => {
                 // 上限在绘制时按文字的行数收紧。
                 let view = &mut self.git.commit.message.view;

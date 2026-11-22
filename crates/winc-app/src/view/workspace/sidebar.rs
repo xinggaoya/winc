@@ -27,6 +27,8 @@ use winc_config::Panel;
 pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
     let header = app.layout.sidebar_header;
     let clip = header.intersect(app.layout.sidebar);
+    // 标签只在可见范围内绘制：横向滚动时滚出去的部分不画，也不盖住末尾的按钮。
+    let bar_clip = clip.intersect(app.workspace_bar.view);
     let p = app.palette;
     let active = app.workspaces.active;
 
@@ -47,7 +49,7 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
             }
             _ => rect,
         };
-        if rect.right() < clip.x || rect.x > clip.right() {
+        if rect.right() < bar_clip.x || rect.x > bar_clip.right() {
             continue;
         }
         let on = index == active;
@@ -56,26 +58,46 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
             || matches!(app.pointer.hover, Hover::WorkspaceClose(i) if i == index);
         // 当前的是一块实底，悬停只铺浅色。
         if on {
-            frame.rect_clipped(rect, p.tab_fill, RADIUS_TAB, clip);
+            frame.rect_clipped(rect, p.tab_fill, RADIUS_TAB, bar_clip);
         } else if hovered {
-            frame.rect_clipped(rect, p.hover, RADIUS_TAB, clip);
+            frame.rect_clipped(rect, p.hover, RADIUS_TAB, bar_clip);
         }
         let color = if on { p.text } else { p.text_muted };
         let slot = &app.workspaces.slots[index];
         let name = app.workspace_name(index);
         // 徽章：项目名的首字母，底色是该目录分到的颜色。
         let badge = Rect::new(rect.x + 6.0, rect.y + (rect.h - 20.0) / 2.0, 20.0, 20.0);
-        draw_workspace_badge(app, frame, badge, &slot.folder, &name, on, clip);
+        draw_workspace_badge(app, frame, badge, &slot.folder, &name, on, bar_clip);
         // 名字：放不下时截短，右端给关闭按钮留着位置。
         let name_x = badge.right() + 5.0;
         let room = (chip.close.x - name_x).max(0.0);
         let name = ellipsize(frame, &name, app.fonts.ui, room).into_owned();
-        ui_text(frame, app, name_x, rect, &name, color, clip);
-        // 悬停时右端出现关闭按钮。
-        if hovered {
+        ui_text(frame, app, name_x, rect, &name, color, bar_clip);
+        // 悬停时右端出现关闭按钮：指针在标签上停留一会儿才出现，鼠标路过时不会出现。
+        if app.workspace_bar.close_ready && hovered {
             let on_close = matches!(app.pointer.hover, Hover::WorkspaceClose(i) if i == index);
-            top_bar::draw_tab_close(frame, p, chip.close, on_close, clip);
+            top_bar::draw_tab_close(frame, p, chip.close, on_close, bar_clip);
         }
+    }
+
+    // 标签放不下时右端浮着「⌄」：点它列出全部工作区，滚出去的项目也能切到。
+    if let Some(list) = app.workspace_bar.list {
+        let hovered = app.pointer.hover == Hover::WorkspaceList;
+        let open = app.overlays.menu_button == Some(MenuButton::WorkspaceList);
+        draw_button(frame, p, list, clip, hovered, open);
+        let color = if hovered || open {
+            p.text
+        } else {
+            p.text_muted
+        };
+        icons::chevron(
+            frame,
+            center(list),
+            8.0,
+            icons::Direction::Down,
+            color,
+            list.intersect(clip),
+        );
     }
 
     // 末尾两个按钮：项目菜单在最右，「打开项目」在它左边。

@@ -49,11 +49,16 @@ pub struct State {
     pub sessions: Vec<Session>,
     /// 上次退出时开着的目录；退出时没有打开目录则为 `None`，下次启动显示开始页。
     pub last: Option<PathBuf>,
-    /// 上次退出时其他窗口开着的目录（`last` 是当前窗口的），下次启动时各开一个窗口；没有
-    /// 打开目录的窗口不记录。
+    /// 上次退出时其他窗口开着的工作区（`workspaces` 是当前窗口的），下次启动时各开一个窗口；
+    /// 没有打开目录的窗口不记录。
     ///
     /// 只在退出时写入。
-    pub others: Vec<PathBuf>,
+    pub others: Vec<WorkspaceSet>,
+    /// 上次退出时当前窗口开着的工作区：开了哪些项目、顺序如何、当时打开的是哪一个。
+    ///
+    /// 多工作区模式（默认）下窗口里同时开着几个项目，下次启动时它们都还在；单工作区模式下
+    /// 只有一个，与 `last` 相同。
+    pub workspaces: WorkspaceSet,
     /// 提交视图的改动列表是否按目录排成树显示。
     ///
     /// `false`（默认）时平铺，每个文件一行。所有窗口和仓库共用，下次启动沿用。
@@ -147,6 +152,24 @@ const MAX_VIM_HISTORY: usize = 100;
 /// 取 50（经验值），作用于工具选择和已信任仓库两项列表。
 const MAX_TOOL_CHOICES: usize = 50;
 
+/// 一个窗口里开着的工作区：开了哪些项目、顺序如何、当时打开的是哪一个。
+///
+/// 多工作区模式下窗口里可以同时开着几个项目，这个结构记下它们，下次启动时按它恢复。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WorkspaceSet {
+    /// 窗口里打开的工作区目录，按标签条上的顺序排列。
+    pub folders: Vec<PathBuf>,
+    /// 当前工作区在 `folders` 中的下标；没有工作区时为 0。
+    pub active: usize,
+}
+
+impl WorkspaceSet {
+    /// 当前工作区的目录；没有工作区时为 `None`。
+    pub fn current(&self) -> Option<&Path> {
+        self.folders.get(self.active).map(PathBuf::as_path)
+    }
+}
+
 /// 窗口没有最大化、全屏时的大小和位置，以及关闭时是否最大化。
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct WindowFrame {
@@ -238,6 +261,59 @@ pub enum Tab {
     File(PathBuf),
     /// 未保存过的新文件：内容保存在备份中，值为备份文件名。
     Untitled(String),
+}
+
+/// 读出一个窗口的工作区：开了哪些项目、顺序如何、当时打开的是哪一个。
+///
+/// 旧格式只记一个目录（一个窗口只开过一个项目），按只有一个工作区理解。
+fn workspace_set(value: &Json) -> WorkspaceSet {
+    if let Some(path) = value.as_str() {
+        return WorkspaceSet {
+            folders: vec![PathBuf::from(path)],
+            active: 0,
+        };
+    }
+    let Some(object) = value.as_object() else {
+        return WorkspaceSet::default();
+    };
+    let mut folders: Vec<PathBuf> = object
+        .get("folders")
+        .and_then(Json::as_array)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(Json::as_str)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .collect();
+    folders.dedup();
+    let active = object
+        .get("active")
+        .and_then(Json::as_number)
+        .map(|n| n as usize)
+        .unwrap_or(0)
+        .min(folders.len().saturating_sub(1));
+    WorkspaceSet { folders, active }
+}
+
+/// 读出各个窗口的工作区；旧格式中每一项是一个目录，等于那个窗口只开过一个项目。
+fn workspace_sets(value: Option<&Json>) -> Vec<WorkspaceSet> {
+    value
+        .and_then(Json::as_array)
+        .map(|items| items.iter().map(workspace_set).collect())
+        .unwrap_or_default()
+}
+
+/// 序列化一个窗口的工作区。
+fn workspace_set_json(set: &WorkspaceSet) -> Json {
+    let folders = set
+        .folders
+        .iter()
+        .map(|p| Json::String(p.to_string_lossy().into_owned()))
+        .collect();
+    Json::object(vec![
+        ("folders", Json::Array(folders)),
+        ("active", Json::Number(set.active as f64)),
+    ])
 }
 
 impl State {
@@ -593,9 +669,13 @@ impl State {
             .filter(|v| !v.is_empty())
             .map(str::to_owned);
         state.preview_modes = preview_modes(root.get("previewMode"));
-        for path in paths(root.get("otherWindows")) {
-            if !state.others.contains(&path) && state.others.len() < MAX_SESSIONS {
-                state.others.push(path);
+        state.workspaces = root
+            .get("workspaces")
+            .map(workspace_set)
+            .unwrap_or_default();
+        for set in workspace_sets(root.get("otherWindows")) {
+            if !state.others.contains(&set) && state.others.len() < MAX_SESSIONS {
+                state.others.push(set);
             }
         }
         for path in paths(root.get("signOffRepos")) {
@@ -673,8 +753,11 @@ impl State {
         if !self.others.is_empty() {
             fields.push((
                 "otherWindows",
-                Json::Array(self.others.iter().map(path).collect()),
+                Json::Array(self.others.iter().map(workspace_set_json).collect()),
             ));
+        }
+        if !self.workspaces.folders.is_empty() {
+            fields.push(("workspaces", workspace_set_json(&self.workspaces)));
         }
 
         if self.commit_tree {

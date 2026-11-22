@@ -574,6 +574,24 @@ impl App {
             self.backup.kept = Some(HashSet::new());
             return HashSet::new();
         }
+        // 各工作区的未保存内容都要备份：不在窗口里的逐个换进来备份，再换回去。
+        let mut done = HashSet::new();
+        let active = self.workspaces.active;
+        for index in 0..self.workspaces.slots.len() {
+            if index == active {
+                continue;
+            }
+            crate::app::workspace::switch::swap_slot(self, index);
+            done.extend(self.back_up_workspace());
+            crate::app::workspace::switch::swap_slot(self, index);
+        }
+        done.extend(self.back_up_workspace());
+        self.backup.kept = Some(done.clone());
+        done
+    }
+
+    /// 备份窗口里当前这个工作区的未保存内容，返回已备份的文档。
+    fn back_up_workspace(&mut self) -> HashSet<DocumentId> {
         let (writes, removes, unchanged) = self.backup_plan(true);
         let mut done: HashSet<DocumentId> = unchanged.into_iter().collect();
         let mut failed = Vec::new();
@@ -595,7 +613,6 @@ impl App {
             .collect();
         remove_stale(removes, &wrote, &failed);
         self.backup_failed(failed);
-        self.backup.kept = Some(done.clone());
         done
     }
 

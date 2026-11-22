@@ -267,6 +267,11 @@ pub fn run() {
         app.store.state_path = state_path;
         app.backup.root = backup_root;
         app.adopt_restored(restored);
+        // 多工作区模式：上次退出时窗口里开着的项目都还在（命令行指定了目标时不恢复）。
+        if args.targets.is_empty() {
+            let workspaces = app.state.workspaces.clone();
+            app.restore_workspaces(&workspaces);
+        }
         // 测量时没有状态文件：不记录版本，开始页也不显示「首次设置」。
         if app.store.state_path.is_some() {
             app.note_version();

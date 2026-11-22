@@ -113,7 +113,7 @@ use winc_core::{Lines, Selection};
 use winc_editor::{COPY_LIMIT, Command, DocumentId, Editor, Entry, EntryKind, FileIndex, Search};
 use winc_render::{FontError, FontKind, FontSpec, Metrics, Rect, Renderer};
 
-use winc_config::{Config, Session, State, ThemeChoice, resolve_font_list};
+use winc_config::{Config, Session, State, ThemeChoice, WorkspaceSet, resolve_font_list};
 
 use crate::bench::{Bench, Next};
 use crate::field::{TextField, Unit};
@@ -557,6 +557,8 @@ pub enum Hover {
     Workspace(usize),
     /// 左栏顶部工作区标签上的关闭按钮，参数是工作区的下标。
     WorkspaceClose(usize),
+    /// 左栏顶部标签条右端的「⌄」，点它列出全部工作区。
+    WorkspaceList,
     /// 左栏顶部的「打开项目」按钮。
     AddWorkspace,
     /// 搜索面板中的按钮。
@@ -759,6 +761,11 @@ enum Drag {
     OutlineDivider {
         start: f32,
         size: f32,
+    },
+    /// 拖动左栏顶部标签条的空白处：横向滚动标签条。
+    WorkspaceScroll {
+        start_x: f32,
+        start_scroll: f32,
     },
     /// 拖动分栏预览中间的分隔线：按下时的横坐标、源代码一侧当时的宽度（逻辑像素）。
     SplitDivider {
@@ -1201,6 +1208,18 @@ impl App {
             }
             self.preview.markdown.toc_rest = toc(hover).then(Instant::now);
             self.preview.markdown.toc_shown = false;
+        }
+
+        // 鼠标进入工作区标签时开始计时，满 `CLOSE_HOVER_DELAY` 后关闭按钮才出现；鼠标从标签上
+        // 划过时它不出现，不会误触。换到另一个标签时重新计时；在标签与它的关闭按钮之间移动
+        // 不重新计时。
+        let chip = |h: Hover| match h {
+            Hover::Workspace(i) | Hover::WorkspaceClose(i) => Some(i),
+            _ => None,
+        };
+        if chip(hover) != chip(self.pointer.hover) {
+            self.workspace_bar.rest = chip(hover).map(|_| Instant::now());
+            self.workspace_bar.close_ready = false;
         }
         if hover != self.pointer.hover {
             self.leave_tooltip();

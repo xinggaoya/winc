@@ -333,19 +333,49 @@ impl App {
         let reopen = self.config.restore_folder != Some(false);
         let root = self.editor.root().map(Path::to_path_buf);
         let shared = self.link.shared.clone();
-        self.update_state(|state| match root {
-            Some(root) if reopen => state.last = Some(root),
-            _ if !reopen => state.last = None,
-            _ => {
-                if state
-                    .last
-                    .as_deref()
-                    .is_some_and(|last| shared.window_with(last, None).is_none())
-                {
-                    state.last = None;
+        // 窗口里开着的工作区：下次启动时都还在（关掉了「启动时打开上次的目录」则不记）。
+        let workspaces = self.workspace_set();
+        self.update_state(|state| {
+            match root {
+                Some(root) if reopen => state.last = Some(root),
+                _ if !reopen => state.last = None,
+                _ => {
+                    if state
+                        .last
+                        .as_deref()
+                        .is_some_and(|last| shared.window_with(last, None).is_none())
+                    {
+                        state.last = None;
+                    }
                 }
             }
+            state.workspaces = if reopen {
+                workspaces
+            } else {
+                WorkspaceSet::default()
+            };
         });
+        self.remember_workspace_sessions();
+    }
+
+    /// 记录窗口里各个工作区的现场。
+    ///
+    /// 当前工作区的现场在窗口里，其余的在各自的格子里：逐个换到窗口里记一次再换回去。换过来
+    /// 时「单独打开」的标记不算在别的目录头上。
+    pub(in crate::app) fn remember_workspace_sessions(&mut self) {
+        let active = self.workspaces.active;
+        let count = self.workspaces.slots.len();
+        for index in 0..count {
+            if index == active {
+                continue;
+            }
+            let solo = self.disk.solo;
+            self.disk.solo = false;
+            super::switch::swap_slot(self, index);
+            self.remember_session();
+            super::switch::swap_slot(self, index);
+            self.disk.solo = solo;
+        }
         self.remember_session();
     }
 

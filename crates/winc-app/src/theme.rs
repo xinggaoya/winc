@@ -752,6 +752,11 @@ pub const TOOLTIP_DELAY: Duration = Duration::from_millis(500);
 /// 取自调参：短于 [`TOOLTIP_DELAY`]，展开前的等待几乎不可察觉；长于鼠标横向移过指示条（宽约 34
 /// 逻辑像素）所需的时间，移过时列表不展开。
 pub const TOC_HOVER_DELAY: Duration = Duration::from_millis(200);
+/// 鼠标在工作区标签上停留多久后关闭按钮出现（毫秒）。
+///
+/// 长于鼠标从一个标签划到另一个标签所需的时间：划过时关闭按钮不出现，不会误触；停住不动
+/// 想关掉它时，按钮及时出现。
+pub const CLOSE_HOVER_DELAY: Duration = Duration::from_millis(400);
 /// 悬停提示的最大宽度（逻辑像素，含内边距）。
 ///
 /// 较长的路径和说明在此宽度内折行，提示保持易读的行长，也不会横跨整个窗口；窗口更窄时以窗口

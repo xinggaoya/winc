@@ -29,6 +29,8 @@ pub enum NoticeAction {
     SaveAsAdmin(DocumentId),
     /// 「查看更新日志」：在阅读标签中打开上次运行的版本（没有记录时为 `None`）之后的各版。
     ReleaseNotes(Option<String>),
+    /// 「撤销」：重新打开刚关闭的工作区，位置回到关闭前的地方。
+    UndoCloseWorkspace { folder: PathBuf, index: usize },
 }
 
 /// 提示的种类，决定提示条左侧的图标和颜色。
@@ -76,6 +78,7 @@ impl NoticeAction {
                 t!("workspace-notice-cancel")
             }
             NoticeAction::ReleaseNotes(_) => t!("workspace-notice-release-notes"),
+            NoticeAction::UndoCloseWorkspace { .. } => t!("workspace-notice-undo"),
             NoticeAction::Reveal(_) => crate::system::reveal_label(),
             NoticeAction::SaveAsAdmin(_) => t!("workspace-save-admin"),
         }
@@ -213,6 +216,9 @@ impl App {
             NoticeAction::SaveAsAdmin(id) => self.save_as_admin(id),
             NoticeAction::ReleaseNotes(previous) => {
                 self.open_release_notes(crate::release_notes::Scope::Since(previous));
+            }
+            NoticeAction::UndoCloseWorkspace { folder, index } => {
+                self.undo_close_workspace(folder, index);
             }
         }
         self.request_redraw();

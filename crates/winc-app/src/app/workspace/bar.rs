@@ -20,8 +20,27 @@ pub(crate) struct WorkspaceBar {
     pub more: Rect,
     /// 标签滚动区域：标签在其中滚动，末尾两个按钮不在其中。
     pub view: Rect,
+    /// 全部标签排开的总宽度（逻辑像素）。
+    pub content: f32,
     /// 横向滚动位置（放不下时）。
     pub scroll: f32,
+    /// 上次滚入可见范围的工作区。
+    ///
+    /// 当前工作区变化时才自动滚动，避免打断手动滚动。
+    pub revealed: Option<usize>,
+    /// 上次排布时可见范围的宽度与全部标签的总宽度。
+    ///
+    /// 任一变了（侧栏宽度变了、项目名变了）就重新把当前工作区滚进可见范围。
+    pub fitted: (f32, f32),
+    /// 放不下时浮在标签右端的「⌄」按钮，点击后列出全部工作区。
+    pub list: Option<Rect>,
+    /// 鼠标进入工作区标签的时刻。
+    ///
+    /// 停留满 [`crate::theme::CLOSE_HOVER_DELAY`] 后关闭按钮才出现：鼠标从标签上划过时它不出现，
+    /// 不会误触。
+    pub rest: Option<Instant>,
+    /// 关闭按钮已经出现，可以点击。
+    pub close_ready: bool,
     /// 正在拖动的工作区标签。
     pub drag: Option<WorkspaceDrag>,
 }
@@ -54,6 +73,16 @@ impl WorkspaceBar {
     /// 返回工作区 `index` 的标签位置；没有时返回 `None`。
     pub fn chip(&self, index: usize) -> Option<Rect> {
         self.chips.iter().find(|c| c.index == index).map(|c| c.rect)
+    }
+
+    /// 标签条最多能横向滚动多远（逻辑像素）。
+    pub fn max_scroll(&self) -> f32 {
+        (self.content - self.view.w).max(0.0)
+    }
+
+    /// 把标签条横向滚动 `delta`（逻辑像素，向右滚为负），不超出可滚动的范围。
+    pub fn scroll_by(&mut self, delta: f32) {
+        self.scroll = (self.scroll - delta).clamp(0.0, self.max_scroll());
     }
 }
 
@@ -125,5 +154,19 @@ impl App {
             }
         }
         at
+    }
+
+    /// 打开列出全部工作区的菜单：滚出可见范围的项目也能直接切到。
+    pub(in crate::app) fn open_workspace_list_menu(&mut self) {
+        use crate::app::input::context_menu::{MenuButton, MenuTarget, menu_below};
+        let Some(list) = self.workspace_bar.list else {
+            return;
+        };
+        let (_, y) = menu_below(list);
+        self.open_button_menu(
+            MenuButton::WorkspaceList,
+            MenuTarget::WorkspaceList,
+            (list.right(), y),
+        );
     }
 }

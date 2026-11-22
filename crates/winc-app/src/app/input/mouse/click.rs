@@ -261,6 +261,15 @@ impl App {
             }
             // 标签上的关闭按钮：只关掉这一个工作区。
             Target::WorkspaceClose(index) => self.close_workspace(index),
+            // 标签条右端的「⌄」：列出全部工作区。
+            Target::WorkspaceList => self.open_workspace_list_menu(),
+            // 标签条的空白处：拖动它横向滚动标签条。
+            Target::WorkspaceBar => {
+                self.pointer.drag = Drag::WorkspaceScroll {
+                    start_x: x,
+                    start_scroll: self.workspace_bar.scroll,
+                };
+            }
             // 「打开项目」：弹出打开目录的对话框。
             Target::AddWorkspace => self.pick(crate::app::Pick::OpenFolder),
             Target::TreeTool(tool) => self.run_tree_tool(tool),

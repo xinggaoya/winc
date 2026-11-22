@@ -77,6 +77,27 @@ fn shoot_the_workspace_bar() {
     let _ = std::fs::remove_dir_all(&b);
 }
 
+/// 截图：左栏很窄、工作区标签放不下时的样子（`shot-workspace-overflow`）。
+#[test]
+#[ignore]
+fn shoot_the_workspace_bar_overflow() {
+    let a = search_folder("shot-ws-over-a");
+    let b = search_folder("shot-ws-over-b");
+    let c = search_folder("shot-ws-over-c");
+    let mut app = app_with(&a, false);
+    app.panels.sidebar.width = 260.0;
+    app.open_path(&b);
+    app.open_path(&c);
+    app.workspaces.slots[0].name = "一个很长的项目名字-用来把标签条撑开".to_owned();
+    app.workspaces.slots[1].name = "另一个很长的项目名字-也放不下".to_owned();
+    app.editor.workspace.as_mut().unwrap().name = "第三个也很长-标签条放不下".to_owned();
+    paint(&mut app);
+    shoot(&mut app, "shot-workspace-overflow");
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+    let _ = std::fs::remove_dir_all(&c);
+}
+
 /// 截图：设置里的「面板」页（`shot-panels-page-*`）。
 #[test]
 #[ignore]
@@ -89,4 +110,20 @@ fn shoot_the_panels_page() {
     shoot(&mut app, "shot-panels-page");
 
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 截图：关掉一个工作区后提示条上的「撤销」（`shot-workspace-undo`）。
+#[test]
+#[ignore]
+fn shoot_the_workspace_undo_notice() {
+    let a = search_folder("shot-ws-undo-a");
+    let b = search_folder("shot-ws-undo-b");
+    let mut app = app_with(&a, false);
+    app.open_path(&b);
+    paint(&mut app);
+    app.close_workspace(0);
+    paint(&mut app);
+    shoot(&mut app, "shot-workspace-undo");
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
 }

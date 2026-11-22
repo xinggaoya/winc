@@ -26,6 +26,6 @@ pub use run::{
 pub use state::{
     BADGE_COLORS, MAX_COMMIT_MESSAGES, MAX_RECENT, MAX_RECENT_FILES, MAX_SESSIONS, PaneNode,
     RECENT_IN_MENU, Session, SessionPane, SessionPanes, State, Tab, TerminalSession, WindowFrame,
-    state_path,
+    WorkspaceSet, state_path,
 };
 pub use version::compare_versions;

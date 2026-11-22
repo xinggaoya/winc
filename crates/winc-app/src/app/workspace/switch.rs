@@ -7,7 +7,7 @@
 use super::*;
 
 /// 把第 `index` 号工作区的现场和窗口里的对调。
-fn swap_slot(app: &mut App, index: usize) {
+pub(in crate::app) fn swap_slot(app: &mut App, index: usize) {
     let App {
         editor,
         git,
@@ -205,10 +205,14 @@ impl App {
     }
 
     /// 关闭第 `index` 号工作区；关掉的是当前工作区时切到相邻的一个。
+    ///
+    /// 关掉后在提示条上留一个「撤销」：重新打开这个项目，位置回到关闭前的地方。
     pub(in crate::app) fn close_workspace(&mut self, index: usize) {
         if index >= self.workspaces.slots.len() {
             return;
         }
+        let folder = self.workspaces.slots[index].folder.clone();
+        let name = self.workspace_name(index);
         let active = self.workspaces.active;
         if index == active {
             // 当前工作区：先记下它的现场（退出时恢复），再关掉它的终端。
@@ -219,18 +223,136 @@ impl App {
             if self.workspaces.slots.is_empty() {
                 self.workspaces.active = 0;
                 self.close_folder_now();
+                self.notify_closed_workspace(&folder, &name, index);
                 return;
             }
             let next = index.min(self.workspaces.slots.len() - 1);
             self.workspaces.active = next;
             self.take_workspace(next);
             self.after_workspace_switch();
+            self.notify_closed_workspace(&folder, &name, index);
             return;
         }
         self.workspaces.slots.remove(index);
         if index < active {
             self.workspaces.active -= 1;
         }
+        self.notify_closed_workspace(&folder, &name, index);
         self.request_redraw();
+    }
+
+    /// 提示工作区 `folder` 已关闭，可以在提示条上撤销。
+    fn notify_closed_workspace(&mut self, folder: &Path, name: &str, index: usize) {
+        self.notify_with(
+            NoticeKind::Info,
+            winc_i18n::t!("workspace-notice-workspace-closed", name = name),
+            NoticeAction::UndoCloseWorkspace {
+                folder: folder.to_path_buf(),
+                index,
+            },
+        );
+    }
+
+    /// 撤销关闭工作区：重新打开这个项目，它的位置回到关闭前的地方。
+    pub(in crate::app) fn undo_close_workspace(&mut self, folder: PathBuf, index: usize) {
+        self.open_workspace(&folder);
+        let Some(current) = self.workspaces.index_of(&folder) else {
+            return;
+        };
+        let to = index.min(self.workspaces.slots.len() - 1);
+        self.move_workspace(current, to);
+        self.request_redraw();
+    }
+
+    /// 窗口里打开的工作区：开了哪些项目、顺序如何、当时打开的是哪一个。
+    pub(crate) fn workspace_set(&self) -> WorkspaceSet {
+        WorkspaceSet {
+            folders: self
+                .workspaces
+                .slots
+                .iter()
+                .map(|slot| slot.folder.clone())
+                .collect(),
+            active: self.workspaces.active,
+        }
+    }
+
+    /// 按 `set` 恢复窗口里打开的各个工作区。
+    ///
+    /// 启动时窗口里已经打开了上次退出时当前的那个工作区（它的现场已经恢复），其余的依次打开：
+    /// 每个目录都按上次的现场打开，标签、终端都还在。最后按记下的顺序排列，并切到当时打开的
+    /// 那一个。单工作区模式下只开第一个。
+    pub(crate) fn restore_workspaces(&mut self, set: &WorkspaceSet) {
+        if set.folders.is_empty() {
+            return;
+        }
+        let current = self.editor.root().map(Path::to_path_buf);
+        let folders: Vec<&PathBuf> = if self.multi_workspace() {
+            set.folders.iter().collect()
+        } else {
+            set.folders.iter().take(1).collect()
+        };
+        for folder in folders {
+            // 当前打开的就是它时不用再开。
+            if Some(folder) == current.as_ref() || !winc_backend::fs::is_dir(folder) {
+                continue;
+            }
+            self.open_workspace(folder);
+        }
+        if self.multi_workspace() {
+            self.order_workspaces(set);
+        }
+    }
+
+    /// 在窗口里打开 `folders` 里的各个目录：第一个作为当前打开的目录，其余各成一个工作区。
+    ///
+    /// `active` 是当前工作区在 `folders` 中的下标；越界时开最后一个。
+    pub(crate) fn open_workspaces(&mut self, folders: &[PathBuf], active: usize) {
+        let Some(first) = folders.first() else {
+            return;
+        };
+        self.open_folder_now(first);
+        for folder in &folders[1..] {
+            self.open_workspace(folder);
+        }
+        // 切到记下的那一个。
+        let index = active.min(folders.len() - 1);
+        let Some(folder) = folders.get(index) else {
+            return;
+        };
+        if let Some(index) = self.workspaces.index_of(folder) {
+            self.switch_workspace(index);
+        }
+    }
+
+    /// 按 `set` 记下的顺序排列工作区，并切到当时打开的那一个。
+    ///
+    /// 记下顺序里没有的工作区排在最后，仍按原来的相对次序。
+    fn order_workspaces(&mut self, set: &WorkspaceSet) {
+        let previous = self.workspaces.active;
+        let mut slots: Vec<(usize, WorkspaceSlot)> =
+            self.workspaces.slots.drain(..).enumerate().collect();
+        slots.sort_by_key(|(index, slot)| {
+            (
+                set.folders
+                    .iter()
+                    .position(|folder| *folder == slot.folder)
+                    .unwrap_or(usize::MAX),
+                *index,
+            )
+        });
+        // 窗口里的现场属于原来那个工作区：它在排序后的位置就是当前工作区。
+        let active = slots.iter().position(|(index, _)| *index == previous);
+        self.workspaces.slots = slots.into_iter().map(|(_, slot)| slot).collect();
+        if let Some(active) = active {
+            self.workspaces.active = active;
+        }
+        // 切到记下的那一个。
+        let Some(folder) = set.folders.get(set.active) else {
+            return;
+        };
+        if let Some(index) = self.workspaces.index_of(folder) {
+            self.switch_workspace(index);
+        }
     }
 }

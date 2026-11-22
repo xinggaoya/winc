@@ -698,6 +698,21 @@ impl App {
             }
         }
 
+        // 鼠标在工作区标签上停留满 `CLOSE_HOVER_DELAY`：关闭按钮出现，可以点击。
+        if let Some(since) = self.workspace_bar.rest
+            && !self.workspace_bar.close_ready
+        {
+            let at = since + crate::theme::CLOSE_HOVER_DELAY;
+            if now >= at {
+                self.workspace_bar.close_ready = true;
+                // 关闭按钮可能正好在鼠标下面出现：悬停目标跟着更新。
+                self.set_hover(self.hover_at(self.pointer.mouse.0, self.pointer.mouse.1));
+                self.request_redraw();
+            } else {
+                earliest(&mut wake, Some(at));
+            }
+        }
+
         let tooltip_at = self
             .overlays
             .tooltip

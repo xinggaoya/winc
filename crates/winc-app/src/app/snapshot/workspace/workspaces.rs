@@ -3,6 +3,7 @@
 
 use super::*;
 
+use crate::app::NoticeAction;
 use crate::keymap::Action;
 
 /// 打开目录 `path`：多工作区模式下它成了窗口里的另一个工作区。
@@ -13,6 +14,12 @@ fn open_workspace(app: &mut App, path: &Path) {
 /// 当前工作区打开的目录。
 fn root(app: &App) -> PathBuf {
     app.editor.workspace.as_ref().unwrap().root.clone()
+}
+
+/// 把鼠标在工作区标签上停留的时间记为已满 `CLOSE_HOVER_DELAY`：关闭按钮出现，可以点击。
+fn rest_on_chip(app: &mut App) {
+    app.workspace_bar.rest = Some(std::time::Instant::now() - crate::theme::CLOSE_HOVER_DELAY);
+    app.tick();
 }
 
 /// 打开的标签的名字。
@@ -83,6 +90,11 @@ fn the_workspace_bar_switches_between_the_workspaces() {
     assert_eq!(chips[1].index, 1);
     assert!(app.workspace_bar.add.w > 0.0);
     assert!(app.workspace_bar.more.w > 0.0);
+
+    // 标签条放不下时滚到当前工作区：滚出去的那一个看不见也点不到，滚回来才能点。
+    app.workspace_bar.scroll = 0.0;
+    paint(&mut app);
+    let chips = app.workspace_bar.chips.clone();
 
     // 点第一个工作区的按钮：切过去。
     let (x, y) = (
@@ -244,9 +256,9 @@ fn pixel(app: &App, (x, y): (f32, f32)) -> (u8, u8, u8) {
     )
 }
 
-/// 标签悬停时右端出现关闭按钮。
+/// 关闭按钮：指针停在标签上才出现，鼠标路过时不出现。
 #[test]
-fn the_close_button_shows_on_hover() {
+fn the_close_button_shows_after_the_pointer_rests_on_the_tab() {
     let a = search_folder("workspace-hover-a");
     let b = search_folder("workspace-hover-b");
     let mut app = app_with(&a, false);
@@ -260,15 +272,44 @@ fn the_close_button_shows_on_hover() {
     );
     let before = pixel(&app, at);
 
-    // 悬停标签：右端出现关闭按钮。
+    // 鼠标刚移到标签上：关闭按钮还没有出现。
     app.on_mouse_move(chip.rect.x + chip.rect.w / 2.0, chip.rect.y + 4.0);
     paint(&mut app);
-    assert_ne!(before, pixel(&app, at), "悬停时标签右端应有关闭按钮");
+    assert!(
+        !app.workspace_bar.close_ready,
+        "刚移上去时关闭按钮还没有出现"
+    );
+    assert_eq!(pixel(&app, at), before, "关闭按钮还没有出现");
+
+    // 停留够久：右端出现关闭按钮。
+    app.workspace_bar.rest = Some(std::time::Instant::now() - crate::theme::CLOSE_HOVER_DELAY);
+    app.tick();
+    paint(&mut app);
+    assert!(app.workspace_bar.close_ready);
+    assert_ne!(before, pixel(&app, at), "停留后标签右端应有关闭按钮");
 
     // 鼠标落在关闭按钮上时，按钮不能消失。
     app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
     paint(&mut app);
     assert_ne!(before, pixel(&app, at), "鼠标落在关闭按钮上时它不能消失");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 鼠标从标签上划过时关闭按钮不出现：那一段仍属于标签，点它切换工作区。
+#[test]
+fn the_close_button_does_not_appear_while_the_mouse_passes_over() {
+    let a = search_folder("workspace-pass-a");
+    let b = search_folder("workspace-pass-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    paint(&mut app);
+
+    let chip = app.workspace_bar.chips[0];
+    app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
+    assert_eq!(app.pointer.hover, Hover::Workspace(chip.index));
+    assert!(!app.workspace_bar.close_ready);
 
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
@@ -286,6 +327,7 @@ fn the_close_button_on_a_workspace_tab_closes_only_that_workspace() {
     // 悬停到标签上时，关闭按钮可以命中。
     let chip = app.workspace_bar.chips[0];
     app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
+    rest_on_chip(&mut app);
     assert_eq!(app.pointer.hover, Hover::WorkspaceClose(chip.index));
 
     // 点它只关掉这个工作区。
@@ -312,6 +354,7 @@ fn closing_the_current_workspace_switches_to_the_neighbour() {
     // 当前工作区是第二个，关掉它之后切回第一个。
     let chip = app.workspace_bar.chips[1];
     app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
+    rest_on_chip(&mut app);
     app.on_mouse_down(MouseButton::Left);
     app.on_mouse_up(MouseButton::Left);
     paint(&mut app);
@@ -323,6 +366,43 @@ fn closing_the_current_workspace_switches_to_the_neighbour() {
 
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 关掉工作区后提示条上可以撤销：项目重新打开，位置回到关闭前的地方。
+#[test]
+fn a_closed_workspace_can_be_restored_from_the_notice() {
+    let a = search_folder("workspace-undo-a");
+    let b = search_folder("workspace-undo-b");
+    let c = search_folder("workspace-undo-c");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    open_workspace(&mut app, &c);
+    paint(&mut app);
+    assert_eq!(app.workspaces.slots.len(), 3);
+
+    // 关掉中间那个工作区。
+    app.close_workspace(1);
+    paint(&mut app);
+    assert_eq!(app.workspaces.slots.len(), 2);
+    assert_eq!(root(&app), winc_config::files::canonicalize(&c).unwrap());
+
+    // 提示条上有「撤销」，点它重新打开那个项目。
+    let action = app.notice.action.clone().expect("提示条上有撤销");
+    assert!(matches!(action, NoticeAction::UndoCloseWorkspace { .. }));
+    app.run_notice_action();
+    paint(&mut app);
+    assert_eq!(app.workspaces.slots.len(), 3);
+    assert_eq!(app.workspaces.active, 1, "重新打开的是刚关掉的那个");
+    assert_eq!(root(&app), winc_config::files::canonicalize(&b).unwrap());
+    // 位置回到关闭前的地方：它在第二个。
+    assert_eq!(
+        app.workspaces.slots[1].folder,
+        winc_config::files::canonicalize(&b).unwrap()
+    );
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+    let _ = std::fs::remove_dir_all(&c);
 }
 
 /// 拖动工作区标签可以调整顺序：被拖的工作区跟着当前项走。
@@ -470,6 +550,181 @@ fn a_renamed_workspace_keeps_its_name_in_the_tab() {
     app.switch_workspace(0);
     paint(&mut app);
     assert_eq!(app.workspace_name(0), "新名字");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 退出时窗口里开着的项目都记下来，下次启动时都还在。
+#[test]
+fn the_workspaces_are_remembered_and_reopened() {
+    let a = search_folder("workspace-keep-a");
+    let b = search_folder("workspace-keep-b");
+    let mut app = app_with(&a, false);
+    // 两个项目里各打开一个文件。
+    app.open_path(&a.join("src/main.rs"));
+    open_workspace(&mut app, &b);
+    app.open_path(&b.join("src/config.rs"));
+    paint(&mut app);
+
+    app.save_session();
+    let state = app.state.clone();
+    assert_eq!(state.workspaces.folders.len(), 2, "两个项目都记下了");
+    assert_eq!(state.workspaces.active, 1, "记下了当时打开的是哪一个");
+
+    // 下次启动：窗口里开着的项目都还在，各自的标签也恢复。
+    let mut next = blank_app(false);
+    next.state = state;
+    let workspaces = next.state.workspaces.clone();
+    next.restore_workspaces(&workspaces);
+    paint(&mut next);
+    assert_eq!(next.workspaces.slots.len(), 2);
+    assert_eq!(next.workspaces.active, 1);
+    assert_eq!(root(&next), winc_config::files::canonicalize(&b).unwrap());
+    assert_eq!(names(&next), ["config.rs"]);
+
+    // 切回第一个项目：它的标签也还在。
+    next.switch_workspace(0);
+    paint(&mut next);
+    assert_eq!(root(&next), winc_config::files::canonicalize(&a).unwrap());
+    assert_eq!(names(&next), ["main.rs"]);
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 单工作区模式：退出时不记工作区列表，下次启动按原来那样只开一个项目。
+#[test]
+fn the_workspaces_are_not_remembered_in_the_single_workspace_mode() {
+    let a = search_folder("workspace-single-a");
+    let b = search_folder("workspace-single-b");
+    let mut app = app_with(&a, false);
+    app.config.multi_workspace = Some(false);
+    app.open_path(&b);
+    paint(&mut app);
+    assert_eq!(app.workspaces.slots.len(), 1);
+
+    app.save_session();
+    assert_eq!(app.state.workspaces.folders.len(), 1);
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 标签条放不下时横向滚动：滚出去的项目点不到，滚过来才能点。
+#[test]
+fn the_workspace_tabs_scroll_horizontally() {
+    let a = search_folder("workspace-scroll2-a");
+    let b = search_folder("workspace-scroll2-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    // 名字长到标签条放不下。
+    app.workspaces.slots[0].name = "一个很长的项目名字-用来把标签条撑开".to_owned();
+    app.workspaces.slots[1].name = "另一个很长的项目名字-也放不下".to_owned();
+    paint(&mut app);
+
+    let view = app.workspace_bar.view;
+    assert!(app.workspace_bar.content > view.w, "标签条放不下");
+    assert!(
+        app.workspace_bar.list.is_some(),
+        "右端有列出全部工作区的「⌄」"
+    );
+    // 当前工作区的标签在可见范围内。
+    let active = app.workspaces.active;
+    let chip = app
+        .workspace_bar
+        .chips
+        .iter()
+        .find(|c| c.index == active)
+        .unwrap();
+    assert!(chip.rect.right() <= view.right() + 1.0);
+
+    // 滚轮落在标签条上时横向滚动它，不滚文件树。
+    app.on_mouse_move(chip.rect.x + 4.0, chip.rect.y + 4.0);
+    let before = app.workspace_bar.scroll;
+    app.on_wheel(MouseScrollDelta::LineDelta(0.0, 1.0));
+    assert!(
+        app.workspace_bar.scroll < before,
+        "滚轮向下滚时标签条往左滚"
+    );
+    assert_eq!(app.panels.tree.scroll, 0.0, "文件树没有跟着滚");
+
+    // 滚到最左端：第一个工作区的标签看得见也点得到。
+    app.workspace_bar.scroll = 0.0;
+    paint(&mut app);
+    let first = app.workspace_bar.chips[0];
+    app.on_mouse_move(first.rect.x + 4.0, first.rect.y + 4.0);
+    assert_eq!(app.pointer.hover, Hover::Workspace(0));
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 标签条放不下时，滚出去的项目既看不见也点不到。
+#[test]
+fn the_workspace_tabs_outside_the_view_are_not_clickable() {
+    let a = search_folder("workspace-outside-a");
+    let b = search_folder("workspace-outside-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    app.workspaces.slots[0].name = "一个很长的项目名字-用来把标签条撑开".to_owned();
+    app.workspaces.slots[1].name = "另一个很长的项目名字-也放不下".to_owned();
+    paint(&mut app);
+
+    // 第一个工作区的标签有一部分滚出了可见范围：那一段点不到。
+    let first = app.workspace_bar.chips[0];
+    let outside = first.rect.x + 2.0;
+    assert!(
+        outside < app.workspace_bar.view.x,
+        "标签的一部分在可见范围之外"
+    );
+    app.on_mouse_move(outside, first.rect.y + 4.0);
+    assert_eq!(app.pointer.hover, Hover::None, "看不见的标签点不到");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 标签条放不下时，右端的「⌄」列出全部工作区，滚出去的项目也能切到。
+#[test]
+fn the_workspace_list_menu_lists_all_the_workspaces() {
+    let a = search_folder("workspace-menu-a");
+    let b = search_folder("workspace-menu-b");
+    let mut app = app_with(&a, false);
+    open_workspace(&mut app, &b);
+    app.workspaces.slots[0].name = "一个很长的项目名字-用来把标签条撑开".to_owned();
+    app.workspaces.slots[1].name = "另一个很长的项目名字-也放不下".to_owned();
+    paint(&mut app);
+
+    let list = app.workspace_bar.list.expect("有列出全部工作区的「⌄」");
+    app.on_mouse_move(list.x + list.w / 2.0, list.y + list.h / 2.0);
+    assert_eq!(app.pointer.hover, Hover::WorkspaceList);
+    app.on_mouse_down(MouseButton::Left);
+    app.on_mouse_up(MouseButton::Left);
+    assert_eq!(
+        app.overlays.menu_button,
+        Some(crate::app::MenuButton::WorkspaceList)
+    );
+    let entries = &app
+        .overlays
+        .context_menu
+        .as_ref()
+        .expect("弹出了工作区列表")
+        .entries;
+    assert_eq!(entries.len(), 2);
+    for i in 0..2 {
+        assert_eq!(
+            app.menu_checked(MenuCommand::ShowWorkspace(i)),
+            i == app.workspaces.active
+        );
+        let label = app.menu_label(MenuCommand::ShowWorkspace(i));
+        assert_eq!(label.title, app.workspace_name(i));
+    }
+
+    // 选第一项：切到那个工作区。
+    app.run_menu_command(MenuCommand::ShowWorkspace(0));
+    paint(&mut app);
+    assert_eq!(app.workspaces.active, 0);
 
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);

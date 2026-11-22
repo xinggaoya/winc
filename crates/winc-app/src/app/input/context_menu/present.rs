@@ -707,6 +707,9 @@ impl App {
             MenuTarget::TabList => (0..self.editor.tab_count())
                 .map(|i| MenuEntry::Item(MenuCommand::ShowTab(i), true))
                 .collect(),
+            MenuTarget::WorkspaceList => (0..self.workspaces.slots.len())
+                .map(|i| MenuEntry::Item(MenuCommand::ShowWorkspace(i), true))
+                .collect(),
             MenuTarget::LatexProblems => (0..self.latex_problem_count())
                 .map(|i| MenuEntry::Item(MenuCommand::LatexProblem(i), true))
                 .collect(),
@@ -975,6 +978,9 @@ impl App {
         if let MenuCommand::ShowTab(i) = command {
             return self.editor.active == Some(i);
         }
+        if let MenuCommand::ShowWorkspace(i) = command {
+            return self.workspaces.active == i;
+        }
         if let MenuCommand::RunSelect(i) = command {
             let current = self.run.current();
             return current.is_some_and(|c| self.run.list.get(i) == Some(c));
@@ -1205,6 +1211,7 @@ impl App {
             MenuCommand::OpenGroup(_) => Some(MenuIcon::Folders),
             MenuCommand::GroupFolder(..) => Some(MenuIcon::Folder),
             MenuCommand::ShowTab(i) => self.editor.documents.get(i).map(|_| MenuIcon::Tab(i)),
+            MenuCommand::ShowWorkspace(i) => self.workspaces.slots.get(i).map(|_| MenuIcon::Folder),
             _ => None,
         }
     }

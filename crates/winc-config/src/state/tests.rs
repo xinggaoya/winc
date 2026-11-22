@@ -121,7 +121,14 @@ fn sample() -> State {
             },
         ],
         last: Some(PathBuf::from("/a/项目")),
-        others: vec![PathBuf::from("/b")],
+        others: vec![WorkspaceSet {
+            folders: vec![PathBuf::from("/b")],
+            active: 0,
+        }],
+        workspaces: WorkspaceSet {
+            folders: vec![PathBuf::from("/a/项目"), PathBuf::from("/b")],
+            active: 1,
+        },
         commit_tree: true,
         commit_sort: "status".into(),
         commit_all_repositories: Some(true),
@@ -182,6 +189,39 @@ fn round_trips_through_json() {
     let state = sample();
     assert_eq!(State::parse(&state.to_json()), state);
     assert_eq!(State::parse(&State::default().to_json()), State::default());
+}
+
+#[test]
+fn the_workspaces_of_every_window_are_read() {
+    let state = State::parse(
+        r#"{"workspaces":{"folders":["/a","/b"],"active":1},
+            "otherWindows":[{"folders":["/c","/d"],"active":0}]}"#,
+    );
+    assert_eq!(
+        state.workspaces.folders,
+        [PathBuf::from("/a"), PathBuf::from("/b")]
+    );
+    assert_eq!(state.workspaces.active, 1);
+    assert_eq!(state.others.len(), 1);
+    assert_eq!(
+        state.others[0].folders,
+        [PathBuf::from("/c"), PathBuf::from("/d")]
+    );
+    // 当前工作区不在列表里时取最后一个。
+    let state = State::parse(r#"{"workspaces":{"folders":["/a"],"active":7}}"#);
+    assert_eq!(state.workspaces.active, 0);
+}
+
+#[test]
+fn old_window_lists_are_read_as_one_project_each() {
+    // 旧格式只记每个窗口开着的目录，等于那个窗口只开过一个项目。
+    let state = State::parse(r#"{"otherWindows":["/a","/b"]}"#);
+    assert_eq!(state.others.len(), 2);
+    assert_eq!(state.others[0].folders, [PathBuf::from("/a")]);
+    assert_eq!(state.others[1].folders, [PathBuf::from("/b")]);
+    assert_eq!(state.others[1].active, 0);
+    // 没有工作区这一项时是空的：下次启动仍按 `last` 开一个目录。
+    assert!(state.workspaces.folders.is_empty());
 }
 
 #[test]

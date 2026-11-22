@@ -396,6 +396,11 @@ impl App {
                     self.activate_tab(i);
                 }
             }
+            MenuTarget::WorkspaceList => {
+                if let MenuCommand::ShowWorkspace(i) = command {
+                    self.switch_workspace(i);
+                }
+            }
             MenuTarget::LatexProblems => {
                 if let MenuCommand::LatexProblem(i) = command {
                     self.show_latex_problem(i);

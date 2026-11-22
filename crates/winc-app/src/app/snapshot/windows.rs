@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::winc::{Request, Winc};
+use winc_config::WorkspaceSet;
 
 /// 两个窗口：第一个开着 `name` 目录里的 `src/main.rs`，第二个在开始页。
 fn two_windows(
@@ -294,15 +295,21 @@ fn other_windows_are_remembered_at_quit_and_reopened_at_launch() {
     let others = State::load_from(&state_path).others;
     assert_eq!(
         others,
-        [root(&mut winc, b).unwrap()],
-        "当前窗口的由它自己记在 `last`"
+        [WorkspaceSet {
+            folders: vec![root(&mut winc, b).unwrap()],
+            active: 0,
+        }],
+        "当前窗口的由它自己记在 `workspaces`"
     );
 
     // 下次启动：第一个窗口在开始页上时，第一个目录开在它里面，不多留一个空窗口。
     let mut winc = Winc::new(None, Some(template));
     let a = winc.add_detached(blank_app(false));
     winc.restore_windows(&others);
-    assert_eq!(root(&mut winc, a), others.first().cloned());
+    assert_eq!(
+        root(&mut winc, a),
+        others.first().map(|set| set.folders[0].clone())
+    );
     assert!(winc.settle_for_test().0.is_empty());
 
     // 第一个窗口开着别的目录：其余的各开一个窗口，最后切回第一个窗口。

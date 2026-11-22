@@ -85,6 +85,8 @@ pub enum MenuButton {
     TreeMore,
     /// 标签栏无法容纳全部标签时显示在最右端的「⌄」。
     TabList,
+    /// 左栏顶部工作区标签条放不下时显示在最右端的「⌄」。
+    WorkspaceList,
     /// 终端面板标签栏上的运行配置名。
     RunConfigs,
     /// 终端面板标签栏上「+」右边选 shell 的按钮。
@@ -161,6 +163,8 @@ pub enum MenuCommand {
     RevealInTree,
     /// 标签列表：切换到指定标签，参数为 `documents` 的下标。
     ShowTab(usize),
+    /// 工作区列表：切换到指定的工作区，参数为工作区的下标。
+    ShowWorkspace(usize),
     /// LaTeX 编译的错误列表：打开出错的文件并跳到那一行，参数为第几个错误。
     LatexProblem(usize),
     /// 选中第几个运行配置。
@@ -595,6 +599,7 @@ impl MenuCommand {
             MenuCommand::OpenRecent(_)
             | MenuCommand::ImportKeymap(_)
             | MenuCommand::ShowTab(_)
+            | MenuCommand::ShowWorkspace(_)
             | MenuCommand::LatexProblem(_)
             | MenuCommand::RunSelect(_)
             | MenuCommand::NewTerminalShell(_)
@@ -1013,6 +1018,8 @@ pub enum MenuTarget {
     TreeTools,
     /// 标签栏最右端「⌄」弹出的标签列表。
     TabList,
+    /// 左栏顶部标签条最右端「⌄」弹出的工作区列表。
+    WorkspaceList,
     /// LaTeX 预览右上角的错误数弹出的错误列表。
     LatexProblems,
     /// 终端面板标签栏上的运行配置列表。

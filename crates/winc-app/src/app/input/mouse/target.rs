@@ -233,6 +233,8 @@ impl App {
             Target::RightButton => Hover::RightButton,
             Target::Workspace(index) => Hover::Workspace(index),
             Target::WorkspaceClose(index) => Hover::WorkspaceClose(index),
+            Target::WorkspaceBar => Hover::None,
+            Target::WorkspaceList => Hover::WorkspaceList,
             Target::AddWorkspace => Hover::AddWorkspace,
             Target::TreeTool(tool) => Hover::TreeTool(tool),
             Target::ProjectName => Hover::ProjectName,
@@ -375,18 +377,33 @@ impl App {
             return Target::GlobalSearch;
         }
         // 左栏顶部的工作区标签与「打开项目」按钮：它们在左栏里，先于两栏的命中判定。
-        for chip in &self.workspace_bar.chips {
-            if chip.close.contains(x, y) {
-                return Target::WorkspaceClose(chip.index);
+        // 标签条横向滚动时，滚出可见范围的那部分不算：看不见的标签点不到。
+        let bar_view = self.workspace_bar.view;
+        // 关闭按钮出现后才可以点到：之前那一段属于标签本身，点它切换工作区。
+        if self.workspace_bar.close_ready {
+            for chip in &self.workspace_bar.chips {
+                if bar_view.contains(x, y) && chip.close.contains(x, y) {
+                    return Target::WorkspaceClose(chip.index);
+                }
             }
         }
         for chip in &self.workspace_bar.chips {
-            if chip.rect.contains(x, y) {
+            if bar_view.contains(x, y) && chip.rect.contains(x, y) {
                 return Target::Workspace(chip.index);
             }
         }
+        if self
+            .workspace_bar
+            .list
+            .is_some_and(|list| list.contains(x, y))
+        {
+            return Target::WorkspaceList;
+        }
         if self.workspace_bar.add.contains(x, y) {
             return Target::AddWorkspace;
+        }
+        if bar_view.contains(x, y) {
+            return Target::WorkspaceBar;
         }
         if let Some(hover) = self.panel_hover_at(x, y) {
             return Target::Panel(hover);
@@ -1045,6 +1062,10 @@ pub(super) enum Target {
     Workspace(usize),
     /// 左栏顶部工作区标签上的关闭按钮，参数是工作区的下标。
     WorkspaceClose(usize),
+    /// 左栏顶部工作区标签条的空白处：拖动它可以横向滚动标签条。
+    WorkspaceBar,
+    /// 左栏顶部标签条右端的「⌄」，点它列出全部工作区。
+    WorkspaceList,
     /// 左栏顶部的「打开项目」按钮。
     AddWorkspace,
     TreeTool(crate::layout::TreeTool),

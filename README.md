@@ -59,7 +59,11 @@ expanded state of the file tree, the Git status, and the terminal session — an
 everything as it was.
 
 - The projects open in the window are tabs at the top of the left column; the open one is filled and
-  the others are muted. Click a tab to switch, hover it to close it, drag it to reorder.
+  the others are muted. Click a tab to switch, drag it to reorder. Its close button appears once the
+  pointer rests on it, so passing over does not close anything — and a notice offers an undo.
+- The row scrolls sideways when the column is too narrow, and the `⌄` at its right lists every
+  project, so the ones out of sight are still one click away.
+- The projects open in the window come back the next time winc starts, each with its own tabs.
 - Opening a folder no longer closes the previous one: it stays as another workspace (turn the mode
   off in the settings to get the old behaviour back).
 - Closing a project closes only that one; the others keep running.
