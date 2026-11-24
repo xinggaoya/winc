@@ -89,6 +89,24 @@ impl App {
         ids
     }
 
+    /// 找出文档 `id` 并给出可变的引用：当前编辑器里没有时到各个工作区里找。
+    ///
+    /// 后台保存的结果送到文档所在的工作区：文件写好了，那个工作区的标签不该还显示未保存。
+    pub(in crate::app) fn document_mut_anywhere(
+        &mut self,
+        id: DocumentId,
+    ) -> Option<&mut winc_editor::Document> {
+        if self.editor.document(id).is_some() {
+            return self.editor.document_mut(id);
+        }
+        let slot = self
+            .workspaces
+            .slots
+            .iter_mut()
+            .find(|slot| slot.editor.document(id).is_some())?;
+        slot.editor.document_mut(id)
+    }
+
     /// 工作区 `index` 的显示名：目录的名字，或用户给这一组起的名字。
     ///
     /// 当前工作区用打开着的目录的名字（起了名时用起名的），其余用登记时记下的。

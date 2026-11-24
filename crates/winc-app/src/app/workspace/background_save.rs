@@ -87,7 +87,8 @@ impl App {
 
     fn saved_in_background(&mut self, (id, quiet, saved): Done) {
         self.disk.saves.running.remove(&id);
-        let Some(doc) = self.editor.document_mut(id) else {
+        // 文档可能在别的工作区里：结果照样收下，否则文件写好了，那个工作区的标签还显示未保存。
+        let Some(doc) = self.document_mut_anywhere(id) else {
             return;
         };
         let name = doc.name().into_owned();
@@ -185,5 +186,13 @@ impl App {
             let _ = winc_backend::fs::remove_all(&dir);
             let _ = sender.send((id, false, handed.finish(result)));
         });
+    }
+}
+
+#[cfg(test)]
+impl App {
+    /// 测试用：把一次后台保存的结果交给应用：模拟后台线程写完之后把结果送来。
+    pub(in crate::app) fn finish_background_save(&mut self, id: DocumentId, saved: winc_editor::Saved) {
+        self.saved_in_background((id, false, saved));
     }
 }
