@@ -146,9 +146,12 @@ pub(crate) struct PanelMotion {
 /// 终端标签编号的计数器：整个进程共用一个。
 ///
 /// 辅助进程由窗口共用，多个工作区的终端标签都挂在它上面，编号不能重号。
-static NEXT_TERM_ID: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
+///
+/// 从 1000 起：测试里的本地仿真终端用 1、2 这样的号段，真标签的编号避开它们，两边不会撞号
+/// （撞号时按编号找标签会找到错的那一个）。
+static NEXT_TERM_ID: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(1000);
 
-/// 取下一个终端标签的编号（从 1 起；0 表示没有标签）。
+/// 取下一个终端标签的编号（0 表示没有标签）。
 pub(in crate::app) fn next_term_id() -> u16 {
     NEXT_TERM_ID
         .fetch_add(1, std::sync::atomic::Ordering::Relaxed)

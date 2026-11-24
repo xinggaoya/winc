@@ -88,17 +88,20 @@ impl Workspace {
     ///
     /// 只改变工作区，不改动磁盘上的内容。
     pub fn remove_folder(&mut self, path: &Path) -> bool {
-        let Some(at) = self.extra.iter().position(|folder| folder == path) else {
+        // 路径按规范形式比较：传进来的可能不是添加时用的那个写法（大小写不同、绕一圈再回来、
+        // 短名），而附加目录记下的是规范形式。
+        let path = winc_config::files::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        let Some(at) = self.extra.iter().position(|folder| folder == &path) else {
             return false;
         };
         self.extra.remove(at);
-        self.expanded.retain(|dir| !dir.starts_with(path));
-        self.children.retain(|dir, _| !dir.starts_with(path));
-        self.marked.retain(|item| !item.starts_with(path));
+        self.expanded.retain(|dir| !dir.starts_with(&path));
+        self.children.retain(|dir, _| !dir.starts_with(&path));
+        self.marked.retain(|item| !item.starts_with(&path));
         if self
             .anchor
             .as_ref()
-            .is_some_and(|anchor| anchor.starts_with(path))
+            .is_some_and(|anchor| anchor.starts_with(&path))
         {
             self.anchor = None;
         }

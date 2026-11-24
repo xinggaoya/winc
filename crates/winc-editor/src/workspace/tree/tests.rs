@@ -773,6 +773,30 @@ fn the_workspace_has_a_compact_name() {
     assert_eq!(ws.label(), "新名字");
 }
 
+/// 移除附加目录时按规范形式比较路径：写法不同（多一个 `.`、大小写不同）也要移除同一个目录。
+#[test]
+fn removing_an_extra_folder_accepts_any_spelling_of_its_path() {
+    let root = crate::test_util::scratch("ws-remove-extra");
+    let base = root.join("base");
+    let extra = root.join("other");
+    fs::create_dir_all(&base).unwrap();
+    fs::create_dir_all(&extra).unwrap();
+    let mut ws = Workspace::open(&base).unwrap();
+    ws.add_folder(&extra).unwrap();
+    assert_eq!(ws.folders().count(), 2);
+
+    // 同一个目录的另一种写法：绕一圈再回来。
+    let temp = root.parent().unwrap();
+    let spelled = temp
+        .join("..")
+        .join(temp.file_name().unwrap())
+        .join(root.file_name().unwrap())
+        .join("other");
+    assert!(extra.exists() && spelled.exists(), "两种写法指向同一个目录");
+    assert!(ws.remove_folder(&spelled), "换个写法也要移除得掉");
+    assert_eq!(ws.folders().count(), 1, "只剩打开的目录了");
+}
+
 /// 起了名字只改名字：目录所在的主机不变（标签上的位置标记不能因为改名而丢掉）。
 #[test]
 fn renaming_the_workspace_keeps_its_host() {

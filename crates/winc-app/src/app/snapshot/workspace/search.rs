@@ -1088,7 +1088,11 @@ fn long_result_files_unfold_under_the_mouse() {
         Hover::RowAction(long, RowAction::Dismiss),
         "写全名那一行没有盖住右边缘的滚动条"
     );
-    app.on_mouse_move(spill.x + 10.0, y);
+    // 伸出去的那一段同样是这一行，按钮照常响应。
+    //
+    // 按按钮自己的位置悬停：按钮离卡片边缘多远取决于字体的宽度（名字越长，��钮被推得越远），
+    // 写死一个偏移换个平台就落空。
+    app.on_mouse_move(dismiss.x + dismiss.w / 2.0, y);
     assert_eq!(
         app.pointer.hover,
         Hover::RowAction(long, RowAction::Dismiss),
