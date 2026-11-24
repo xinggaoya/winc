@@ -81,7 +81,12 @@ foreach ($kind in @('nsis', 'msi')) {
         if (@($desktopLink).Count -ne 1 -or $desktopLink.Name -cne 'Winc.lnk') { throw "${kind}: the desktop shortcut is not named Winc" }
         $desktopShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($desktopLink.FullName)
         if ($desktopShortcut.TargetPath -ne "$directory\winc.exe") { throw "${kind}: the desktop shortcut points at $($desktopShortcut.TargetPath)" }
-        if ($desktopShortcut.IconLocation -notlike "$directory\winc.ico*") { throw "${kind}: the desktop shortcut has the icon $($desktopShortcut.IconLocation)" }
+        # The desktop shortcut carries the app's icon: the NSIS installer points at the installed
+        # winc.ico, the MSI at the icon the installer cached (a WiX shortcut can only name an icon
+        # the installer keeps).
+        $icon = $desktopShortcut.IconLocation
+        $wanted = if ($kind -eq 'msi') { '*WincIcon*' } else { "$directory\winc.ico*" }
+        if ($icon -notlike $wanted) { throw "${kind}: the desktop shortcut has the icon $icon" }
         if ($kind -eq 'msi' -and (Get-Item -LiteralPath $menu).Name -cne 'Winc') { throw 'msi: the Start menu folder is not named Winc' }
         if ($kind -eq 'nsis' -and (Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\winc').DisplayName -cne 'Winc') { throw 'nsis: the installed app is not listed as Winc' }
         # A handler listed under a type makes Windows ask which program to use, and for types it runs
