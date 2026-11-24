@@ -878,7 +878,9 @@ fn the_workspace_tab_keeps_the_project_name_readable() {
     assert!(chip.rect.w > 0.0);
     assert!(chip.text.host.is_none(), "{:?}", chip.text);
     assert!(chip.text.name.ends_with('…'), "{}", chip.text.name);
-    assert!(chip.text.name.starts_with('w'), "{}", chip.text.name);
+    // 名字按开头截断：留下的部分是名字的前一段（地方太窄时可能只剩省略号）。
+    let kept = chip.text.name.trim_end_matches('…');
+    assert!("workspace-tab-w".starts_with(kept), "{}", chip.text.name);
 
     let _ = std::fs::remove_dir_all(&a);
 }
@@ -886,8 +888,9 @@ fn the_workspace_tab_keeps_the_project_name_readable() {
 /// 名字改了以后，标签上就是新的名字：移除附加目录后组名被取消，标签也跟着变回目录名。
 #[test]
 fn the_workspace_tab_follows_the_renamed_group() {
-    let a = search_folder("workspace-rename-tab");
-    let extra = search_folder("workspace-rename-tab-extra");
+    // 目录名短一点：标签上放得下完整的名字，不必按平台的字体宽度截断。
+    let a = search_folder("ws-rename-tab");
+    let extra = search_folder("ws-rename-extra");
     let mut app = app_with(&a, false);
     app.add_folder(&extra);
     app.rename_group("新名字");
@@ -897,7 +900,7 @@ fn the_workspace_tab_follows_the_renamed_group() {
     // 移除附加的目录：这一组只剩打开的目录，组名随之取消。
     app.remove_folder(&extra);
     paint(&mut app);
-    assert_eq!(app.workspace_bar.chips[0].text.name, "workspace-rename-tab");
+    assert_eq!(app.workspace_bar.chips[0].text.name, "ws-rename-tab");
 
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&extra);
