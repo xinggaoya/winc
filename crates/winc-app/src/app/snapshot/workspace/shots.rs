@@ -64,6 +64,11 @@ fn shoot_the_workspace_bar() {
     let b = search_folder("shot-ws-b");
     let mut app = app_with(&a, false);
     app.open_path(&b);
+    // 第二个项目在 WSL 发行版中：标签上写项目名，位置用小号淡色字标出。
+    app.workspaces.slots[1].host = Some(winc_editor::host::Host::Wsl {
+        distro: "Ubuntu".to_owned(),
+        root: false,
+    });
     paint(&mut app);
     shoot(&mut app, "shot-workspaces");
 

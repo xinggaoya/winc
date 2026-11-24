@@ -11,8 +11,26 @@ pub(crate) const CHIP_CHROME: f32 = 6.0 + 20.0 + 5.0 + 4.0 + 16.0 + 6.0;
 pub(crate) const CHIP_MIN: f32 = 72.0;
 /// 项目名最多占的宽度（逻辑像素），超出部分截短。
 pub(crate) const CHIP_NAME_MAX: f32 = 140.0;
+/// 位置标记最多占的宽度（逻辑像素），超出部分截短。
+pub(crate) const CHIP_HOST_MAX: f32 = 48.0;
+/// 项目名与位置标记之间的距离（逻辑像素）。
+pub(crate) const CHIP_HOST_GAP: f32 = 6.0;
+/// 项目名至少留的宽度（逻辑像素）：地方不够时位置标记先让位。
+const NAME_MIN: f32 = 36.0;
 /// 末尾两个按钮的宽度（逻辑像素）。
 const END_W: f32 = 24.0;
+
+/// 项目名与位置标记在 `room`（逻辑像素）里怎么排：返回名字可用的宽度与位置标记的宽度。
+///
+/// 位置标记放得下时占它的宽度，项目名用剩下的；放不下时舍位置标记，项目名占满。
+pub(crate) fn split_chip_room(name_w: f32, host_w: f32, room: f32) -> (f32, Option<f32>) {
+    let keep = name_w.min(NAME_MIN);
+    if host_w > 0.0 && room >= host_w + CHIP_HOST_GAP + keep {
+        (room - host_w - CHIP_HOST_GAP, Some(host_w))
+    } else {
+        (room, None)
+    }
+}
 /// 标签与末尾按钮之间的间距（逻辑像素）。
 const END_GAP: f32 = 4.0;
 /// 标签里关闭按钮的边长（逻辑像素）。
@@ -32,8 +50,8 @@ impl App {
         let y = header.y + (header.h - TAB_HEIGHT) / 2.0;
         let right = header.right() - 8.0;
         let count = self.workspaces.slots.len();
-        // 各工作区的显示名：当前工作区用打开着的目录的名字，其余用登记时记下的。
-        let names: Vec<String> = (0..count).map(|i| self.workspace_name(i)).collect();
+        // 各工作区在标签上要写的两段文字：项目名与位置。
+        let labels: Vec<WorkspaceLabel> = (0..count).map(|i| self.workspace_label(i)).collect();
 
         let bar = &mut self.workspace_bar;
         bar.chips.clear();
@@ -56,17 +74,24 @@ impl App {
             return;
         };
         let font = self.fonts.ui;
+        let small = self.fonts.ui_small;
         // 标签从左栏左边 8 像素处开始，滚到「打开项目」按钮左边为止。
         let left = header.x + 8.0;
         let room = (add.x - END_GAP - left).max(0.0);
 
-        // 每个标签的宽度：徽章与关闭按钮占固定宽度，名字按长度算，长的截短。
+        // 每个标签的宽度：徽章与关闭按钮占固定宽度，名字与位置标记按长度算，长的截短。
         let mut widths = Vec::with_capacity(count);
-        for name in &names {
-            let text = renderer
-                .measure(FontKind::Ui, font, name)
+        for label in &labels {
+            let name = renderer
+                .measure(FontKind::Ui, font, &label.name)
                 .min(CHIP_NAME_MAX);
-            widths.push((CHIP_CHROME + text).ceil().max(CHIP_MIN));
+            let host = label.host.as_ref().map_or(0.0, |host| {
+                renderer
+                    .measure(FontKind::Ui, small, host.short())
+                    .min(CHIP_HOST_MAX)
+                    + CHIP_HOST_GAP
+            });
+            widths.push((CHIP_CHROME + name + host).ceil().max(CHIP_MIN));
         }
         let mut content: f32 = widths.iter().sum::<f32>() + TAB_GAP * (count as f32 - 1.0);
 
@@ -129,5 +154,23 @@ impl App {
         }
         // 标签条的位置也记在布局里（上游的同名区域在顶栏，本仓库把它搬到了左栏）。
         self.layout.workspaces = bar.view;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 位置标记放得下时占它的宽度，项目名用剩下的；放不下时舍位置标记，项目名优先。
+    #[test]
+    fn the_project_name_keeps_its_room() {
+        // 放得下：名字与位置标记各占各的。
+        assert_eq!(split_chip_room(100.0, 40.0, 146.0), (100.0, Some(40.0)));
+        // 差一点放不下：舍位置标记，名字占满。
+        assert_eq!(split_chip_room(100.0, 40.0, 45.0), (45.0, None));
+        // 名字很短时也留着位置标记。
+        assert_eq!(split_chip_room(20.0, 40.0, 66.0), (20.0, Some(40.0)));
+        // 没有位置标记时名字占满。
+        assert_eq!(split_chip_room(100.0, 0.0, 80.0), (80.0, None));
     }
 }

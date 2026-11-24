@@ -833,3 +833,43 @@ fn the_workspace_tab_shows_the_project_name_and_where_it_is() {
 
     let _ = std::fs::remove_dir_all(&a);
 }
+
+/// 标签上有位置标记时更宽；位置标记太长时截到上限；标签条挤不下时先舍位置标记。
+#[test]
+fn the_workspace_tab_keeps_the_project_name_readable() {
+    use crate::app::workspace::place::{CHIP_CHROME, CHIP_HOST_GAP, CHIP_HOST_MAX, CHIP_NAME_MAX};
+    use winc_editor::host::Host;
+    let a = search_folder("workspace-tab-w");
+    let mut app = app_with(&a, false);
+    paint(&mut app);
+    let plain = app.workspace_bar.chips[0].rect.w;
+
+    app.workspaces.slots[0].host = Some(Host::Wsl {
+        distro: "Ubuntu".to_owned(),
+        root: false,
+    });
+    paint(&mut app);
+    let with_host = app.workspace_bar.chips[0].rect.w;
+    assert!(with_host > plain, "{plain} {with_host}");
+
+    // 发行版名很长：位置标记截到上限，标签不会因此无限变宽。
+    app.workspaces.slots[0].host = Some(Host::Wsl {
+        distro: "a-very-long-distro-name-that-never-ends".to_owned(),
+        root: false,
+    });
+    paint(&mut app);
+    let chip = app.workspace_bar.chips[0];
+    assert!(
+        chip.rect.w <= CHIP_CHROME + CHIP_NAME_MAX + CHIP_HOST_MAX + CHIP_HOST_GAP,
+        "{:?}",
+        chip.rect
+    );
+
+    // 标签条很窄：位置标记让位，项目名仍然放得下开头。
+    app.panels.sidebar.width = 120.0;
+    paint(&mut app);
+    let chip = app.workspace_bar.chips[0];
+    assert!(chip.rect.w > 0.0);
+
+    let _ = std::fs::remove_dir_all(&a);
+}

@@ -35,7 +35,7 @@ pub(super) mod watch;
 pub(crate) mod workspaces;
 
 pub(crate) use bar::{WorkspaceBar, WorkspaceChip};
-pub(crate) use workspaces::{WorkspaceSlot, Workspaces};
+pub(crate) use workspaces::{WorkspaceLabel, WorkspaceSlot, Workspaces};
 
 /// 左右两栏里各自的面板，以及右栏的宽度。
 ///
