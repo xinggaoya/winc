@@ -129,6 +129,8 @@ pub(crate) struct Panels {
     pub layout: workspace::PanelLayout,
     /// 右栏是否收起：收起时中间一栏占满窗口，右栏不占地方。
     pub right_hidden: bool,
+    /// 右栏展开与收起的动画；没有动画时为 `None`。
+    pub(in crate::app) right_motion: Option<workspace::columns::RightMotion>,
     /// 文件树中正在重命名的项及其输入框；没有时为 `None`。
     pub name_input: Option<NameInput>,
     /// 从文件管理器等来源拖动文件经过窗口时的放置位置；未在拖动时为 `None`。

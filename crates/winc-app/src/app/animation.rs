@@ -360,6 +360,7 @@ impl App {
         }
 
         settle(&mut self.panels.sidebar.motion, |m| m.clock);
+        settle(&mut self.panels.right_motion, |m| m.clock);
         settle(&mut self.panels.tree.motion, |m| m.clock);
         self.panels.tree.labels.settle();
         self.git.commit.names.settle();
@@ -485,6 +486,7 @@ impl App {
     /// 是否有动画正在进行，包括滚动条的淡入、淡出和变色。
     pub(super) fn animating(&self) -> bool {
         self.panels.sidebar.motion.is_some()
+            || self.panels.right_motion.is_some()
             || self.panels.tree.motion.is_some()
             || self.panels.tree.labels.moving()
             || self.git.commit.names.moving()

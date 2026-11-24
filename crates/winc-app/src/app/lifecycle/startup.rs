@@ -168,6 +168,7 @@ impl App {
                 },
                 layout: panel_layout,
                 right_hidden: false,
+                right_motion: None,
                 file_hover: None,
                 name_input: None,
                 global: GlobalSearch::default(),

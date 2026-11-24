@@ -18,15 +18,27 @@ pub(crate) fn without_search(panels: &[Panel]) -> Vec<Panel> {
         .collect()
 }
 
+/// 右栏展开与收起的动画。
+#[derive(Debug, Clone, Copy)]
+pub(in crate::app) struct RightMotion {
+    /// 开始时露出的比例：0 为隐藏，1 为完全展开。
+    pub(in crate::app) from: f32,
+    /// 动画的时钟。
+    pub(in crate::app) clock: crate::app::animation::Clock,
+}
+
 impl App {
     /// 面板 `panel` 现在能不能显示。
     ///
     /// Git 的提交视图在 Git 模块开着时可用；模块关着时，目录是仓库的话仍然列出来，写明模块
-    /// 关着、用户到设置里打开。其余面板一直都有。
+    /// 关着、用户到设置里打开。文件树一直都有。
+    ///
+    /// 全局搜索不算：它改用浮在编辑区上的弹窗，不占两栏的位置。
     pub(crate) fn panel_available(&self, panel: Panel) -> bool {
         match panel {
-            Panel::Files | Panel::Search => true,
+            Panel::Files => true,
             Panel::Commit => self.git_enabled() || self.in_git_repository(),
+            Panel::Search => false,
         }
     }
 
@@ -58,24 +70,25 @@ impl App {
         (left, right)
     }
 
-    /// 右栏露出的比例：0 为隐藏，1 为完全展开。
+    /// 右栏露出的比例：0 为隐藏，1 为完全展开，动画中介于两者之间。
     ///
-    /// 右栏里没有能显示的面板时为 0（不占地方）。收起、展开暂不做过渡。
+    /// 右栏里没有能显示的面板时为 0（不占地方）。
     pub(crate) fn right_shown(&self) -> f32 {
-        if self.panels.right_hidden {
-            return 0.0;
-        }
-        if self
+        let has_panels = self
             .panels
             .layout
             .right
             .iter()
-            .any(|panel| self.panel_available(*panel))
-        {
-            1.0
-        } else {
+            .any(|panel| self.panel_available(*panel));
+        let target = if self.panels.right_hidden || !has_panels {
             0.0
-        }
+        } else {
+            1.0
+        };
+        let Some(motion) = self.panels.right_motion else {
+            return target;
+        };
+        motion.clock.between(motion.from, target)
     }
 
     /// 面板 `panel` 在某一栏里的位置；现在没有显示时返回 `None`。
@@ -100,9 +113,15 @@ impl App {
         self.panel_card(Panel::Commit)
     }
 
-    /// 收起或展开右栏。
+    /// 收起或展开右栏（带动画）。
+    ///
+    /// 动画中途反向时从当前位置继续。
     pub(in crate::app) fn toggle_right_column(&mut self) {
+        let from = self.right_shown();
         self.panels.right_hidden = !self.panels.right_hidden;
+        self.panels.right_motion = self
+            .clock(crate::app::animation::SIDEBAR_ANIMATION)
+            .map(|clock| RightMotion { from, clock });
         self.relayout();
         self.request_redraw();
     }

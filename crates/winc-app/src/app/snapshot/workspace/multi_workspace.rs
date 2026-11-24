@@ -211,3 +211,44 @@ fn the_workspace_bar_is_drawn_without_panels() {
 
     let _ = std::fs::remove_dir_all(&a);
 }
+
+/// 右栏收起与展开有过渡：动画中途只露出一部分。
+#[test]
+fn the_right_column_slides_in_and_out() {
+    use std::time::Duration;
+
+    let dir = search_folder("right-column-motion");
+    let mut app = app_with(&dir, false);
+    // 右栏里放文件树（提交视图要目录是仓库才显示）。
+    app.config.panels_left = Some(Vec::new());
+    app.config.panels_right = Some(vec![winc_config::Panel::Files]);
+    app.adopt_panels();
+    assert_eq!(app.right_shown(), 1.0, "右栏开着");
+
+    // 收起：动画中途右栏只露出一部分。
+    app.panels.right_hidden = true;
+    app.panels.right_motion = Some(crate::app::workspace::columns::RightMotion {
+        from: 1.0,
+        clock: Clock::frozen(
+            Duration::from_millis(100),
+            crate::app::animation::SIDEBAR_ANIMATION,
+        ),
+    });
+    let shown = app.right_shown();
+    assert!(
+        shown > 0.0 && shown < 1.0,
+        "动画中途右栏只露出一部分：{shown}"
+    );
+
+    // 动画结束：右栏完全收起来。
+    app.panels.right_motion = Some(crate::app::workspace::columns::RightMotion {
+        from: 1.0,
+        clock: Clock::frozen(
+            Duration::from_millis(200),
+            crate::app::animation::SIDEBAR_ANIMATION,
+        ),
+    });
+    assert_eq!(app.right_shown(), 0.0, "动画结束时右栏收起来了");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
