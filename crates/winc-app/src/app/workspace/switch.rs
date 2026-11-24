@@ -277,7 +277,9 @@ impl App {
             self.notify_closed_workspace(&folder, &name, index, undoable);
             return;
         }
-        self.workspaces.slots.remove(index);
+        // 关掉后台工作区：它的终端标签也要结束，辅助进程里不留着它的 shell。
+        let mut slot = self.workspaces.slots.remove(index);
+        self.close_slot_terminal(&mut slot.terminal);
         if index < active {
             self.workspaces.active -= 1;
         }

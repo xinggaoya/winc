@@ -585,6 +585,25 @@ impl App {
         }
     }
 
+    /// 关掉某个工作区的终端标签：辅助进程里的 shell 随之结束。
+    ///
+    /// 关的是后台工作区时用：那个工作区的终端不在窗口里，要单独通知辅助进程。
+    pub(super) fn close_slot_terminal(&mut self, panel: &mut TerminalPanel) {
+        let ids: Vec<u16> = panel.tabs.iter().map(|tab| tab.id).collect();
+        if let Some(client) = &self.terminal_client {
+            for &tab in &ids {
+                client.send(&ToHelper::Close { tab });
+            }
+        }
+        panel.tabs.clear();
+        panel.want.clear();
+        panel.want_names.clear();
+        panel.want_shells.clear();
+        panel.want_into.clear();
+        panel.want_active = None;
+        panel.active = 0;
+    }
+
     /// 换目录或关闭目录时关掉所有终端标签，挂断其中的 shell，不确认、不收起面板。
     ///
     /// 调用方须先确认运行中的程序（[`Self::confirm_terminal_quit`]），并把标签记入原目录的

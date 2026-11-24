@@ -117,3 +117,56 @@ fn cancelling_the_close_of_a_workspace_keeps_it() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 关闭工作区时它的终端标签也一并关掉：辅助进程里不再留着它的 shell。
+#[test]
+fn closing_a_workspace_closes_its_terminal() {
+    let a = search_folder("ws-term-a");
+    let b = search_folder("ws-term-b");
+    let mut app = app_with(&a, false);
+    // 给第一个工作区开一个终端标签（本地仿真，不启动辅助进程）。
+    let size = app.terminal_size();
+    app.terminal.tabs.push(crate::app::terminal::TermTab::new(7, size));
+    let tab = app.terminal.tabs[0].id;
+    app.open_path(&b);
+
+    // 关掉第一个工作区：它的终端标签不再留在窗口里。
+    app.close_workspace(0);
+    assert_eq!(app.workspaces.slots.len(), 1);
+    let mut kept = app
+        .terminal
+        .tabs
+        .iter()
+        .chain(app.workspaces.slots.iter().flat_map(|s| s.terminal.tabs.iter()));
+    assert!(
+        kept.all(|t| t.id != tab),
+        "关闭工作区时它的终端标签也关掉了"
+    );
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 关闭工作区时，辅助进程里的 shell 也结束：不再留着它的终端。
+#[cfg(unix)]
+#[test]
+fn closing_a_workspace_tells_the_helper_to_end_its_shell() {
+    let a = search_folder("ws-term-helper-a");
+    let b = search_folder("ws-term-helper-b");
+    let mut app = app_with(&a, false);
+    super::super::terminal::show_terminal(&mut app, "$ ");
+    let tab = app.terminal.tabs[0].id;
+    let log = app.attach_recording_helper(&a);
+    app.open_path(&b);
+
+    app.close_workspace(0);
+    let closed = app
+        .sent_to_helper(&log)
+        .into_iter()
+        .filter(|m| matches!(m, winc_pty::protocol::ToHelper::Close { tab: t } if t == tab))
+        .count();
+    assert_eq!(closed, 1, "关闭工作区时它的终端标签也通知了辅助进程");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
