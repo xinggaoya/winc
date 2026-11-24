@@ -39,6 +39,7 @@ notes live in [upstream Releases](https://github.com/DEEIX-AI/Winc/releases) and
   退回它。
 - 本仓库自行发布：推送 tag 即触发四个平台的构建，产物与发布说明（由 Git 日志生成）一起发到
   GitHub 的 Release。
+- Windows 安装包安装后会在桌面创建 Winc 快捷方式，卸载时一并移除；MSI 的快捷方式在公共桌面上。
 
 ### 修复 / Fixed
 

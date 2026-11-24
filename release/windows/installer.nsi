@@ -278,6 +278,9 @@ Section "Winc" SEC_MAIN
   ; keeps the existing file name, so any shortcut of that name is removed first.
   Delete "$SMPROGRAMS\winc.lnk"
   CreateShortcut "$SMPROGRAMS\Winc.lnk" "$INSTDIR\winc.exe" "" "$INSTDIR\winc.ico"
+  ; The desktop shows the same file name, so a shortcut of that name is removed the same way.
+  Delete "$DESKTOP\winc.lnk"
+  CreateShortcut "$DESKTOP\Winc.lnk" "$INSTDIR\winc.exe" "" "$INSTDIR\winc.ico"
   WriteRegStr HKCU "Software\Classes\Applications\winc.exe" "FriendlyAppName" "Winc"
   WriteRegStr HKCU "Software\Classes\Applications\winc.exe\DefaultIcon" "" "$INSTDIR\winc.exe,0"
   WriteRegStr HKCU "Software\Classes\Applications\winc.exe\shell\open\command" "" '"$INSTDIR\winc.exe" "%1"'
@@ -321,6 +324,7 @@ FunctionEnd
 Section "Uninstall"
   SetShellVarContext current
   Delete "$SMPROGRAMS\Winc.lnk"
+  Delete "$DESKTOP\Winc.lnk"
   Delete "$INSTDIR\winc.exe"
   Delete "$INSTDIR\winc-pty.exe"
   !insertmacro DeleteRetrying "OpenConsole.exe"

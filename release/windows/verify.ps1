@@ -28,8 +28,13 @@ foreach ($kind in @('nsis', 'msi')) {
     # Start menu, the MSI one in a Winc folder of the machine's; an existing lowercase shortcut must
     # not keep its name.
     $menu = if ($kind -eq 'nsis') { [Environment]::GetFolderPath('Programs') } else { Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Winc' }
+    # The desktop shows the file name of a shortcut, so it is named Winc as well. The NSIS installer
+    # is per-user and puts the shortcut on the user's desktop; the MSI installs for the whole
+    # machine and puts it on the desktop of all users.
+    $desktop = if ($kind -eq 'nsis') { [Environment]::GetFolderPath('DesktopDirectory') } else { [Environment]::GetFolderPath('CommonDesktopDirectory') }
     if ($kind -eq 'nsis') {
         Set-Content -LiteralPath (Join-Path $menu 'winc.lnk') -Value ''
+        Set-Content -LiteralPath (Join-Path $desktop 'winc.lnk') -Value ''
         $listing = "$classes\.json\OpenWithProgids"
         if (-not (Test-Path -LiteralPath $listing)) { New-Item -Force -Path $listing | Out-Null }
         New-ItemProperty -Force -LiteralPath $listing -Name 'winc.JSON' -Value '' | Out-Null
@@ -71,6 +76,12 @@ foreach ($kind in @('nsis', 'msi')) {
         if ($command -ne "`"$directory\winc.exe`" `"%1`"") { throw "${kind}: wrong URL scheme command: $command" }
         $link = Get-ChildItem -LiteralPath $menu -Filter 'winc.lnk'
         if (@($link).Count -ne 1 -or $link.Name -cne 'Winc.lnk') { throw "${kind}: the Start menu shortcut is not named Winc" }
+        # The desktop shortcut points at the installed program and carries its icon.
+        $desktopLink = Get-ChildItem -LiteralPath $desktop -Filter 'winc.lnk'
+        if (@($desktopLink).Count -ne 1 -or $desktopLink.Name -cne 'Winc.lnk') { throw "${kind}: the desktop shortcut is not named Winc" }
+        $desktopShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($desktopLink.FullName)
+        if ($desktopShortcut.TargetPath -ne "$directory\winc.exe") { throw "${kind}: the desktop shortcut points at $($desktopShortcut.TargetPath)" }
+        if ($desktopShortcut.IconLocation -notlike "$directory\winc.ico*") { throw "${kind}: the desktop shortcut has the icon $($desktopShortcut.IconLocation)" }
         if ($kind -eq 'msi' -and (Get-Item -LiteralPath $menu).Name -cne 'Winc') { throw 'msi: the Start menu folder is not named Winc' }
         if ($kind -eq 'nsis' -and (Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\winc').DisplayName -cne 'Winc') { throw 'nsis: the installed app is not listed as Winc' }
         # A handler listed under a type makes Windows ask which program to use, and for types it runs
@@ -131,6 +142,7 @@ foreach ($kind in @('nsis', 'msi')) {
     }
     if (Test-Path -LiteralPath "$classes\winc") { throw "${kind}: uninstall left the URL scheme behind" }
     if (Test-Path -LiteralPath (Join-Path $menu 'Winc.lnk')) { throw "${kind}: uninstall left the Start menu shortcut behind" }
+    if (Test-Path -LiteralPath (Join-Path $desktop 'Winc.lnk')) { throw "${kind}: uninstall left the desktop shortcut behind" }
 }
 Expand-Archive "$bundle/portable/Winc-$version-windows-x64-portable.zip" "$work/portable" -Force
 if ((Test-Path "$work/portable/winc-installation") -or -not (Test-Path "$work/portable/winc-pty.exe") -or -not (Test-Path "$work/portable/conpty.dll") -or -not (Test-Path "$work/portable/OpenConsole.exe") -or -not (Test-Path "$work/portable/bin/winc") -or -not (Test-Path "$work/portable/winc-watch") -or -not (Test-Path "$work/portable/winc-server-Linux-x86_64") -or -not (Test-Path "$work/portable/winc-server-Linux-aarch64") -or -not (Test-Path "$work/portable/data/README.txt")) { throw 'invalid portable layout' }

@@ -218,6 +218,15 @@
           </Component>
         </Directory>
       </Directory>
+      <!-- The desktop shortcut: the desktop shows the file name of a shortcut, so it is named Winc.
+           The package installs for the whole machine, so the shortcut goes on the desktop of all
+           users. Windows Installer removes it together with the component on uninstall. -->
+      <Directory Id="DesktopFolder" Name="Desktop">
+        <Component Id="DesktopShortcut" Guid="*" Win64="yes">
+          <Shortcut Id="DesktopShortcutLink" Name="Winc" Target="[#WincExe]" WorkingDirectory="INSTALLFOLDER" Icon="WincIcon"/>
+          <RegistryValue Root="HKCU" Key="Software\DEEIX\winc\MSI" Name="Desktop Shortcut" Type="integer" Value="1" KeyPath="yes"/>
+        </Component>
+      </Directory>
     </Directory>
     <Feature Id="Main" Title="winc" Level="1">
       <ComponentRef Id="Application"/><ComponentRef Id="TerminalHelper"/><ComponentRef Id="InstallationKind"/>
@@ -226,6 +235,7 @@
       <ComponentRef Id="CommandLine"/><ComponentRef Id="CommandLineCmd"/><ComponentRef Id="WslWatcher"/>
       <ComponentRef Id="RemoteServerX64"/><ComponentRef Id="RemoteServerArm64"/>
       <ComponentRef Id="License"/><ComponentRef Id="Notice"/><ComponentRef Id="StartMenu"/>
+      <ComponentRef Id="DesktopShortcut"/>
       <ComponentRef Id="Icon_markdown"/><ComponentRef Id="Icon_json"/><ComponentRef Id="Icon_config"/><ComponentRef Id="Icon_markup"/><ComponentRef Id="Icon_style"/><ComponentRef Id="Icon_script"/><ComponentRef Id="Icon_table"/><ComponentRef Id="Icon_text"/><ComponentRef Id="Icon_javascript"/><ComponentRef Id="Icon_typescript"/><ComponentRef Id="Icon_python"/><ComponentRef Id="Icon_rust"/><ComponentRef Id="Icon_go"/><ComponentRef Id="Icon_c"/><ComponentRef Id="Icon_code"/><ComponentRef Id="Icon_file"/>
     </Feature>
     <Feature Id="FileTypes" Title="Associate file types" Level="1000">

@@ -1,13 +1,9 @@
 //! 安装包声明的文件类型的测试：两种 Windows 安装包的列表和各类型的图标一致，常用类型都在，
 //! 双击即运行的类型不注册。
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-fn release_file(name: &str) -> String {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-    let path: PathBuf = root.join("release").join(name);
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
-}
+use super::release::release_file;
 
 /// `installer.nsi` 的宏 `name` 里列出的各项：（扩展名，文档图标的名称），顺序与文件中相同。
 fn nsis_entries(name: &str) -> Vec<(String, String)> {

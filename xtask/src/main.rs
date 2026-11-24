@@ -35,6 +35,10 @@ mod feed;
 #[cfg(test)]
 mod file_types;
 mod icons;
+#[cfg(test)]
+mod installers;
+#[cfg(test)]
+mod release;
 mod samples;
 mod server;
 mod sparkle;

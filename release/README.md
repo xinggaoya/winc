@@ -122,6 +122,11 @@ enclosure, verifies its signature, waits for the app to exit, installs silently,
 when requested. MSI updates request elevation when required. Portable Windows and deb installations
 continue to use manual or package-manager updates.
 
+Both Windows installers create a Start menu shortcut and a desktop shortcut, and remove them on
+uninstall. The desktop shows the file name of a shortcut, so both are named Winc. The NSIS shortcut
+goes on the desktop of the user who installs it; the MSI installs for the whole machine, so its
+shortcut goes on the desktop of all users.
+
 ### Arch repository (winc.si)
 
 The **Release · Sign Arch repository** workflow stages `deeix-ai-winc` after a stable GitHub
