@@ -19,6 +19,10 @@ pub enum CloseRequest {
     Switch(PathBuf),
     /// 关闭目录，回到开始页。
     CloseFolder,
+    /// 关闭第几个工作区。
+    ///
+    /// `previous` 是关闭之前的工作区：关的是后台工作区时先切过去，取消关闭再切回去。
+    Workspace { index: usize, previous: usize },
 }
 
 /// 提示框上被点击的按钮。
@@ -239,7 +243,8 @@ impl App {
                 CloseRequest::Quit
                 | CloseRequest::CloseWindow
                 | CloseRequest::Switch(_)
-                | CloseRequest::CloseFolder => true,
+                | CloseRequest::CloseFolder
+                | CloseRequest::Workspace { .. } => true,
             })
             .map(|d| d.id)
             .collect();
@@ -336,7 +341,15 @@ impl App {
         };
 
         match choice {
-            SaveChoice::Cancel => {}
+            SaveChoice::Cancel => {
+                // 关的是后台工作区时把它切回去：刚才为了看得见才切过去的。
+                if let CloseRequest::Workspace { index, previous } = prompt.request
+                    && index != previous
+                    && previous < self.workspaces.slots.len()
+                {
+                    self.switch_workspace(previous);
+                }
+            }
             SaveChoice::Discard => self.finish_close(prompt.request),
             SaveChoice::Save => self.save_then_close(prompt),
         }
@@ -395,6 +408,10 @@ impl App {
                 self.close_all_terminal_tabs();
                 self.set_terminal_open(false);
                 self.close_folder_now();
+            }
+            // 关闭工作区：它的标签、终端与备份都随它一起没了。
+            CloseRequest::Workspace { index, .. } => {
+                self.close_workspace_inner(index, true);
             }
         }
         self.relayout();

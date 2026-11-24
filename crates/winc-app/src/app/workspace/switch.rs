@@ -225,9 +225,22 @@ impl App {
 
     /// 关闭第 `index` 号工作区；关掉的是当前工作区时切到相邻的一个。
     ///
+    /// 有未保存的修改、终端里有程序在跑时先问：关掉就丢了。
     /// 关掉后在提示条上留一个「撤销」：重新打开这个项目，位置回到关闭前的地方。
     pub(in crate::app) fn close_workspace(&mut self, index: usize) {
-        self.close_workspace_inner(index, true);
+        if index >= self.workspaces.slots.len() {
+            return;
+        }
+        // 关掉后台工作区：先切过去，用户看得见自己关掉的是什么。
+        let previous = self.workspaces.active;
+        if index != previous {
+            self.switch_workspace(index);
+        }
+        let request = CloseRequest::Workspace { index, previous };
+        if self.confirm_terminal_quit(request.clone()) {
+            return;
+        }
+        self.request_close(request);
     }
 
     /// 同 [`App::close_workspace`]，不在提示条上留「撤销」。
@@ -238,7 +251,7 @@ impl App {
     }
 
     /// 关闭第 `index` 号工作区；`undoable` 为真时在提示条上留一个「撤销」。
-    fn close_workspace_inner(&mut self, index: usize, undoable: bool) {
+    pub(in crate::app) fn close_workspace_inner(&mut self, index: usize, undoable: bool) {
         if index >= self.workspaces.slots.len() {
             return;
         }

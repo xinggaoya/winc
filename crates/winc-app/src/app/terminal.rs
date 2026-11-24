@@ -689,6 +689,12 @@ impl App {
             (CloseRequest::CloseFolder, None) => {
                 t!("terminal-close-folder-confirm-many", count = count)
             }
+            (CloseRequest::Workspace { .. }, Some(name)) => {
+                t!("terminal-close-workspace-confirm-one", name = name)
+            }
+            (CloseRequest::Workspace { .. }, None) => {
+                t!("terminal-close-workspace-confirm-many", count = count)
+            }
             (_, Some(name)) => t!("terminal-close-window-confirm-one", name = name),
             (_, None) => t!("terminal-close-window-confirm-many", count = count),
         };
@@ -701,6 +707,10 @@ impl App {
             CloseRequest::CloseFolder => (
                 t!("terminal-close-folder-confirm-detail"),
                 t!("cmd-close-folder"),
+            ),
+            CloseRequest::Workspace { .. } => (
+                t!("terminal-close-workspace-confirm-detail"),
+                t!("cmd-close-workspace"),
             ),
             CloseRequest::CloseWindow | CloseRequest::Tabs(_) => (
                 t!("terminal-close-window-confirm-detail"),

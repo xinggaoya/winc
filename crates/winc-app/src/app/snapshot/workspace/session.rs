@@ -359,9 +359,11 @@ fn switching_folders_keeps_each_folders_tabs() {
     assert_eq!(names(&app), ["a.txt"]);
     assert!(app.editor.active().unwrap().is_dirty());
 
-    // 关闭目录：多工作区模式下关掉的是当前工作区，切到另一个。
+    // 关闭目录：多工作区模式下关掉的是当前工作区；有未保存的修改时先问。
     app.open_project_menu();
     app.run_menu_command(MenuCommand::CloseFolder);
+    assert!(app.closing.prompt.is_some(), "关掉之前先问未保存的修改");
+    app.answer_save_prompt(SaveChoice::Discard);
     assert_eq!(app.editor.workspace.as_ref().unwrap().root, root_a);
 
     // 只剩一个工作区时关闭目录：回到开始页，侧栏收起。
@@ -1121,4 +1123,62 @@ fn confirm_close_asks_before_quitting_or_closing_the_window() {
     app.ask_quit();
     assert!(app.alert_key(&Key::Named(NamedKey::Enter), false));
     assert!(app.closing.quit_requested);
+}
+
+/// 切到别的工作区以后，先前工作区里未保存的内容的备份还在：它不是“已关闭的标签”。
+#[test]
+fn switching_workspaces_keeps_the_other_workspaces_backups() {
+    let a = search_folder("ws-backup-a");
+    let b = search_folder("ws-backup-b");
+    let root = backup_root("ws-backup");
+    let mut app = app_with(&a.join("src/main.rs"), false);
+    app.backup.root = Some(root.clone());
+    app.run(Command::Insert("// 第一个工作区里的改动\n".into()));
+    back_up_now(&mut app);
+
+    let files = app.written_backups();
+    assert_eq!(files.len(), 1, "第一个工作区的改动写了一份备份");
+    assert!(files[0].exists(), "备份写出来了：{}", files[0].display());
+
+    // 切到第二个工作区，再写一轮备份：第一个工作区的备份不该被删掉。
+    app.open_path(&b);
+    back_up_now(&mut app);
+    assert!(
+        files[0].exists(),
+        "切换以后备份还在：{}",
+        files[0].display()
+    );
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// 退出时各个工作区里未保存的内容都留下备份。
+#[test]
+fn quitting_keeps_the_backups_of_every_workspace() {
+    let a = search_folder("ws-quit-a");
+    let b = search_folder("ws-quit-b");
+    let root = backup_root("ws-quit");
+    let mut app = app_with(&a.join("src/main.rs"), false);
+    app.backup.root = Some(root.clone());
+    app.run(Command::Insert("// 第一个工作区的改动\n".into()));
+    back_up_now(&mut app);
+
+    app.open_path(&b.join("src/main.rs"));
+    app.run(Command::Insert("// 第二个工作区的改动\n".into()));
+    back_up_now(&mut app);
+    let files = app.written_backups();
+    assert_eq!(files.len(), 2, "两个工作区各有一份备份");
+
+    // 退出：两个工作区的备份都要在。
+    app.request_quit();
+    assert!(app.closing.quit_requested);
+    for file in &files {
+        assert!(file.exists(), "退出以后备份还在：{}", file.display());
+    }
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+    let _ = std::fs::remove_dir_all(&root);
 }

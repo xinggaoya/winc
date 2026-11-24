@@ -75,6 +75,12 @@ terminal-close-folder-confirm-many = { $count ->
        *[other] Close the folder and end { $count } running programs?
     }
 terminal-close-folder-confirm-detail = Programs are still running in the terminal. Closing the folder will end them.
+terminal-close-workspace-confirm-one = Close the workspace and end “{ $name }”?
+terminal-close-workspace-confirm-many = { $count ->
+        [one] Close the workspace and end { $count } running program?
+       *[other] Close the workspace and end { $count } running programs?
+    }
+terminal-close-workspace-confirm-detail = Programs are still running in the terminal. Closing the workspace will end them.
 terminal-close-confirm = End “{ $name }”?
 terminal-close-confirm-detail = Closing this terminal tab will end the program running in it.
 terminal-paste-confirm = { $count ->

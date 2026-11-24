@@ -71,3 +71,49 @@ fn a_background_save_finishes_in_the_workspace_that_owns_the_document() {
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&other);
 }
+
+/// 关闭有未保存修改的工作区：先询问，放弃修改才关掉。
+#[test]
+fn closing_a_workspace_asks_about_unsaved_changes() {
+    let a = search_folder("ws-close-a");
+    let b = search_folder("ws-close-b");
+    let mut app = app_with(&a.join("src/main.rs"), false);
+    app.run(Command::Insert("// 没保存的改动\n".into()));
+    app.open_path(&b);
+    assert_eq!(app.workspaces.slots.len(), 2);
+
+    // 关掉有未保存修改的工作区：先询问。
+    app.close_workspace(0);
+    assert!(
+        app.closing.prompt.is_some(),
+        "关掉之前先问未保存的修改"
+    );
+    assert_eq!(app.workspaces.slots.len(), 2, "还没有关掉");
+
+    // 回答「不保存」：工作区关掉了。
+    app.answer_save_prompt(SaveChoice::Discard);
+    assert_eq!(app.workspaces.slots.len(), 1, "关掉了那个工作区");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+/// 取消关闭工作区：它还在，刚才切过去的工作区也切回去。
+#[test]
+fn cancelling_the_close_of_a_workspace_keeps_it() {
+    let a = search_folder("ws-cancel-a");
+    let b = search_folder("ws-cancel-b");
+    let mut app = app_with(&a.join("src/main.rs"), false);
+    app.run(Command::Insert("// 没保存的改动\n".into()));
+    app.open_path(&b);
+    let before = app.workspaces.active;
+
+    app.close_workspace(0);
+    assert!(app.closing.prompt.is_some());
+    app.answer_save_prompt(SaveChoice::Cancel);
+    assert_eq!(app.workspaces.slots.len(), 2, "取消以后工作区还在");
+    assert_eq!(app.workspaces.active, before, "切回原来的工作区");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
