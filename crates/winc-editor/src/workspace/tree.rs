@@ -118,6 +118,10 @@ pub struct Workspace {
     pub name: String,
     /// 根目录的名字，没有起名时的显示名。
     own_name: String,
+    /// 根目录的名字，不含位置标记：紧凑显示用（见 [`Workspace::label`]）。
+    base: String,
+    /// 根目录所在的主机；本机上的目录没有。
+    host: Option<crate::host::Host>,
     /// 用户给这组目录起的名字。
     alias: Option<String>,
     /// 附加的文件夹（规范化后的绝对路径），按添加的顺序；见 [`Workspace::add_folder`]。
@@ -185,10 +189,13 @@ pub(crate) const HIDDEN: &[&str] = &[
     ".pytest_cache",
 ];
 
-/// 返回 WSL 发行版 `place` 中名为 `name` 的目录显示的名称：发行版的根目录显示为 `/`。
-fn in_distro(name: &str, place: &crate::wsl::Location) -> String {
-    let name = if place.path == "/" { "/" } else { name };
-    format!("{name} [WSL: {}]", place.distro)
+/// 返回目录 `base` 在 `host` 上的显示名字：根目录是 `/`，其余是目录名加上位置标记。
+fn name_with_host(base: &str, host: Option<&crate::host::Host>) -> String {
+    let Some(host) = host else {
+        return base.to_owned();
+    };
+    let base = if host.is_root() { "/" } else { base };
+    format!("{base} [{}]", host.full())
 }
 
 /// 返回遍历工作区目录的配置，快速打开的文件索引和全局搜索共用，两者看到的文件相同。
@@ -251,25 +258,27 @@ impl Workspace {
     /// 目录不存在、没有读权限，或读取顶层目录失败时返回对应的 `std::io::Error`。
     pub fn open(root: &Path) -> io::Result<Self> {
         let root = winc_config::files::canonicalize(root)?;
+        let host = crate::host::host(&root);
         let name = root.file_name().map_or_else(
             || root.display().to_string(),
             |n| n.to_string_lossy().into_owned(),
         );
         // 远端主机上和 WSL 发行版中的目录在名称后标出所在的位置：标题栏和状态栏上可以看出
         // 不是本机的目录。
-        let name = match winc_backend::locate(&root) {
-            None => match crate::wsl::locate_here(&root) {
-                Some(place) => in_distro(&name, &place),
-                None => name,
-            },
-            Some(at) if at.path == b"/" => format!("/ [SSH: {}]", at.target.as_str()),
-            Some(at) => format!("{name} [SSH: {}]", at.target.as_str()),
+        let own_name = name_with_host(&name, host.as_ref());
+        // 根目录没有名字：显示为 `/`。
+        let base = if host.as_ref().is_some_and(crate::host::Host::is_root) {
+            "/".to_owned()
+        } else {
+            name
         };
 
         let mut workspace = Workspace {
             root: root.clone(),
-            own_name: name.clone(),
-            name,
+            own_name: own_name.clone(),
+            name: own_name,
+            base,
+            host,
             alias: None,
             extra: Vec::new(),
             selected: None,

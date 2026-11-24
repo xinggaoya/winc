@@ -116,6 +116,18 @@ impl Workspace {
         self.alias.as_deref()
     }
 
+    /// 紧凑显示用的名字：根目录的名字（不含位置标记）；用户起名后是起过的名字。
+    ///
+    /// 窗口标题与状态栏用的是带位置标记的名字（见 [`Workspace::name`]）；标签上地方小，用这个。
+    pub fn label(&self) -> &str {
+        self.alias.as_deref().unwrap_or(&self.base)
+    }
+
+    /// 返回根目录所在的主机；本机上的目录没有。
+    pub fn host(&self) -> Option<&crate::host::Host> {
+        self.host.as_ref()
+    }
+
     /// 给这组目录起名为 `alias`，显示名随之改变；`None` 或空白时恢复为根目录的名字。
     pub fn set_alias(&mut self, alias: Option<&str>) {
         let alias = alias.map(str::trim).filter(|alias| !alias.is_empty());

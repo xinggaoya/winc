@@ -730,17 +730,47 @@ fn folders_that_cannot_be_read_on_this_thread_are_filled_in_later() {
     .unwrap();
 }
 
+/// 目录名加上位置标记：发行版与远端主机上的目录要标出在哪里。
 #[test]
-fn a_folder_in_a_wsl_distro_is_named_with_the_distro() {
-    let place = |path: &str| crate::wsl::locate(Path::new(path)).unwrap();
-    let project = place(r"\\wsl.localhost\Ubuntu-26.04\home\me\project");
+fn the_name_of_a_folder_tells_where_it_is() {
+    use crate::host::Host;
+    let distro = Host::Wsl {
+        distro: "Ubuntu-26.04".to_owned(),
+        root: false,
+    };
     assert_eq!(
-        in_distro("project", &project),
+        name_with_host("project", Some(&distro)),
         "project [WSL: Ubuntu-26.04]"
     );
     // 发行版的根目录没有名字，显示为 `/`。
-    let root = place(r"\\wsl$\Debian");
-    assert_eq!(in_distro("Debian", &root), "/ [WSL: Debian]");
+    let root = Host::Wsl {
+        distro: "Debian".to_owned(),
+        root: true,
+    };
+    assert_eq!(name_with_host("Debian", Some(&root)), "/ [WSL: Debian]");
+    let remote = Host::Ssh {
+        target: "example.com".to_owned(),
+        root: false,
+    };
+    assert_eq!(
+        name_with_host("project", Some(&remote)),
+        "project [SSH: example.com]"
+    );
+    // 本机上的目录没有标记。
+    assert_eq!(name_with_host("project", None), "project");
+}
+
+/// 工作区有两个名字：带位置标记的（标题栏用）和紧凑的（标签用）。
+#[test]
+fn the_workspace_has_a_compact_name() {
+    let base = crate::test_util::scratch("ws-label");
+    fs::create_dir_all(&base).unwrap();
+    let mut ws = Workspace::open(&base).unwrap();
+    assert_eq!(ws.label(), base.file_name().unwrap().to_string_lossy());
+    assert!(ws.host().is_none());
+    // 起了名字之后用起过的名字。
+    ws.set_alias(Some("新名字"));
+    assert_eq!(ws.label(), "新名字");
 }
 
 /// 附加文件夹以后最上一层是各个文件夹，各自收起、展开；移除后回到只列根目录的内容。
