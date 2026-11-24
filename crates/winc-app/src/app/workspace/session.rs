@@ -256,6 +256,7 @@ impl App {
         // 标签都关了，没有要备份的：放开这个目录的备份锁（见 `release_folder_lock`）。
         self.release_folder_lock();
         self.reset_folder_views();
+        self.reset_workspace_views();
         self.watch_folder();
         self.set_sidebar(false);
         self.focus = Focus::Editor;
@@ -264,15 +265,28 @@ impl App {
         self.request_redraw();
     }
 
-    /// 清除与上一个目录相关的状态。
+    /// 清除与上一个目录相关的、属于窗口的状态。
     ///
-    /// 包括输入框和浮层、全局搜索结果、`⌘P` 面板的文件表、文件树的滚动位置和动画、
-    /// 已关闭标签的记录（`⇧⌘T`）以及后退前进历史。
+    /// 包括输入框和浮层、`⌘P` 面板的文件表、已关闭标签的记录（`⇧⌘T`）以及后退前进历史。
     pub(in crate::app) fn reset_folder_views(&mut self) {
         // 输入框和浮层中保存的行号、路径属于旧目录，在新目录中无效。
         self.panels.name_input = None;
         self.bars.goto_input = None;
         self.panels.tree.drag = None;
+        self.overlays.picker.index.cancel();
+        self.overlays.picker.index = FileIndex::default();
+        self.jumps.definitions = None;
+        if self.overlays.picker.open {
+            self.close_picker();
+        }
+        self.history.closed.clear();
+        self.jumps.navigation.clear();
+    }
+
+    /// 清除各个工作区自己的状态：全局搜索的结果、提交视图的选中项、文件树的滚动位置。
+    ///
+    /// 切换工作区时不清：那些是各个工作区自己的，换回来时还在。关闭目录时才清。
+    pub(in crate::app) fn reset_workspace_views(&mut self) {
         self.panels.global.engine.clear();
         self.panels.global.collapsed.clear();
         self.panels.global.selected = None;
@@ -282,17 +296,9 @@ impl App {
         self.git.commit.scroll = 0.0;
         self.git.commit.clear_selection();
         self.git.commit.forget_dirs();
-        self.overlays.picker.index.cancel();
-        self.overlays.picker.index = FileIndex::default();
-        self.jumps.definitions = None;
-        if self.overlays.picker.open {
-            self.close_picker();
-        }
         self.panels.tree.motion = None;
         self.panels.tree.scroll = 0.0;
         self.panels.tree.scroll_x = 0.0;
-        self.history.closed.clear();
-        self.jumps.navigation.clear();
     }
 
     /// 把当前目录移到最近列表的最前面并立即写入状态文件，避免进程异常中止后丢失。

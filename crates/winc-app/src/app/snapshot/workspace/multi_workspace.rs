@@ -170,3 +170,25 @@ fn closing_a_workspace_tells_the_helper_to_end_its_shell() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 切换工作区时，那个工作区自己的状态留着：文件树还在原来的位置。
+#[test]
+fn switching_workspaces_keeps_their_own_state() {
+    let a = search_folder("ws-state-a");
+    let b = search_folder("ws-state-b");
+    let mut app = app_with(&a, false);
+    // 第一个工作区的文件树滚到下面。
+    app.panels.tree.scroll = 42.0;
+    app.open_path(&b);
+    assert_eq!(app.panels.tree.scroll, 0.0, "第二个工作区还没有滚动");
+
+    // 切回第一个：它的滚动位置还在。
+    app.switch_workspace(0);
+    assert_eq!(
+        app.panels.tree.scroll, 42.0,
+        "切回来时文件树还在原来的位置"
+    );
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}
