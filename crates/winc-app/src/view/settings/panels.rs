@@ -14,7 +14,7 @@ pub(super) fn draw(app: &mut App, frame: &mut Frame<'_>, body: Rect) {
     let layout = app.panels_layout();
     let p = app.palette;
 
-    for &(rect, title) in &layout.headings {
+    for &(rect, title, _) in &layout.headings {
         ui_text_small(frame, app, rect.x, rect, title, p.text_dim, body);
     }
     for &group in &layout.groups {
@@ -43,22 +43,61 @@ pub(super) fn draw(app: &mut App, frame: &mut Frame<'_>, body: Rect) {
     if let Some(drag) = drag
         && let Some(row) = dragging_row(&layout, drag)
     {
+        // 拖动中的行跟着鼠标走：它离开原来的位置，跟着指针。
         let moved = Rect::new(row.row.x, drag.at.1 - drag.grab, row.row.w, row.row.h);
         frame.with_opacity(0.75, |frame| {
-            draw_row(app, frame, &row, body);
-            // 拖动中的行跟着鼠标：画一块半透明的底，标出它现在的位置。
-            frame.rect_clipped(moved, p.hover, RADIUS_ROW, body);
+            let moved = Rect::new(moved.x, moved.y, moved.w, moved.h);
+            draw_row_at(app, frame, &row, moved, body);
         });
+        // 落点：一条横线，标出松手后面板会插在哪儿。
+        if let Some(line) = drop_line(app, &layout, body) {
+            frame.rect_clipped(line, p.accent, 1.0, body);
+        }
     }
 
     draw_width_row(app, frame, &layout, body);
     draw_multi_workspace_row(app, frame, &layout, body);
 }
 
+/// 落点的插入线：面板会插在哪儿，标在那一行之间。
+///
+/// 拖动时指针不在任何行、标题上时没有落点（松手就取消）。
+fn drop_line(app: &App, layout: &PanelsLayout, body: Rect) -> Option<Rect> {
+    let (column, index) = app.panel_drop_target(layout)?;
+    let y = match column {
+        Some(column) => {
+            let rows = match column {
+                Column::Left => &layout.left,
+                Column::Right => &layout.right,
+            };
+            match rows.get(index) {
+                Some(row) => Some(row.row.y),
+                // 放在这一栏的末尾：最后一行下面。
+                None => rows.last().map(|row| row.row.bottom()),
+            }
+        }
+        // 藏起来：标在隐藏组的第一行上面。
+        None => layout.hidden.first().map(|row| row.row.y),
+    }?;
+    let x = body.x + SETTINGS_PAD;
+    Some(Rect::new(x, y - 1.0, (body.w - 2.0 * SETTINGS_PAD).max(0.0), 2.0))
+}
+
 /// 绘制一行：一个面板的名字、拖动把手和行尾的按钮。
 fn draw_row(app: &App, frame: &mut Frame<'_>, row: &PanelRow, clip: Rect) {
+    draw_row_at(app, frame, row, row.row, clip);
+}
+
+/// 绘制一行，行放在 `at` 处：拖动中的行跟着鼠标走时用。
+fn draw_row_at(app: &App, frame: &mut Frame<'_>, row: &PanelRow, at: Rect, clip: Rect) {
     let p = app.palette;
-    let handle = row.handle;
+    // 把手跟着行走：拖动中的行整体移动。
+    let handle = Rect::new(
+        at.x + SETTINGS_INSET,
+        at.y + (at.h - 20.0) / 2.0,
+        20.0,
+        20.0,
+    );
     let hovered = app.settings.hover == Some(SettingsPart::PanelHandle(row.panel));
 
     // 拖动把手：三道横线。
@@ -75,8 +114,8 @@ fn draw_row(app: &App, frame: &mut Frame<'_>, row: &PanelRow, clip: Rect) {
 
     // 名字：面板的图标加名称。
     let icon = (
-        row.row.x + SETTINGS_INSET + 28.0,
-        icon_center_y(app, row.row, app.fonts.ui),
+        at.x + SETTINGS_INSET + 28.0,
+        icon_center_y(app, at, app.fonts.ui),
     );
     match row.panel {
         Panel::Files => icons::files(frame, icon, 0.85, p.text_muted, clip),
@@ -84,10 +123,26 @@ fn draw_row(app: &App, frame: &mut Frame<'_>, row: &PanelRow, clip: Rect) {
         Panel::Commit => icons::git(frame, icon, 0.85, p.text_muted, clip),
     }
     let name = crate::view::workspace::columns::panel_name(row.panel);
-    ui_text(frame, app, icon.0 + 16.0, row.row, name, p.text, clip);
+    ui_text(frame, app, icon.0 + 16.0, at, name, p.text, clip);
 
     // 行尾的按钮。
+    let shift = |rect: Rect| -> Rect {
+        if rect.w <= 0.0 {
+            return rect;
+        }
+        Rect::new(
+            rect.x + (at.x - row.row.x),
+            rect.y + (at.y - row.row.y),
+            rect.w,
+            rect.h,
+        )
+    };
     let mut button = |rect: Rect, action: PanelButton, icon: RowIcon| {
+        // 没有这个按钮（如栏里只有一个面板时的上移、下移）：不画。
+        if rect.w <= 0.0 {
+            return;
+        }
+        let rect = shift(rect);
         let hovered = app.settings.hover == Some(SettingsPart::PanelButton(action));
         if hovered {
             frame.rect_clipped(rect, p.hover, RADIUS_ROW, clip);
@@ -96,50 +151,52 @@ fn draw_row(app: &App, frame: &mut Frame<'_>, row: &PanelRow, clip: Rect) {
         let (at, clip) = (center(rect), rect.intersect(clip));
         match icon {
             RowIcon::Chevron(direction) => icons::chevron(frame, at, 6.0, direction, color, clip),
-            RowIcon::Plus => icons::plus(frame, at, 8.0, color, clip),
             RowIcon::Close => icons::close(frame, at, 6.5, color, clip),
         }
     };
     button(
-        row.up,
+        shift(row.up),
         PanelButton::Up(row.panel),
         RowIcon::Chevron(icons::Direction::Up),
     );
     button(
-        row.down,
+        shift(row.down),
         PanelButton::Down(row.panel),
         RowIcon::Chevron(icons::Direction::Down),
     );
-    // 移到另一栏：箭头指向另一边。
-    let to_right = row.column != Some(Column::Right);
-    button(
-        row.side,
-        PanelButton::Side(row.panel),
-        RowIcon::Chevron(if to_right {
-            icons::Direction::Right
-        } else {
-            icons::Direction::Left
-        }),
-    );
-    // 藏起来的面板用「+」放回某一栏。
+    // 藏起来的面板：两个按钮把它放回左栏、右栏。
     let hidden = row.column.is_none();
-    button(
-        row.hide,
-        PanelButton::Hide(row.panel),
-        if hidden {
-            RowIcon::Plus
-        } else {
-            RowIcon::Close
-        },
-    );
+    if hidden {
+        button(
+            shift(row.side),
+            PanelButton::Show(row.panel, Column::Left),
+            RowIcon::Chevron(icons::Direction::Left),
+        );
+        button(
+            shift(row.hide),
+            PanelButton::Show(row.panel, Column::Right),
+            RowIcon::Chevron(icons::Direction::Right),
+        );
+    } else {
+        // 移到另一栏：箭头指向另一边。
+        let to_right = row.column != Some(Column::Right);
+        button(
+            shift(row.side),
+            PanelButton::Side(row.panel),
+            RowIcon::Chevron(if to_right {
+                icons::Direction::Right
+            } else {
+                icons::Direction::Left
+            }),
+        );
+        button(shift(row.hide), PanelButton::Hide(row.panel), RowIcon::Close);
+    }
 }
 
 /// 面板设置页里行尾按钮的图标。
 enum RowIcon {
     /// 箭头。
     Chevron(icons::Direction),
-    /// 加号：放回某一栏。
-    Plus,
     /// 叉：藏起来。
     Close,
 }

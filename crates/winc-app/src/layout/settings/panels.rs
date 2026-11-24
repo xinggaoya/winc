@@ -39,8 +39,8 @@ pub struct PanelsLayout {
     pub right: Vec<PanelRow>,
     /// 隐藏的面板（不在任何一栏里）。
     pub hidden: Vec<PanelRow>,
-    /// 各组的标题：标题所在行的位置和标题文字。
-    pub headings: Vec<(Rect, &'static str)>,
+    /// 各组的标题：标题所在行的位置、标题文字，以及它对应的是哪一栏（隐藏的那组没有）。
+    pub headings: Vec<(Rect, &'static str, Option<Column>)>,
     /// 各组的底色区域。
     pub groups: Vec<Rect>,
     /// 组内行与行之间的细线。
@@ -97,7 +97,7 @@ impl PanelsLayout {
                 y += SETTINGS_GROUP_GAP;
             }
             let heading = Rect::new(x + SETTINGS_INSET, y, w, SETTINGS_TITLE);
-            layout.headings.push((heading, title));
+            layout.headings.push((heading, title, column));
             y += SETTINGS_TITLE;
 
             let top = y;
@@ -125,8 +125,9 @@ impl PanelsLayout {
                     column,
                     row,
                     handle,
-                    up: button(0),
-                    down: button(1),
+                    // 栏里只有一个面板时没有上下可移：不画按钮，点它也没有反应。
+                    up: if panels.len() > 1 { button(0) } else { Rect::default() },
+                    down: if panels.len() > 1 { button(1) } else { Rect::default() },
                     side: button(2),
                     hide: button(3),
                 };

@@ -136,6 +136,40 @@ impl App {
     }
 }
 
+/// 拖动中的面板落在哪：栏和序号；落点不在任何地方时返回 `None`（取消拖动）。
+///
+/// 落在某一行上时是那一行的位置；落在组标题上是那一栏的末尾；落在「隐藏」组里是隐藏。
+pub(crate) fn drop_target(
+    layout: &PanelsLayout,
+    x: f32,
+    y: f32,
+) -> Option<(Option<Column>, usize)> {
+    for row in layout.left.iter().chain(&layout.right) {
+        if row.row.contains(x, y) {
+            let index = layout
+                .left
+                .iter()
+                .position(|r| r.panel == row.panel)
+                .or_else(|| layout.right.iter().position(|r| r.panel == row.panel))
+                .unwrap_or(0);
+            return Some((row.column, index));
+        }
+    }
+    for row in &layout.hidden {
+        if row.row.contains(x, y) {
+            return Some((None, 0));
+        }
+    }
+    // 落在组标题上：放到那一栏的末尾。标题记着自己对应哪一栏。
+    for (heading, _, column) in &layout.headings {
+        if heading.contains(x, y) {
+            return Some((*column, usize::MAX));
+        }
+    }
+    // 落在所有行与标题之外：没有落点，拖动取消。
+    None
+}
+
 /// 「面板」页中正在拖动的面板。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PanelDrag {
@@ -155,38 +189,11 @@ impl App {
     /// 拖动中的面板落在哪：栏和序号。
     ///
     /// 落在某一行上时是那一行的位置；落在组标题上是那一栏的末尾；落在「隐藏」组里是隐藏。
-    pub(in crate::app) fn panel_drop_target(
+    pub(crate) fn panel_drop_target(
         &self,
         layout: &PanelsLayout,
-    ) -> (Option<Column>, usize) {
-        let (x, y) = self.pointer.mouse;
-        for row in layout.left.iter().chain(&layout.right) {
-            if row.row.contains(x, y) {
-                let index = layout
-                    .left
-                    .iter()
-                    .position(|r| r.panel == row.panel)
-                    .or_else(|| layout.right.iter().position(|r| r.panel == row.panel))
-                    .unwrap_or(0);
-                return (row.column, index);
-            }
-        }
-        for row in &layout.hidden {
-            if row.row.contains(x, y) {
-                return (None, 0);
-            }
-        }
-        // 落在组标题上：放到那一栏的末尾。
-        for (heading, _) in &layout.headings {
-            if heading.contains(x, y) {
-                let left = heading.x < x;
-                return (
-                    Some(if left { Column::Left } else { Column::Right }),
-                    usize::MAX,
-                );
-            }
-        }
-        (None, 0)
+    ) -> Option<(Option<Column>, usize)> {
+        drop_target(layout, self.pointer.mouse.0, self.pointer.mouse.1)
     }
 
     /// 把拖动中的面板放到落点。
@@ -194,7 +201,10 @@ impl App {
         let Some(drag) = self.settings.panel_drag else {
             return;
         };
-        let (column, index) = self.panel_drop_target(layout);
+        let Some((column, index)) = self.panel_drop_target(layout) else {
+            // 落点不在任何地方：取消拖动，面板的位置不变。
+            return;
+        };
         // 落在自己身上时不动。
         if column == drag.from {
             return;
@@ -223,6 +233,8 @@ pub(crate) enum PanelButton {
     Side(Panel),
     /// 隐藏或显示。
     Hide(Panel),
+    /// 把藏着的面板放回某一栏。
+    Show(Panel, Column),
     /// 右栏的宽度减一档。
     WidthDown,
     /// 右栏的宽度加一档。
@@ -350,9 +362,20 @@ impl App {
                 self.move_panel(panel, to, index);
             }
             PanelButton::Hide(panel) => self.toggle_panel_hidden(panel),
+            PanelButton::Show(panel, column) => {
+                // 放回某一栏的末尾。
+                let index = match column {
+                    Column::Left => self.panels.layout.left.len(),
+                    Column::Right => self.panels.layout.right.len(),
+                };
+                self.move_panel(panel, Some(column), index);
+            }
             PanelButton::WidthDown => self.step_right_width(false),
             PanelButton::WidthUp => self.step_right_width(true),
         }
         self.request_redraw();
     }
 }
+
+#[cfg(test)]
+mod tests;

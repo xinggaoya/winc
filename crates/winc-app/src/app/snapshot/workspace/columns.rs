@@ -53,6 +53,18 @@ fn button_point(app: &App, button: crate::app::settings::panels::PanelButton) ->
             let r = row(panel).hide;
             (r.x + r.w / 2.0, r.y + r.h / 2.0)
         }
+        crate::app::settings::panels::PanelButton::Show(panel, column) => {
+            let r = layout
+                .hidden
+                .iter()
+                .find(|row| row.panel == panel)
+                .map(|row| match column {
+                    crate::layout::Column::Left => row.side,
+                    crate::layout::Column::Right => row.hide,
+                })
+                .unwrap_or_default();
+            (r.x + r.w / 2.0, r.y + r.h / 2.0)
+        }
         crate::app::settings::panels::PanelButton::WidthDown => {
             let r = layout.width_down;
             (r.x + r.w / 2.0, r.y + r.h / 2.0)

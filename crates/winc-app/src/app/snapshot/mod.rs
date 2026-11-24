@@ -329,6 +329,17 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
                         .unwrap()
                         .hide
                 }
+                crate::app::settings::panels::PanelButton::Show(panel, column) => {
+                    let row = panels
+                        .hidden
+                        .iter()
+                        .find(|row| row.panel == panel)
+                        .unwrap();
+                    match column {
+                        crate::layout::Column::Left => row.side,
+                        crate::layout::Column::Right => row.hide,
+                    }
+                }
                 crate::app::settings::panels::PanelButton::WidthDown => panels.width_down,
                 crate::app::settings::panels::PanelButton::WidthUp => panels.width_up,
             }
