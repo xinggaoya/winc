@@ -873,3 +873,32 @@ fn the_workspace_tab_keeps_the_project_name_readable() {
 
     let _ = std::fs::remove_dir_all(&a);
 }
+
+/// 悬停工作区标签时说明是哪个项目、在哪里。
+#[test]
+fn the_workspace_tab_tells_where_the_project_is() {
+    use winc_editor::host::Host;
+    let a = search_folder("workspace-tip-a");
+    let mut app = app_with(&a, false);
+    paint(&mut app);
+    let chip = app.workspace_bar.chips[0];
+    app.on_mouse_move(chip.rect.x + 4.0, chip.rect.y + chip.rect.h / 2.0);
+    assert_eq!(app.pointer.hover, Hover::Workspace(0));
+
+    // 本机上的目录：提示里是项目名与路径。
+    let path = winc_editor::display_path(&app.workspaces.slots[0].folder, None);
+    let tip = crate::view::tests::tooltip(&app).map(|(_, text)| text).unwrap();
+    assert!(tip.contains("workspace-tip-a"), "{tip}");
+    assert!(tip.contains(&path), "{tip}");
+
+    // 目录在发行版中：提示里写明是哪个发行版。
+    app.workspaces.slots[0].host = Some(Host::Wsl {
+        distro: "Ubuntu".to_owned(),
+        root: false,
+    });
+    paint(&mut app);
+    let tip = crate::view::tests::tooltip(&app).map(|(_, text)| text).unwrap();
+    assert!(tip.contains("WSL: Ubuntu"), "{tip}");
+
+    let _ = std::fs::remove_dir_all(&a);
+}

@@ -621,13 +621,34 @@ pub(in crate::view) fn tooltip(app: &App) -> Option<(Rect, String)> {
             };
             Some((rect, label))
         }
-        // 附属工作树：写明是哪个仓库的工作树、在哪里（标签上写的是工作树自己的目录名）。
-        Hover::Workspace(index) if index == app.workspaces.active => {
-            let main = app.git.main_worktree()?;
-            let root = app.git.root.as_deref()?;
-            let name = crate::app::git::worktree::worktree_name(main);
-            let path = winc_editor::display_path(root, None);
-            let tip = t!("workspace-tip-worktree-of", name = name, path = path);
+        // 工作区标签：写明是哪个项目、在哪个主机上、完整路径。
+        Hover::Workspace(index) => {
+            // 附属工作树：写明是哪个仓库的工作树、在哪里（标签上写的是工作树自己的目录名）。
+            if index == app.workspaces.active
+                && let (Some(main), Some(root)) = (app.git.main_worktree(), app.git.root.as_deref())
+            {
+                let name = crate::app::git::worktree::worktree_name(main);
+                let path = winc_editor::display_path(root, None);
+                let tip = t!("workspace-tip-worktree-of", name = name, path = path);
+                return Some((app.workspace_bar.chip(index)?, tip));
+            }
+            let label = app.workspace_label(index);
+            let path = app
+                .workspaces
+                .slots
+                .get(index)
+                .map_or_else(String::new, |slot| {
+                    winc_editor::display_path(&slot.folder, None)
+                });
+            let tip = match &label.host {
+                Some(host) => t!(
+                    "workspace-tip-workspace-place",
+                    name = label.name,
+                    place = host.full(),
+                    path = path
+                ),
+                None => t!("workspace-tip-workspace", name = label.name, path = path),
+            };
             Some((app.workspace_bar.chip(index)?, tip))
         }
         Hover::RulerChange(hunk) => app.ruler_tip(hunk),
