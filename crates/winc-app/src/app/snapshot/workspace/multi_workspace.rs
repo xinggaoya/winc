@@ -160,7 +160,7 @@ fn closing_a_workspace_tells_the_helper_to_end_its_shell() {
     let closed = app
         .sent_to_helper(&log)
         .into_iter()
-        .filter(|m| matches!(m, winc_pty::protocol::ToHelper::Close { tab: t } if t == tab))
+        .filter(|m| matches!(m, winc_pty::protocol::ToHelper::Close { tab: t } if *t == tab))
         .count();
     assert_eq!(closed, 1, "关闭工作区时它的终端标签也通知了辅助进程");
 
