@@ -151,5 +151,16 @@ fn shoot_the_right_column_closed() {
     app.toggle_right_column();
     paint(&mut app);
     shoot(&mut app, "shot-right-column-closed");
+
+    // 收起途中：右栏只露出一部分，中间一栏也跟着变宽。
+    app.panels.right_motion = Some(crate::app::workspace::columns::RightMotion {
+        from: 1.0,
+        clock: Clock::frozen(
+            std::time::Duration::from_millis(100),
+            crate::app::animation::SIDEBAR_ANIMATION,
+        ),
+    });
+    paint(&mut app);
+    shoot(&mut app, "shot-right-column-closing");
     let _ = std::fs::remove_dir_all(&dir);
 }
