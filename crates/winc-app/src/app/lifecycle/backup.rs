@@ -418,7 +418,9 @@ impl App {
         }
 
         // 已关闭的标签：删除其备份，并清除名称记录。
-        let open: HashSet<DocumentId> = self.editor.documents.iter().map(|d| d.id).collect();
+        //
+        // “开着”指所有工作区里都开着：别的工��区里的标签不是关了的标签，它的备份要留着。
+        let open: HashSet<DocumentId> = self.live_documents();
         let closed: Vec<DocumentId> = self
             .backup
             .written

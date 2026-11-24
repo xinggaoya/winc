@@ -9,7 +9,9 @@
 
 use super::*;
 
-use winc_editor::Editor;
+use std::collections::HashSet;
+
+use winc_editor::{DocumentId, Editor};
 
 /// 一个工作区的现场。
 pub(crate) struct WorkspaceSlot {
@@ -76,6 +78,17 @@ impl Workspaces {
 }
 
 impl App {
+    /// 各个工作区里打开着的文档：当前编辑器和每个工作区格子里的编辑器都算。
+    ///
+    /// 备份不能因为文档不在当前编辑器里就删掉：别的工��区里开着的标签同样是在的。
+    pub(in crate::app) fn live_documents(&self) -> HashSet<DocumentId> {
+        let mut ids: HashSet<DocumentId> = self.editor.documents.iter().map(|d| d.id).collect();
+        for slot in &self.workspaces.slots {
+            ids.extend(slot.editor.documents.iter().map(|d| d.id));
+        }
+        ids
+    }
+
     /// 工作区 `index` 的显示名：目录的名字，或用户给这一组起的名字。
     ///
     /// 当前工作区用打开着的目录的名字（起了名时用起名的），其余用登记时记下的。
