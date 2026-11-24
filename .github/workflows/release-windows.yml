@@ -79,8 +79,19 @@ jobs:
       - name: Install native packaging tools
         shell: pwsh
         run: |
-          choco install nsis --version=3.11 --allow-downgrade --yes --no-progress
-          choco install wixtoolset --version=3.14.1 --allow-downgrade --yes --no-progress
+          # The community feed times out now and then (503, 504): retry a few times before
+          # giving up, so a hiccup there does not fail the whole release.
+          function Install-Package([string]$Name, [string]$Version) {
+            for ($attempt = 1; $attempt -le 6; $attempt++) {
+              choco install $Name --version=$Version --allow-downgrade --yes --no-progress
+              if ($LASTEXITCODE -eq 0) { return }
+              Write-Host "cannot install $Name $Version (attempt $attempt), retrying"
+              Start-Sleep -Seconds 30
+            }
+            throw "cannot install $Name $Version"
+          }
+          Install-Package nsis 3.11
+          Install-Package wixtoolset 3.14.1
       - name: Sign executables
         if: env.WINDOWS_CERTIFICATE_THUMBPRINT != ''
         shell: pwsh
