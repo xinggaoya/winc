@@ -265,7 +265,7 @@ fn the_close_button_shows_after_the_pointer_rests_on_the_tab() {
     open_workspace(&mut app, &b);
     paint(&mut app);
 
-    let chip = app.workspace_bar.chips[1];
+    let chip = app.workspace_bar.chips[1].clone();
     let at = (
         chip.close.x + chip.close.w / 2.0,
         chip.close.y + chip.close.h / 2.0,
@@ -308,7 +308,7 @@ fn the_close_button_does_not_appear_while_the_mouse_passes_over() {
     open_workspace(&mut app, &b);
     paint(&mut app);
 
-    let chip = app.workspace_bar.chips[0];
+    let chip = app.workspace_bar.chips[0].clone();
     app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
     assert_eq!(app.pointer.hover, Hover::Workspace(chip.index));
     assert!(!app.workspace_bar.close_ready);
@@ -329,7 +329,7 @@ fn the_close_button_on_a_workspace_tab_closes_only_that_workspace() {
     paint(&mut app);
 
     // 悬停到标签上时，关闭按钮可以命中。
-    let chip = app.workspace_bar.chips[0];
+    let chip = app.workspace_bar.chips[0].clone();
     app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
     rest_on_chip(&mut app);
     assert_eq!(app.pointer.hover, Hover::WorkspaceClose(chip.index));
@@ -356,7 +356,7 @@ fn closing_the_current_workspace_switches_to_the_neighbour() {
     paint(&mut app);
 
     // 当前工作区是第二个，关掉它之后切回第一个。
-    let chip = app.workspace_bar.chips[1];
+    let chip = app.workspace_bar.chips[1].clone();
     app.on_mouse_move(chip.close.x + 4.0, chip.close.y + 4.0);
     rest_on_chip(&mut app);
     app.on_mouse_down(MouseButton::Left);
@@ -722,7 +722,7 @@ fn the_workspace_tabs_scroll_horizontally() {
     // 滚到最左端：第一个工作区的标签看得见也点得到。
     app.workspace_bar.scroll = 0.0;
     paint(&mut app);
-    let first = app.workspace_bar.chips[0];
+    let first = app.workspace_bar.chips[0].clone();
     app.on_mouse_move(first.rect.x + 4.0, first.rect.y + 4.0);
     assert_eq!(app.pointer.hover, Hover::Workspace(0));
 
@@ -742,7 +742,7 @@ fn the_workspace_tabs_outside_the_view_are_not_clickable() {
     paint(&mut app);
 
     // 第一个工作区的标签有一部分滚出了可见范围：那一段点不到。
-    let first = app.workspace_bar.chips[0];
+    let first = app.workspace_bar.chips[0].clone();
     let outside = first.rect.x + 2.0;
     assert!(
         outside < app.workspace_bar.view.x,
@@ -852,26 +852,55 @@ fn the_workspace_tab_keeps_the_project_name_readable() {
     let with_host = app.workspace_bar.chips[0].rect.w;
     assert!(with_host > plain, "{plain} {with_host}");
 
-    // 发行版名很长：位置标记截到上限，标签不会因此无限变宽。
+    // 发行版名很长：位置标记截到上限，标签不会因此无限变宽，也不会画到标签外面。
     app.workspaces.slots[0].host = Some(Host::Wsl {
         distro: "a-very-long-distro-name-that-never-ends".to_owned(),
         root: false,
     });
     paint(&mut app);
-    let chip = app.workspace_bar.chips[0];
+    let chip = app.workspace_bar.chips[0].clone();
     assert!(
         chip.rect.w <= CHIP_CHROME + CHIP_NAME_MAX + CHIP_HOST_MAX + CHIP_HOST_GAP,
         "{:?}",
         chip.rect
     );
+    let host = chip.text.host.as_deref().expect("位置标记");
+    assert!(host.ends_with('…'), "{host}");
+    assert!(
+        host.len() < "a-very-long-distro-name-that-never-ends".len(),
+        "{host}"
+    );
 
-    // 标签条很窄：位置标记让位，项目名仍然放得下开头。
+    // 标签条很窄：位置标记让位，项目名按开头截断。
     app.panels.sidebar.width = 120.0;
     paint(&mut app);
-    let chip = app.workspace_bar.chips[0];
+    let chip = app.workspace_bar.chips[0].clone();
     assert!(chip.rect.w > 0.0);
+    assert!(chip.text.host.is_none(), "{:?}", chip.text);
+    assert!(chip.text.name.ends_with('…'), "{}", chip.text.name);
+    assert!(chip.text.name.starts_with('w'), "{}", chip.text.name);
 
     let _ = std::fs::remove_dir_all(&a);
+}
+
+/// 名字改了以后，标签上就是新的名字：移除附加目录后组名被取消，标签也跟着变回目录名。
+#[test]
+fn the_workspace_tab_follows_the_renamed_group() {
+    let a = search_folder("workspace-rename-tab");
+    let extra = search_folder("workspace-rename-tab-extra");
+    let mut app = app_with(&a, false);
+    app.add_folder(&extra);
+    app.rename_group("新名字");
+    paint(&mut app);
+    assert_eq!(app.workspace_bar.chips[0].text.name, "新名字");
+
+    // 移除附加的目录：这一组只剩打开的目录，组名随之取消。
+    app.remove_folder(&extra);
+    paint(&mut app);
+    assert_eq!(app.workspace_bar.chips[0].text.name, "workspace-rename-tab");
+
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&extra);
 }
 
 /// 悬停工作区标签时说明是哪个项目、在哪里。
@@ -881,7 +910,7 @@ fn the_workspace_tab_tells_where_the_project_is() {
     let a = search_folder("workspace-tip-a");
     let mut app = app_with(&a, false);
     paint(&mut app);
-    let chip = app.workspace_bar.chips[0];
+    let chip = app.workspace_bar.chips[0].clone();
     app.on_mouse_move(chip.rect.x + 4.0, chip.rect.y + chip.rect.h / 2.0);
     assert_eq!(app.pointer.hover, Hover::Workspace(0));
 

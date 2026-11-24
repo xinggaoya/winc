@@ -1039,40 +1039,7 @@ fn fit<'a>(
     max: f32,
     middle: bool,
 ) -> Cow<'a, str> {
-    if text.is_empty() || frame.measure(FontKind::Ui, size, text) <= max {
-        return Cow::Borrowed(text);
-    }
-    // 每个字素在 `text` 里的字节偏移和宽度。
-    let chars: Vec<(usize, f32)> = text
-        .grapheme_indices(true)
-        .map(|(i, g)| (i, frame.measure(FontKind::Ui, size, g)))
-        .collect();
-    let n = chars.len();
-    // 保留 `keep` 个字素时，开头留 `keep - keep / 2` 个、结尾留 `keep / 2` 个；`keep` 每增加 1，
-    // 偶数时开头多一个，奇数时结尾多一个，宽度随 `keep` 单调不减。
-    let added = |keep: usize| match (middle, keep % 2) {
-        (true, 1) => chars[n - 1 - keep / 2].1,
-        (true, _) => chars[keep / 2].1,
-        (false, _) => chars[keep].1,
-    };
-    let limit = if middle { n - 1 } else { n };
-    let (mut keep, mut width) = (0, frame.measure(FontKind::Ui, size, "…"));
-    while keep < limit && width + added(keep) <= max {
-        width += added(keep);
-        keep += 1;
-    }
-    let byte = |i: usize| chars.get(i).map_or(text.len(), |c| c.0);
-    let (head, tail) = if middle {
-        (keep - keep / 2, keep / 2)
-    } else {
-        (keep, 0)
-    };
-    // 「…」前面不留空白（截在两个词之间时开头会以空格结尾）。
-    Cow::Owned(format!(
-        "{}…{}",
-        text[..byte(head)].trim_end(),
-        &text[byte(n - tail)..]
-    ))
+    crate::text::fit(text, max, middle, |s| frame.measure(FontKind::Ui, size, s))
 }
 
 /// 绘制横向渐隐：从 `rect` 一端的 `color` 渐变到另一端的透明。

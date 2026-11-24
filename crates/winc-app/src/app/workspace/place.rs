@@ -31,6 +31,56 @@ pub(crate) fn split_chip_room(name_w: f32, host_w: f32, room: f32) -> (f32, Opti
         (room, None)
     }
 }
+
+/// 标签上要画的两段文字。
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ChipText {
+    /// 项目名：按开头截断到放得下的宽度。
+    pub name: String,
+    /// 位置标记：发行版名或主机名；没有位置或放不下时没有。
+    pub host: Option<String>,
+}
+
+/// 位置标记的文本与宽度：截到 [`CHIP_HOST_MAX`] 以内。
+///
+/// 标签留出的位置与画出来的文字是同一段：不会画到标签外面。
+pub(crate) fn chip_host_text(
+    text: &str,
+    size: f32,
+    measure: &mut impl FnMut(&str, f32) -> f32,
+) -> (String, f32) {
+    let text = crate::text::fit(text, CHIP_HOST_MAX, false, |s| measure(s, size)).into_owned();
+    let width = measure(&text, size);
+    (text, width)
+}
+
+/// 标签里的文字怎么排：项目名优先，位置标记放不下时舍去。
+///
+/// `room` 是两段文字合起来可用的宽度（逻辑像素）。项目名按开头截断；位置标记的文本截到
+/// [`CHIP_HOST_MAX`] 以内，放不下时整段舍去。
+pub(crate) fn chip_text(
+    name: &str,
+    host: Option<&str>,
+    room: f32,
+    size: f32,
+    small: f32,
+    measure: &mut impl FnMut(&str, f32) -> f32,
+) -> ChipText {
+    let (host_text, host_w) = match host {
+        Some(text) => {
+            let (text, width) = chip_host_text(text, small, measure);
+            (Some(text), width)
+        }
+        None => (None, 0.0),
+    };
+    let name_w = measure(name, size).min(CHIP_NAME_MAX);
+    let (name_room, host_room) = split_chip_room(name_w, host_w, room);
+    let name = crate::text::fit(name, name_room, false, |s| measure(s, size)).into_owned();
+    ChipText {
+        name,
+        host: host_room.map(|_| host_text.unwrap_or_default()),
+    }
+}
 /// 标签与末尾按钮之间的间距（逻辑像素）。
 const END_GAP: f32 = 4.0;
 /// 标签里关闭按钮的边长（逻辑像素）。
@@ -85,12 +135,15 @@ impl App {
             let name = renderer
                 .measure(FontKind::Ui, font, &label.name)
                 .min(CHIP_NAME_MAX);
-            let host = label.host.as_ref().map_or(0.0, |host| {
-                renderer
-                    .measure(FontKind::Ui, small, host.short())
-                    .min(CHIP_HOST_MAX)
-                    + CHIP_HOST_GAP
-            });
+            let host = match &label.host {
+                Some(host) => {
+                    let (_, width) = chip_host_text(host.short(), small, &mut |s, size| {
+                        renderer.measure(FontKind::Ui, size, s)
+                    });
+                    width + CHIP_HOST_GAP
+                }
+                None => 0.0,
+            };
             widths.push((CHIP_CHROME + name + host).ceil().max(CHIP_MIN));
         }
         let mut content: f32 = widths.iter().sum::<f32>() + TAB_GAP * (count as f32 - 1.0);
@@ -122,7 +175,24 @@ impl App {
                 CLOSE,
                 CLOSE,
             );
-            bar.chips.push(WorkspaceChip { rect, close, index });
+            // 标签里的文字：项目名按开头截断，位置标记放不下时舍去。
+            let label = &labels[index];
+            let name_x = rect.x + 6.0 + 20.0 + 5.0;
+            let room = (close.x - name_x).max(0.0);
+            let text = chip_text(
+                &label.name,
+                label.host.as_ref().map(|host| host.short()),
+                room,
+                font,
+                small,
+                &mut |s, size| renderer.measure(FontKind::Ui, size, s),
+            );
+            bar.chips.push(WorkspaceChip {
+                rect,
+                close,
+                text,
+                index,
+            });
             x += width + TAB_GAP;
         }
         bar.view = view;
@@ -172,5 +242,42 @@ mod tests {
         assert_eq!(split_chip_room(20.0, 40.0, 66.0), (20.0, Some(40.0)));
         // 没有位置标记时名字占满。
         assert_eq!(split_chip_room(100.0, 0.0, 80.0), (80.0, None));
+    }
+
+    /// 位置标记放不下时舍去，项目名按开头截断；位置标记本身截到上限，不会画出标签。
+    #[test]
+    fn the_chip_text_keeps_the_project_name() {
+        // 每个字符宽 8 逻辑像素。
+        let mut measure = |s: &str, _size: f32| s.chars().count() as f32 * 8.0;
+        // 放得下：项目名与位置标记都在。
+        let text = chip_text("coda", Some("Ubuntu"), 200.0, 13.0, 11.0, &mut measure);
+        assert_eq!(text.name, "coda");
+        assert_eq!(text.host.as_deref(), Some("Ubuntu"));
+
+        // 位置太长：截到上限（48 逻辑像素），不会画到标签外面。
+        let text = chip_text(
+            "coda",
+            Some("Ubuntu-26.04"),
+            200.0,
+            13.0,
+            11.0,
+            &mut measure,
+        );
+        let host = text.host.expect("位置标记");
+        assert!(host.ends_with('…'), "{host}");
+        assert!(host.chars().count() <= 6, "{host}");
+
+        // 地方不够：舍去位置标记，项目名按开头截断。
+        let text = chip_text(
+            "a-very-long-project-name",
+            Some("Ubuntu"),
+            40.0,
+            13.0,
+            11.0,
+            &mut measure,
+        );
+        assert!(text.host.is_none(), "{:?}", text.host);
+        assert!(text.name.ends_with('…'), "{}", text.name);
+        assert!(text.name.starts_with('a'), "{}", text.name);
     }
 }

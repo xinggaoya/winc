@@ -94,17 +94,27 @@ impl App {
     /// 工作区 `index` 在标签上要画的两段文字：项目名与所在的主机。
     ///
     /// 标签上地方小：项目名单独占一行（末尾截断），位置另用小号淡色文字标出。
+    ///
+    /// 当前工作区的名字取活动编辑器里的那个：它可能刚被改过（改名、移除附加目录）。位置跟着
+    /// 目录走：格子里记着的那份就是它。
     pub(crate) fn workspace_label(&self, index: usize) -> WorkspaceLabel {
-        let Some(slot) = self.workspaces.slots.get(index) else {
-            return WorkspaceLabel {
-                name: String::new(),
-                host: None,
-            };
+        let name = if index == self.workspaces.active {
+            self.editor
+                .workspace
+                .as_ref()
+                .map_or_else(String::new, |workspace| workspace.label().to_owned())
+        } else {
+            self.workspaces
+                .slots
+                .get(index)
+                .map_or_else(String::new, |slot| slot.label.clone())
         };
-        WorkspaceLabel {
-            name: slot.label.clone(),
-            host: slot.host.clone(),
-        }
+        let host = self
+            .workspaces
+            .slots
+            .get(index)
+            .and_then(|slot| slot.host.clone());
+        WorkspaceLabel { name, host }
     }
 
     /// 当前工作区的名字与位置记回它的格子：刚打开的工作区、用户起名后都要跟上。
@@ -118,7 +128,7 @@ impl App {
         };
         slot.name = workspace.name.clone();
         slot.label = workspace.label().to_owned();
-        slot.host = workspace.host().cloned();
+
     }
 }
 

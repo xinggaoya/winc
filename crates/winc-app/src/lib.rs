@@ -32,6 +32,7 @@ mod recents;
 mod release_notes;
 mod shell_command;
 mod system;
+mod text;
 mod theme;
 #[cfg(all(unix, not(target_os = "macos")))]
 mod trash;

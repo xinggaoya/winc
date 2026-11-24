@@ -73,7 +73,7 @@ fn shoot_the_workspace_bar() {
     shoot(&mut app, "shot-workspaces");
 
     // 鼠标停在标签上：右端出现关闭按钮。
-    let chip = app.workspace_bar.chips[1];
+    let chip = app.workspace_bar.chips[1].clone();
     app.on_mouse_move(chip.rect.x + chip.rect.w / 2.0, chip.rect.y + 4.0);
     paint(&mut app);
     shoot(&mut app, "shot-workspaces-hover");

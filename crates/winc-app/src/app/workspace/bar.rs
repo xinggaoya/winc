@@ -4,6 +4,7 @@
 //! 点别的标签就切过去；标签悬停时右端出现关闭按钮。末尾是「打开项目」与项目菜单两个按钮，
 //! 标签放不下时在它们左边横向滚动。
 
+use super::place::ChipText;
 use super::*;
 
 /// 判定为拖动的移动距离（逻辑像素）：按下后移动不足此距离时仍视为单击。
@@ -59,12 +60,14 @@ pub struct WorkspaceDrag {
 }
 
 /// 左栏顶部的一个工作区标签。
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct WorkspaceChip {
     /// 标签在窗口中的位置。
     pub rect: Rect,
     /// 标签里关闭按钮的位置。
     pub close: Rect,
+    /// 标签里要画的文字：项目名与位置标记。
+    pub text: ChipText,
     /// 工作区在 `workspaces.slots` 中的下标。
     pub index: usize,
 }

@@ -13,7 +13,7 @@ use winc_i18n::t;
 
 use super::*;
 use crate::app::animation::stage;
-use crate::app::workspace::place::{CHIP_HOST_GAP, CHIP_HOST_MAX, CHIP_NAME_MAX, split_chip_room};
+use crate::app::workspace::place::CHIP_HOST_GAP;
 use crate::app::{DropZone, Focus, LabelCause, LabelView, NameInput, TreeMotion};
 use crate::layout::{
     PanelSlot, TreeTool, folding_tools, hscrollbar_thumb, tree_row_slot, tree_tools,
@@ -65,34 +65,28 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
         }
         let color = if on { p.text } else { p.text_muted };
         let slot = &app.workspaces.slots[index];
-        // 标签上写两段：项目名，和它所在的位置（发行版或主机）。
-        let label = app.workspace_label(index);
         // 徽章：项目名的首字母，底色是该目录分到的颜色。
         let badge = Rect::new(rect.x + 6.0, rect.y + (rect.h - 20.0) / 2.0, 20.0, 20.0);
-        draw_workspace_badge(app, frame, badge, &slot.folder, &label.name, on, bar_clip);
-        // 名字：放不下时按开头截短，右端给关闭按钮留着位置。
+        draw_workspace_badge(
+            app,
+            frame,
+            badge,
+            &slot.folder,
+            &chip.text.name,
+            on,
+            bar_clip,
+        );
+        // 名字：项目名，已经按开头截短，右端给关闭按钮留着位置。
         let name_x = badge.right() + 5.0;
-        let room = (chip.close.x - name_x).max(0.0);
-        let host_text = label.host.as_ref().map(|host| host.short().to_owned());
-        let host_w = host_text.as_ref().map_or(0.0, |text| {
-            frame
-                .measure(FontKind::Ui, app.fonts.ui_small, text)
-                .min(CHIP_HOST_MAX)
-        });
-        let name_w = frame
-            .measure(FontKind::Ui, app.fonts.ui, &label.name)
-            .min(CHIP_NAME_MAX);
-        let (name_room, host_room) = split_chip_room(name_w, host_w, room);
-        let name = truncate_end(frame, &label.name, app.fonts.ui, name_room).into_owned();
-        let end = ui_text(frame, app, name_x, rect, &name, color, bar_clip);
-        // 位置标记：小号淡色文字跟在名字后面；地方不够时先舍它，项目名优先。
-        if let Some(text) = host_text.as_deref().filter(|_| host_room.is_some()) {
+        let end = ui_text(frame, app, name_x, rect, &chip.text.name, color, bar_clip);
+        // 位置标记：小号淡色文字跟在名字后面；地方不够时标签里没有它，项目名优先。
+        if let Some(host) = chip.text.host.as_deref() {
             ui_text_small(
                 frame,
                 app,
                 end + CHIP_HOST_GAP,
                 rect,
-                text,
+                host,
                 p.text_dim,
                 bar_clip,
             );
