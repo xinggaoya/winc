@@ -54,7 +54,9 @@ impl App {
                 (ws.name.clone(), ws.label().to_owned())
             });
         // 格子是空的，窗口里的是现场：切过去时正好换上格子里的。
-        self.workspaces.slots.push(WorkspaceSlot::new(root, name, label));
+        self.workspaces
+            .slots
+            .push(WorkspaceSlot::new(root, name, label));
         self.workspaces.active = 0;
         self
     }
@@ -79,7 +81,9 @@ impl App {
             .map_or((String::new(), String::new()), |ws| {
                 (ws.name.clone(), ws.label().to_owned())
             });
-        self.workspaces.slots.push(WorkspaceSlot::new(root, name, label));
+        self.workspaces
+            .slots
+            .push(WorkspaceSlot::new(root, name, label));
         self.workspaces.active = self.workspaces.slots.len() - 1;
     }
 

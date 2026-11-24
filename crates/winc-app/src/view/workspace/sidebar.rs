@@ -87,7 +87,15 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
         let end = ui_text(frame, app, name_x, rect, &name, color, bar_clip);
         // 位置标记：小号淡色文字跟在名字后面；地方不够时先舍它，项目名优先。
         if let Some(text) = host_text.as_deref().filter(|_| host_room.is_some()) {
-            ui_text_small(frame, app, end + CHIP_HOST_GAP, rect, text, p.text_dim, bar_clip);
+            ui_text_small(
+                frame,
+                app,
+                end + CHIP_HOST_GAP,
+                rect,
+                text,
+                p.text_dim,
+                bar_clip,
+            );
         }
         // 悬停时右端出现关闭按钮：指针在标签上停留一会儿才出现，鼠标路过时不会出现。
         if app.workspace_bar.close_ready && hovered {

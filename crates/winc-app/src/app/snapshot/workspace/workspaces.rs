@@ -887,7 +887,9 @@ fn the_workspace_tab_tells_where_the_project_is() {
 
     // 本机上的目录：提示里是项目名与路径。
     let path = winc_editor::display_path(&app.workspaces.slots[0].folder, None);
-    let tip = crate::view::tests::tooltip(&app).map(|(_, text)| text).unwrap();
+    let tip = crate::view::tests::tooltip(&app)
+        .map(|(_, text)| text)
+        .unwrap();
     assert!(tip.contains("workspace-tip-a"), "{tip}");
     assert!(tip.contains(&path), "{tip}");
 
@@ -897,7 +899,9 @@ fn the_workspace_tab_tells_where_the_project_is() {
         root: false,
     });
     paint(&mut app);
-    let tip = crate::view::tests::tooltip(&app).map(|(_, text)| text).unwrap();
+    let tip = crate::view::tests::tooltip(&app)
+        .map(|(_, text)| text)
+        .unwrap();
     assert!(tip.contains("WSL: Ubuntu"), "{tip}");
 
     let _ = std::fs::remove_dir_all(&a);
