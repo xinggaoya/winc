@@ -93,9 +93,10 @@ fn shoot_the_workspace_bar_overflow() {
     app.panels.sidebar.width = 260.0;
     app.open_path(&b);
     app.open_path(&c);
-    app.workspaces.slots[0].name = "一个很长的项目名字-用来把标签条撑开".to_owned();
-    app.workspaces.slots[1].name = "另一个很长的项目名字-也放不下".to_owned();
-    app.editor.workspace.as_mut().unwrap().name = "第三个也很长-标签条放不下".to_owned();
+    // 标签上写的是格子里记下的项目名：设长一些，看标签条放不下时的样子。
+    app.workspaces.slots[0].label = "一个很长的项目名字-用来把标签条撑开".to_owned();
+    app.workspaces.slots[1].label = "另一个很长的项目名字-也放不下".to_owned();
+    app.workspaces.slots[2].label = "第三个也很长-标签条放不下".to_owned();
     paint(&mut app);
     shoot(&mut app, "shot-workspace-overflow");
     let _ = std::fs::remove_dir_all(&a);

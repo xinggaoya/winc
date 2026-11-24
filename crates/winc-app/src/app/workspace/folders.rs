@@ -181,6 +181,8 @@ impl App {
             && !workspace.extra_folders().is_empty()
         {
             workspace.set_alias(session.name.as_deref());
+            // 恢复的名字要出现在标签上：记回格子。
+            self.sync_active_slot();
         }
     }
 
