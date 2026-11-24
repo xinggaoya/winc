@@ -30,6 +30,8 @@ pub(in crate::app) fn swap_slot(app: &mut App, index: usize) {
     // 名字跟着现场一起收进格子：用户给这一组起了名字时，标签上显示的是新名字。
     if let Some(workspace) = slot.editor.workspace.as_ref() {
         slot.name = workspace.name.clone();
+        slot.label = workspace.label().to_owned();
+        slot.host = workspace.host().cloned();
     }
 }
 
@@ -44,14 +46,15 @@ impl App {
         let Some(root) = self.editor.root().map(Path::to_path_buf) else {
             return self;
         };
-        let name = self
+        let (name, label) = self
             .editor
             .workspace
             .as_ref()
-            .map(|ws| ws.name.clone())
-            .unwrap_or_default();
+            .map_or((String::new(), String::new()), |ws| {
+                (ws.name.clone(), ws.label().to_owned())
+            });
         // 格子是空的，窗口里的是现场：切过去时正好换上格子里的。
-        self.workspaces.slots.push(WorkspaceSlot::new(root, name));
+        self.workspaces.slots.push(WorkspaceSlot::new(root, name, label));
         self.workspaces.active = 0;
         self
     }
@@ -69,13 +72,14 @@ impl App {
         if self.workspaces.index_of(&root).is_some() {
             return;
         }
-        let name = self
+        let (name, label) = self
             .editor
             .workspace
             .as_ref()
-            .map(|ws| ws.name.clone())
-            .unwrap_or_default();
-        self.workspaces.slots.push(WorkspaceSlot::new(root, name));
+            .map_or((String::new(), String::new()), |ws| {
+                (ws.name.clone(), ws.label().to_owned())
+            });
+        self.workspaces.slots.push(WorkspaceSlot::new(root, name, label));
         self.workspaces.active = self.workspaces.slots.len() - 1;
     }
 
@@ -132,6 +136,8 @@ impl App {
             return;
         }
         let name = winc_editor::display_name(&target).into_owned();
+        // 标签上用的名字：目录名，不含位置标记（位置单独记在格子里）。
+        let label = name.clone();
         // 新工作区沿用当前的查找内容：接着在新目录里找。搜索弹窗开着时也一并开着。
         let query = self.panels.global.query.text().to_owned();
         let searching = self.search_open();
@@ -142,7 +148,7 @@ impl App {
         // 新开一个工作区：格子是空的，把它放到窗口里，再在里面打开目录。
         self.workspaces
             .slots
-            .push(WorkspaceSlot::new(target.clone(), name));
+            .push(WorkspaceSlot::new(target.clone(), name, label));
         let index = self.workspaces.slots.len() - 1;
         self.take_workspace(index);
         self.workspaces.active = index;
@@ -153,6 +159,8 @@ impl App {
             self.panels.global.open = true;
         }
         self.open_folder_now(&target);
+        // 目录打开后才知道它的名字与位置：记回格子，标签上写的就是它。
+        self.sync_active_slot();
         if terminal_open {
             self.set_terminal_open(true);
             // 新工作区里没有终端：面板开着，里面空着不像话，开一个（辅助进程是共用的，

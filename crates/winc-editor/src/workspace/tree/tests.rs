@@ -773,6 +773,18 @@ fn the_workspace_has_a_compact_name() {
     assert_eq!(ws.label(), "新名字");
 }
 
+/// 起了名字只改名字：目录所在的主机不变（标签上的位置标记不能因为改名而丢掉）。
+#[test]
+fn renaming_the_workspace_keeps_its_host() {
+    let base = crate::test_util::scratch("ws-rename-host");
+    fs::create_dir_all(&base).unwrap();
+    let mut ws = Workspace::open(&base).unwrap();
+    let host = ws.host().cloned();
+    ws.set_alias(Some("新名字"));
+    assert_eq!(ws.label(), "新名字");
+    assert_eq!(ws.host().cloned(), host);
+}
+
 /// 附加文件夹以后最上一层是各个文件夹，各自收起、展开；移除后回到只列根目录的内容。
 #[test]
 fn extra_folders_are_listed_as_top_level_rows() {

@@ -118,6 +118,8 @@ impl App {
     pub(in crate::app) fn rename_group(&mut self, name: &str) {
         if let Some(workspace) = &mut self.editor.workspace {
             workspace.set_alias(Some(name));
+            // 标签上用的是起过的名字：记回格子。
+            self.sync_active_slot();
             self.folders_changed();
         }
     }

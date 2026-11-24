@@ -799,3 +799,37 @@ fn the_workspace_list_menu_lists_all_the_workspaces() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 标签上写的是项目名和位置，不是一整串带位置标记的名字。
+#[test]
+fn the_workspace_tab_shows_the_project_name_and_where_it_is() {
+    use winc_editor::host::Host;
+    let a = search_folder("workspace-host-a");
+    let mut app = app_with(&a, false);
+
+    // 本机上的目录：没有位置标记。
+    paint(&mut app);
+    let label = app.workspace_label(0);
+    assert_eq!(label.name, "workspace-host-a");
+    assert!(label.host.is_none());
+
+    // 目录在 WSL 发行版中：名字仍是项目名，位置单独记着。
+    app.workspaces.slots[0].host = Some(Host::Wsl {
+        distro: "Ubuntu".to_owned(),
+        root: false,
+    });
+    paint(&mut app);
+    let label = app.workspace_label(0);
+    assert_eq!(label.name, "workspace-host-a");
+    assert!(!label.name.contains("WSL"));
+    assert_eq!(label.host.as_ref().map(Host::short), Some("Ubuntu"));
+
+    // 起了名字之后，标签上用起过的名字。名字与位置是两回事：位置由目录所在的主机决定，
+    // 不受名字影响。
+    app.rename_group("新名字");
+    paint(&mut app);
+    let label = app.workspace_label(0);
+    assert_eq!(label.name, "新名字");
+
+    let _ = std::fs::remove_dir_all(&a);
+}
