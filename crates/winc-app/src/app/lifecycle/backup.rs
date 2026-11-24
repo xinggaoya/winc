@@ -576,7 +576,16 @@ impl App {
             self.backup.kept = Some(HashSet::new());
             return HashSet::new();
         }
-        // 各工作区的未保存内容都要备份：不在窗口里的逐个换进来备份，再换回去。
+        let done = self.back_up_workspaces(true);
+        self.backup.kept = Some(done.clone());
+        done
+    }
+
+    /// 把各个工作区里没写盘的备份写完，返回已备份的文档。
+    ///
+    /// 不在窗口里的工作区逐个换进来备份，再换回去：它们的备份目录与当前工作区的不同。
+    /// `force` 为 `true` 时（退出），内容没变、只有光标位置等头部变了的文档也重写。
+    pub(in crate::app) fn back_up_workspaces(&mut self, force: bool) -> HashSet<DocumentId> {
         let mut done = HashSet::new();
         let active = self.workspaces.active;
         for index in 0..self.workspaces.slots.len() {
@@ -584,17 +593,16 @@ impl App {
                 continue;
             }
             crate::app::workspace::switch::swap_slot(self, index);
-            done.extend(self.back_up_workspace());
+            done.extend(self.back_up_workspace(force));
             crate::app::workspace::switch::swap_slot(self, index);
         }
-        done.extend(self.back_up_workspace());
-        self.backup.kept = Some(done.clone());
+        done.extend(self.back_up_workspace(force));
         done
     }
 
     /// 备份窗口里当前这个工作区的未保存内容，返回已备份的文档。
-    fn back_up_workspace(&mut self) -> HashSet<DocumentId> {
-        let (writes, removes, unchanged) = self.backup_plan(true);
+    fn back_up_workspace(&mut self, force: bool) -> HashSet<DocumentId> {
+        let (writes, removes, unchanged) = self.backup_plan(force);
         let mut done: HashSet<DocumentId> = unchanged.into_iter().collect();
         let mut failed = Vec::new();
         for (id, revision, snapshot) in writes {

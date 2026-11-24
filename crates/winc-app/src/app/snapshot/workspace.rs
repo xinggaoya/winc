@@ -6,6 +6,7 @@ use super::*;
 pub(super) mod columns;
 pub(super) mod folders;
 pub(super) mod loading;
+pub(super) mod multi_workspace;
 pub(super) mod outline;
 mod panes;
 pub(super) mod picker;

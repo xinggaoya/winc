@@ -94,6 +94,8 @@ impl App {
         if index == self.workspaces.active || index >= self.workspaces.slots.len() {
             return;
         }
+        // 切走之前把没写盘的备份写完：未保存的内容不会只存在于内存里。
+        self.back_up_workspaces(false);
         // 退出时恢复用的现场：记下当前工作区的标签和终端。
         self.remember_session();
         // 收好当前工作区的现场，取出目标工作区的现场。
@@ -148,6 +150,8 @@ impl App {
         // 终端面板开着时也一并开着：面板是窗口的样子，与目录无关。
         let terminal_open = self.terminal.open;
         // 先把当前工作区的现场收进它自己的格子。
+        // 收进格子之前把没写盘的备份写完：未保存的内容不会只存在于内存里。
+        self.back_up_workspaces(false);
         self.stash_workspace();
         // 新开一个工作区：格子是空的，把它放到窗口里，再在里面打开目录。
         self.workspaces
