@@ -1050,7 +1050,7 @@ pub enum SettingsPart {
     /// 「面板」页中某一行行首的拖动把手。
     PanelHandle(winc_config::Panel),
     /// 「面板」页中某一行的按钮。
-    PanelButton(crate::app::settings::panels::PanelButton),
+    PanelButton(crate::app::settings::panels::PanelRowButton),
     /// 「快捷键」页的搜索框。
     KeySearch,
     /// 搜索框右端的「录制按键」。

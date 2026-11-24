@@ -15,7 +15,11 @@ impl App {
 
     /// 测试用：已经写出去的备份文件。
     pub(in crate::app) fn written_backups(&self) -> Vec<PathBuf> {
-        self.backup.written.values().map(|w| w.file.clone()).collect()
+        self.backup
+            .written
+            .values()
+            .map(|w| w.file.clone())
+            .collect()
     }
 }
 

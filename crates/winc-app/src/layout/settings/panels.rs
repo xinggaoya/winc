@@ -126,8 +126,16 @@ impl PanelsLayout {
                     row,
                     handle,
                     // 栏里只有一个面板时没有上下可移：不画按钮，点它也没有反应。
-                    up: if panels.len() > 1 { button(0) } else { Rect::default() },
-                    down: if panels.len() > 1 { button(1) } else { Rect::default() },
+                    up: if panels.len() > 1 {
+                        button(0)
+                    } else {
+                        Rect::default()
+                    },
+                    down: if panels.len() > 1 {
+                        button(1)
+                    } else {
+                        Rect::default()
+                    },
                     side: button(2),
                     hide: button(3),
                 };

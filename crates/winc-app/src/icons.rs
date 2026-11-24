@@ -968,6 +968,26 @@ pub fn panel(frame: &mut Frame<'_>, (cx, cy): (f32, f32), right: bool, color: Co
     frame.stroke(shapes.as_slice(), STROKE, color, clip);
 }
 
+/// 绘制右栏开关的图标：圆角框右边隔出一栏，那一栏填上淡色。
+///
+/// 与「分栏预览」区分开：那一个只是圆角框中间一道竖线。
+pub fn right_column(frame: &mut Frame<'_>, (cx, cy): (f32, f32), color: Color, clip: Rect) {
+    let (x, y) = (
+        (cx - SIDEBAR_WIDTH / 2.0).round() + 0.75,
+        (cy - 7.0).round() + 1.0,
+    );
+    let (w, h) = (SIDEBAR_WIDTH - 1.5, 12.0);
+    let divider = x + w - 5.0;
+    // 右边那一栏填上淡色：面板在右边。
+    let side = Rect::new(divider, y, (w - (divider - x)).max(0.0), h);
+    frame.rect_clipped(side, color.alpha(0.22), 0.0, clip);
+    let shapes: Strokes<9> = joined(&[
+        &rounded_outline(x, y, w, h, 3.0),
+        &[Stroke::Line(divider, y, divider, y + h)],
+    ]);
+    frame.stroke(shapes.as_slice(), STROKE, color, clip);
+}
+
 /// 绘制「分栏」图标：与侧栏开关尺寸相同的圆角框，中央一道竖线分成左右两半（左侧为代码，右侧
 /// 为预览）。
 pub fn split(frame: &mut Frame<'_>, (cx, cy): (f32, f32), color: Color, clip: Rect) {

@@ -109,7 +109,7 @@ order; `multiWorkspace` turns multi-workspace mode on and off:
 {
   "panels": {
     "left": ["files"],              // left column: the file tree
-    "right": ["commit", "search"],  // right column: the commit view, the search
+    "right": ["commit"],           // right column: the commit view
     "rightWidth": 320               // width of the right column (180–720)
   },
   "multiWorkspace": true           // multi-workspace mode (on by default)

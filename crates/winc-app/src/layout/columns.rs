@@ -7,7 +7,7 @@ use winc_config::Panel;
 use winc_render::Rect;
 
 /// 一栏里最多能放的面板数：面板的种类数。
-pub const MAX_PANELS: usize = 3;
+pub const MAX_PANELS: usize = winc_config::Panel::ALL.len();
 
 /// 一栏中的一个面板。
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

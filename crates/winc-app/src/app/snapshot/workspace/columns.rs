@@ -24,7 +24,7 @@ fn open_panels_page(app: &mut App) {
 }
 
 /// 「面板」页里某个按钮的中心点。
-fn button_point(app: &App, button: crate::app::settings::panels::PanelButton) -> (f32, f32) {
+fn button_point(app: &App, button: crate::app::settings::panels::PanelRowButton) -> (f32, f32) {
     let layout = app.panels_layout();
     let row = |panel: Panel| {
         layout
@@ -37,23 +37,23 @@ fn button_point(app: &App, button: crate::app::settings::panels::PanelButton) ->
             .unwrap()
     };
     match button {
-        crate::app::settings::panels::PanelButton::Up(panel) => {
+        crate::app::settings::panels::PanelRowButton::Up(panel) => {
             let r = row(panel).up;
             (r.x + r.w / 2.0, r.y + r.h / 2.0)
         }
-        crate::app::settings::panels::PanelButton::Down(panel) => {
+        crate::app::settings::panels::PanelRowButton::Down(panel) => {
             let r = row(panel).down;
             (r.x + r.w / 2.0, r.y + r.h / 2.0)
         }
-        crate::app::settings::panels::PanelButton::Side(panel) => {
+        crate::app::settings::panels::PanelRowButton::Side(panel) => {
             let r = row(panel).side;
             (r.x + r.w / 2.0, r.y + r.h / 2.0)
         }
-        crate::app::settings::panels::PanelButton::Hide(panel) => {
+        crate::app::settings::panels::PanelRowButton::Hide(panel) => {
             let r = row(panel).hide;
             (r.x + r.w / 2.0, r.y + r.h / 2.0)
         }
-        crate::app::settings::panels::PanelButton::Show(panel, column) => {
+        crate::app::settings::panels::PanelRowButton::Show(panel, column) => {
             let r = layout
                 .hidden
                 .iter()
@@ -65,11 +65,11 @@ fn button_point(app: &App, button: crate::app::settings::panels::PanelButton) ->
                 .unwrap_or_default();
             (r.x + r.w / 2.0, r.y + r.h / 2.0)
         }
-        crate::app::settings::panels::PanelButton::WidthDown => {
+        crate::app::settings::panels::PanelRowButton::WidthDown => {
             let r = layout.width_down;
             (r.x + r.w / 2.0, r.y + r.h / 2.0)
         }
-        crate::app::settings::panels::PanelButton::WidthUp => {
+        crate::app::settings::panels::PanelRowButton::WidthUp => {
             let r = layout.width_up;
             (r.x + r.w / 2.0, r.y + r.h / 2.0)
         }
@@ -189,8 +189,8 @@ fn the_panels_page_moves_hides_and_reorders_panels() {
     assert!(hidden.is_empty());
 
     // 把文件树移到右栏：配置跟着变。
-    use crate::app::settings::panels::PanelButton;
-    let at = button_point(&app, PanelButton::Side(Panel::Files));
+    use crate::app::settings::panels::PanelRowButton;
+    let at = button_point(&app, PanelRowButton::Side(Panel::Files));
     click(&mut app, at);
     paint(&mut app);
     let (left, right, _) = app.panel_groups();
@@ -200,7 +200,7 @@ fn the_panels_page_moves_hides_and_reorders_panels() {
     assert_eq!(app.config.panels_right, Some(right));
 
     // 藏起来：不在任何一栏里。
-    let at = button_point(&app, PanelButton::Hide(Panel::Files));
+    let at = button_point(&app, PanelRowButton::Hide(Panel::Files));
     click(&mut app, at);
     paint(&mut app);
     let (left, right, hidden) = app.panel_groups();
@@ -208,7 +208,7 @@ fn the_panels_page_moves_hides_and_reorders_panels() {
     assert!(hidden.contains(&Panel::Files));
 
     // 再点一次放回右栏。
-    let at = button_point(&app, PanelButton::Hide(Panel::Files));
+    let at = button_point(&app, PanelRowButton::Hide(Panel::Files));
     click(&mut app, at);
     paint(&mut app);
     let (_, right, _) = app.panel_groups();
@@ -228,9 +228,9 @@ fn the_panels_page_reorders_the_panels_of_a_column() {
     app.adopt_panels();
     open_panels_page(&mut app);
 
-    use crate::app::settings::panels::PanelButton;
+    use crate::app::settings::panels::PanelRowButton;
     // 把提交视图上移一位：文件树和提交视图换了位置。
-    let at = button_point(&app, PanelButton::Up(Panel::Commit));
+    let at = button_point(&app, PanelRowButton::Up(Panel::Commit));
     click(&mut app, at);
     paint(&mut app);
     let (left, _, _) = app.panel_groups();
@@ -238,7 +238,7 @@ fn the_panels_page_reorders_the_panels_of_a_column() {
     assert_eq!(app.config.panels_left, Some(left));
 
     // 再下移回去。
-    let at = button_point(&app, PanelButton::Down(Panel::Commit));
+    let at = button_point(&app, PanelRowButton::Down(Panel::Commit));
     click(&mut app, at);
     paint(&mut app);
     let (left, _, _) = app.panel_groups();
@@ -260,8 +260,8 @@ fn the_right_column_width_is_configurable() {
 
     let before = app.panels.layout.right_width;
     open_panels_page(&mut app);
-    use crate::app::settings::panels::PanelButton;
-    let at = button_point(&app, PanelButton::WidthUp);
+    use crate::app::settings::panels::PanelRowButton;
+    let at = button_point(&app, PanelRowButton::WidthUp);
     click(&mut app, at);
     paint(&mut app);
     assert_eq!(app.panels.layout.right_width, before + 20.0);
@@ -269,7 +269,7 @@ fn the_right_column_width_is_configurable() {
 
     // 右栏变宽时中间那栏变窄。
     let editor = app.layout.editor;
-    let at = button_point(&app, PanelButton::WidthDown);
+    let at = button_point(&app, PanelRowButton::WidthDown);
     click(&mut app, at);
     paint(&mut app);
     assert_eq!(app.panels.layout.right_width, before);

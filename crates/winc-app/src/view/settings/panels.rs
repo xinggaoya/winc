@@ -5,7 +5,7 @@
 //! 一行是右栏的宽度。
 
 use super::*;
-use crate::app::settings::panels::{PanelButton, dragging_row};
+use crate::app::settings::panels::{PanelRowButton, dragging_row};
 use crate::layout::{Column, PanelRow, PanelsLayout};
 use winc_config::Panel;
 
@@ -80,7 +80,12 @@ fn drop_line(app: &App, layout: &PanelsLayout, body: Rect) -> Option<Rect> {
         None => layout.hidden.first().map(|row| row.row.y),
     }?;
     let x = body.x + SETTINGS_PAD;
-    Some(Rect::new(x, y - 1.0, (body.w - 2.0 * SETTINGS_PAD).max(0.0), 2.0))
+    Some(Rect::new(
+        x,
+        y - 1.0,
+        (body.w - 2.0 * SETTINGS_PAD).max(0.0),
+        2.0,
+    ))
 }
 
 /// 绘制一行：一个面板的名字、拖动把手和行尾的按钮。
@@ -137,7 +142,7 @@ fn draw_row_at(app: &App, frame: &mut Frame<'_>, row: &PanelRow, at: Rect, clip:
             rect.h,
         )
     };
-    let mut button = |rect: Rect, action: PanelButton, icon: RowIcon| {
+    let mut button = |rect: Rect, action: PanelRowButton, icon: RowIcon| {
         // 没有这个按钮（如栏里只有一个面板时的上移、下移）：不画。
         if rect.w <= 0.0 {
             return;
@@ -156,12 +161,12 @@ fn draw_row_at(app: &App, frame: &mut Frame<'_>, row: &PanelRow, at: Rect, clip:
     };
     button(
         shift(row.up),
-        PanelButton::Up(row.panel),
+        PanelRowButton::Up(row.panel),
         RowIcon::Chevron(icons::Direction::Up),
     );
     button(
         shift(row.down),
-        PanelButton::Down(row.panel),
+        PanelRowButton::Down(row.panel),
         RowIcon::Chevron(icons::Direction::Down),
     );
     // 藏起来的面板：两个按钮把它放回左栏、右栏。
@@ -169,12 +174,12 @@ fn draw_row_at(app: &App, frame: &mut Frame<'_>, row: &PanelRow, at: Rect, clip:
     if hidden {
         button(
             shift(row.side),
-            PanelButton::Show(row.panel, Column::Left),
+            PanelRowButton::Show(row.panel, Column::Left),
             RowIcon::Chevron(icons::Direction::Left),
         );
         button(
             shift(row.hide),
-            PanelButton::Show(row.panel, Column::Right),
+            PanelRowButton::Show(row.panel, Column::Right),
             RowIcon::Chevron(icons::Direction::Right),
         );
     } else {
@@ -182,14 +187,18 @@ fn draw_row_at(app: &App, frame: &mut Frame<'_>, row: &PanelRow, at: Rect, clip:
         let to_right = row.column != Some(Column::Right);
         button(
             shift(row.side),
-            PanelButton::Side(row.panel),
+            PanelRowButton::Side(row.panel),
             RowIcon::Chevron(if to_right {
                 icons::Direction::Right
             } else {
                 icons::Direction::Left
             }),
         );
-        button(shift(row.hide), PanelButton::Hide(row.panel), RowIcon::Close);
+        button(
+            shift(row.hide),
+            PanelRowButton::Hide(row.panel),
+            RowIcon::Close,
+        );
     }
 }
 
@@ -256,8 +265,8 @@ fn draw_width_row(app: &App, frame: &mut Frame<'_>, layout: &PanelsLayout, clip:
     ui_text(frame, app, text_x, row, &text, p.text_muted, clip);
 
     for (rect, action) in [
-        (layout.width_down, PanelButton::WidthDown),
-        (layout.width_up, PanelButton::WidthUp),
+        (layout.width_down, PanelRowButton::WidthDown),
+        (layout.width_up, PanelRowButton::WidthUp),
     ] {
         let hovered = app.settings.hover == Some(SettingsPart::PanelButton(action));
         if hovered {
@@ -265,7 +274,7 @@ fn draw_width_row(app: &App, frame: &mut Frame<'_>, layout: &PanelsLayout, clip:
         }
         let color = if hovered { p.text } else { p.text_muted };
         let (x, y) = center(rect);
-        if action == PanelButton::WidthDown {
+        if action == PanelRowButton::WidthDown {
             icons::minus(frame, (x, y), 6.0, color, rect.intersect(clip));
         } else {
             icons::plus(frame, (x, y), 8.0, color, rect.intersect(clip));

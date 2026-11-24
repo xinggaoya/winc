@@ -192,7 +192,11 @@ impl App {
 #[cfg(test)]
 impl App {
     /// 测试用：把一次后台保存的结果交给应用：模拟后台线程写完之后把结果送来。
-    pub(in crate::app) fn finish_background_save(&mut self, id: DocumentId, saved: winc_editor::Saved) {
+    pub(in crate::app) fn finish_background_save(
+        &mut self,
+        id: DocumentId,
+        saved: winc_editor::Saved,
+    ) {
         self.saved_in_background((id, false, saved));
     }
 }

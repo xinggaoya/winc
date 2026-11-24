@@ -94,14 +94,15 @@
 {
   "panels": {
     "left": ["files"],            // 左栏：文件树
-    "right": ["commit", "search"], // 右栏：提交视图、搜索
+    "right": ["commit"],          // 右栏：提交视图
     "rightWidth": 320             // 右栏宽度（180–720）
   },
   "multiWorkspace": true         // 多工作区模式（默认开）
 }
 ```
 
-面板的取值：`files`（文件树）、`search`（全局搜索）、`commit`（Git 提交视图）。
+面板的取值：`files`（文件树）、`commit`（Git 提交视图）。全局搜索改用浮在编辑区上的弹窗，不再占
+侧栏的位置；旧配置里的 `"search"` 读进来会被忽略。
 
 ## 概述
 

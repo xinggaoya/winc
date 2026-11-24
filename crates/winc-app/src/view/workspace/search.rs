@@ -87,7 +87,16 @@ pub(in crate::view) fn draw_search_dialog(app: &mut App, frame: &mut Frame<'_>) 
 fn draw_panel_header(app: &App, frame: &mut Frame<'_>, parts: &PanelParts) {
     let p = app.palette;
     let header = parts.header;
-    columns::draw_panel_title(app, frame, header, Panel::Search);
+    // 标题只写「搜索」两个字：前面不再画放大镜，免得看着像一个禁用的输入框。
+    ui_text(
+        frame,
+        app,
+        header.x + 10.0,
+        header,
+        columns::panel_name(Panel::Search),
+        p.text_muted,
+        header,
+    );
 
     let has_results = !app.panels.global.engine.results.is_empty();
 

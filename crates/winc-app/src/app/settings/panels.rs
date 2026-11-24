@@ -224,7 +224,7 @@ impl App {
 
 /// 「面板」页中一行是哪个按钮。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PanelButton {
+pub(crate) enum PanelRowButton {
     /// 上移。
     Up(Panel),
     /// 下移。
@@ -241,6 +241,50 @@ pub(crate) enum PanelButton {
     WidthUp,
 }
 
+/// 行尾按钮的位置；按钮不存在时返回空矩形。
+pub(crate) fn panel_button_rect(layout: &PanelsLayout, button: &PanelRowButton) -> Rect {
+    let row = |panel: &Panel| {
+        layout
+            .left
+            .iter()
+            .chain(&layout.right)
+            .chain(&layout.hidden)
+            .find(|row| row.panel == *panel)
+    };
+    match button {
+        PanelRowButton::Up(panel) => row(panel).map(|row| row.up).unwrap_or_default(),
+        PanelRowButton::Down(panel) => row(panel).map(|row| row.down).unwrap_or_default(),
+        PanelRowButton::Side(panel) => row(panel).map(|row| row.side).unwrap_or_default(),
+        PanelRowButton::Hide(panel) => row(panel).map(|row| row.hide).unwrap_or_default(),
+        PanelRowButton::Show(panel, _) => row(panel).map(|row| row.side).unwrap_or_default(),
+        PanelRowButton::WidthDown => layout.width_down,
+        PanelRowButton::WidthUp => layout.width_up,
+    }
+}
+
+/// 行尾按钮的说明：悬停时显示。
+pub(crate) fn panel_button_label(layout: &PanelsLayout, button: &PanelRowButton) -> String {
+    let text = match button {
+        PanelRowButton::Up(_) => t!("settings-panels-tip-up"),
+        PanelRowButton::Down(_) => t!("settings-panels-tip-down"),
+        PanelRowButton::Side(panel) => {
+            if layout.right.iter().any(|row| row.panel == *panel) {
+                t!("settings-panels-tip-to-left")
+            } else {
+                t!("settings-panels-tip-to-right")
+            }
+        }
+        PanelRowButton::Hide(_) => t!("settings-panels-tip-hide"),
+        PanelRowButton::Show(_, column) => match column {
+            Column::Left => t!("settings-panels-tip-to-left"),
+            Column::Right => t!("settings-panels-tip-to-right"),
+        },
+        PanelRowButton::WidthDown => t!("settings-panels-tip-narrower"),
+        PanelRowButton::WidthUp => t!("settings-panels-tip-wider"),
+    };
+    text.to_owned()
+}
+
 impl App {
     /// 「面板」页中 `(x, y)` 处的按钮；不在任何按钮上时返回 `None`。
     pub(in crate::app) fn panel_button_at(
@@ -248,12 +292,12 @@ impl App {
         layout: &PanelsLayout,
         x: f32,
         y: f32,
-    ) -> Option<PanelButton> {
+    ) -> Option<PanelRowButton> {
         if layout.width_down.contains(x, y) {
-            return Some(PanelButton::WidthDown);
+            return Some(PanelRowButton::WidthDown);
         }
         if layout.width_up.contains(x, y) {
-            return Some(PanelButton::WidthUp);
+            return Some(PanelRowButton::WidthUp);
         }
         for row in layout
             .left
@@ -262,16 +306,16 @@ impl App {
             .chain(&layout.hidden)
         {
             if row.up.contains(x, y) {
-                return Some(PanelButton::Up(row.panel));
+                return Some(PanelRowButton::Up(row.panel));
             }
             if row.down.contains(x, y) {
-                return Some(PanelButton::Down(row.panel));
+                return Some(PanelRowButton::Down(row.panel));
             }
             if row.side.contains(x, y) {
-                return Some(PanelButton::Side(row.panel));
+                return Some(PanelRowButton::Side(row.panel));
             }
             if row.hide.contains(x, y) {
-                return Some(PanelButton::Hide(row.panel));
+                return Some(PanelRowButton::Hide(row.panel));
             }
         }
         None
@@ -342,11 +386,11 @@ impl App {
     }
 
     /// 点击「面板」页中行尾的按钮。
-    pub(crate) fn press_panel_layout_button(&mut self, button: PanelButton) {
+    pub(crate) fn press_panel_layout_button(&mut self, button: PanelRowButton) {
         match button {
-            PanelButton::Up(panel) => self.shift_panel(panel, true),
-            PanelButton::Down(panel) => self.shift_panel(panel, false),
-            PanelButton::Side(panel) => {
+            PanelRowButton::Up(panel) => self.shift_panel(panel, true),
+            PanelRowButton::Down(panel) => self.shift_panel(panel, false),
+            PanelRowButton::Side(panel) => {
                 let layout = &self.panels.layout;
                 let to = if layout.left.contains(&panel) {
                     Some(Column::Right)
@@ -361,8 +405,8 @@ impl App {
                     .unwrap_or(0);
                 self.move_panel(panel, to, index);
             }
-            PanelButton::Hide(panel) => self.toggle_panel_hidden(panel),
-            PanelButton::Show(panel, column) => {
+            PanelRowButton::Hide(panel) => self.toggle_panel_hidden(panel),
+            PanelRowButton::Show(panel, column) => {
                 // 放回某一栏的末尾。
                 let index = match column {
                     Column::Left => self.panels.layout.left.len(),
@@ -370,8 +414,8 @@ impl App {
                 };
                 self.move_panel(panel, Some(column), index);
             }
-            PanelButton::WidthDown => self.step_right_width(false),
-            PanelButton::WidthUp => self.step_right_width(true),
+            PanelRowButton::WidthDown => self.step_right_width(false),
+            PanelRowButton::WidthUp => self.step_right_width(true),
         }
         self.request_redraw();
     }

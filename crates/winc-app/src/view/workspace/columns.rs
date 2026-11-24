@@ -76,7 +76,7 @@ pub(in crate::view) fn draw_right_button(app: &App, frame: &mut Frame<'_>) {
     // 按钮在窗口右上角，不在中间那一栏的顶栏里：按窗口裁剪。
     draw_button(frame, p, button, app.layout.window, hovered, on);
     let color = if hovered { p.text } else { p.text_muted };
-    icons::panel(frame, center(button), true, color, button);
+    icons::right_column(frame, center(button), color, button);
 }
 
 /// 绘制面板标题行左边的图标和名字，返回名字右端的横坐标。

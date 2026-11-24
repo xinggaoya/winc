@@ -48,7 +48,10 @@ fn dropping_on_the_hidden_group_hides_the_panel() {
 fn a_column_with_one_panel_has_no_move_buttons() {
     let layout = PanelsLayout::compute(body(), &[Panel::Files], &[Panel::Commit], &[], 0.0);
     let only = &layout.left[0];
-    assert!(only.up.w <= 0.0 && only.down.w <= 0.0, "只有一个面板时不能上下移");
+    assert!(
+        only.up.w <= 0.0 && only.down.w <= 0.0,
+        "只有一个面板时不能上下移"
+    );
     assert!(only.side.w > 0.0, "移到另一栏总是可以");
     assert!(only.hide.w > 0.0, "藏起来总是可以");
 }

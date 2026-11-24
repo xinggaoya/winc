@@ -13,10 +13,7 @@ fn switching_workspaces_writes_the_pending_backups() {
     let mut app = app_with(&a.join("src/main.rs"), false);
     app.backup.root = Some(root.clone());
     app.run(Command::Insert("// 改了，还没到写备份的时间\n".into()));
-    assert!(
-        app.written_backups().is_empty(),
-        "还没写备份：切走时才写"
-    );
+    assert!(app.written_backups().is_empty(), "还没写备份：切走时才写");
 
     // 切到第二个工作区：第一个工作区那份改动当场写成备份。
     app.open_path(&b);
@@ -84,10 +81,7 @@ fn closing_a_workspace_asks_about_unsaved_changes() {
 
     // 关掉有未保存修改的工作区：先询问。
     app.close_workspace(0);
-    assert!(
-        app.closing.prompt.is_some(),
-        "关掉之前先问未保存的修改"
-    );
+    assert!(app.closing.prompt.is_some(), "关掉之前先问未保存的修改");
     assert_eq!(app.workspaces.slots.len(), 2, "还没有关掉");
 
     // 回答「不保存」：工作区关掉了。
@@ -126,18 +120,21 @@ fn closing_a_workspace_closes_its_terminal() {
     let mut app = app_with(&a, false);
     // 给第一个工作区开一个终端标签（本地仿真，不启动辅助进程）。
     let size = app.terminal_size();
-    app.terminal.tabs.push(crate::app::terminal::TermTab::new(7, size));
+    app.terminal
+        .tabs
+        .push(crate::app::terminal::TermTab::new(7, size));
     let tab = app.terminal.tabs[0].id;
     app.open_path(&b);
 
     // 关掉第一个工作区：它的终端标签不再留在窗口里。
     app.close_workspace(0);
     assert_eq!(app.workspaces.slots.len(), 1);
-    let mut kept = app
-        .terminal
-        .tabs
-        .iter()
-        .chain(app.workspaces.slots.iter().flat_map(|s| s.terminal.tabs.iter()));
+    let mut kept = app.terminal.tabs.iter().chain(
+        app.workspaces
+            .slots
+            .iter()
+            .flat_map(|s| s.terminal.tabs.iter()),
+    );
     assert!(
         kept.all(|t| t.id != tab),
         "关闭工作区时它的终端标签也关掉了"
@@ -184,10 +181,7 @@ fn switching_workspaces_keeps_their_own_state() {
 
     // 切回第一个：它的滚动位置还在。
     app.switch_workspace(0);
-    assert_eq!(
-        app.panels.tree.scroll, 42.0,
-        "切回来时文件树还在原来的位置"
-    );
+    assert_eq!(app.panels.tree.scroll, 42.0, "切回来时文件树还在原来的位置");
 
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);

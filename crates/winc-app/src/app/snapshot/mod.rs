@@ -292,7 +292,7 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
         SettingsPart::PanelButton(button) => {
             let panels = app.panels_layout();
             match button {
-                crate::app::settings::panels::PanelButton::Up(panel) => {
+                crate::app::settings::panels::PanelRowButton::Up(panel) => {
                     panels
                         .left
                         .iter()
@@ -301,7 +301,7 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
                         .unwrap()
                         .up
                 }
-                crate::app::settings::panels::PanelButton::Down(panel) => {
+                crate::app::settings::panels::PanelRowButton::Down(panel) => {
                     panels
                         .left
                         .iter()
@@ -310,7 +310,7 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
                         .unwrap()
                         .down
                 }
-                crate::app::settings::panels::PanelButton::Side(panel) => {
+                crate::app::settings::panels::PanelRowButton::Side(panel) => {
                     panels
                         .left
                         .iter()
@@ -319,7 +319,7 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
                         .unwrap()
                         .side
                 }
-                crate::app::settings::panels::PanelButton::Hide(panel) => {
+                crate::app::settings::panels::PanelRowButton::Hide(panel) => {
                     panels
                         .left
                         .iter()
@@ -329,19 +329,15 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
                         .unwrap()
                         .hide
                 }
-                crate::app::settings::panels::PanelButton::Show(panel, column) => {
-                    let row = panels
-                        .hidden
-                        .iter()
-                        .find(|row| row.panel == panel)
-                        .unwrap();
+                crate::app::settings::panels::PanelRowButton::Show(panel, column) => {
+                    let row = panels.hidden.iter().find(|row| row.panel == panel).unwrap();
                     match column {
                         crate::layout::Column::Left => row.side,
                         crate::layout::Column::Right => row.hide,
                     }
                 }
-                crate::app::settings::panels::PanelButton::WidthDown => panels.width_down,
-                crate::app::settings::panels::PanelButton::WidthUp => panels.width_up,
+                crate::app::settings::panels::PanelRowButton::WidthDown => panels.width_down,
+                crate::app::settings::panels::PanelRowButton::WidthUp => panels.width_up,
             }
         }
         SettingsPart::Decrease(s) => StepperParts::new(layout.row(s).unwrap().control).minus,

@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::app::{OutlineTarget, ResultRow, SyncState};
-use crate::layout::{PanelButton, PanelTool, RowAction, SearchButton};
+use crate::layout::{PanelButton, PanelTool, RowAction, SearchButton, SettingsPart};
 
 /// 绘制按钮的悬停提示。
 ///
@@ -20,6 +20,23 @@ pub(super) fn draw_tooltip(app: &App, frame: &mut Frame<'_>) {
         .since
         .is_some_and(|since| since.elapsed() >= TOOLTIP_DELAY);
     if !rested {
+        return;
+    }
+    // 设置页里的按钮：命中的是设置页自己的状态，不在鼠标的悬停里。
+    if app.settings.open
+        && let Some(SettingsPart::PanelButton(button)) = app.settings.hover
+    {
+        let layout = app.panels_layout();
+        let rect = crate::app::settings::panels::panel_button_rect(&layout, &button);
+        let label = crate::app::settings::panels::panel_button_label(&layout, &button);
+        let place = crate::app::animation::TipPlace::Below;
+        draw_tip(
+            app,
+            frame,
+            (rect, label.as_str(), place),
+            app.tooltip_opacity(),
+        );
+        *app.overlays.tooltip.last.borrow_mut() = Some((rect, label, place));
         return;
     }
     let (button, label): (Rect, String) = match tooltip::tooltip(app) {
@@ -40,6 +57,24 @@ pub(super) fn draw_tooltip(app: &App, frame: &mut Frame<'_>) {
             Hover::SidebarButton => (
                 app.layout.sidebar_button,
                 crate::layout::with_key(t!("cmd-toggle-sidebar"), Some(Action::ToggleSidebar)),
+            ),
+            Hover::RightButton => (
+                app.layout.right_button,
+                t!("workspace-tip-right-column").to_owned(),
+            ),
+            Hover::WorkspaceClose(index) => {
+                let Some(chip) = app.workspace_bar.chips.iter().find(|c| c.index == index) else {
+                    return;
+                };
+                (chip.close, t!("workspace-tip-close-workspace").to_owned())
+            }
+            Hover::WorkspaceList => match app.workspace_bar.list {
+                Some(button) => (button, t!("workspace-tip-workspace-list").to_owned()),
+                None => return,
+            },
+            Hover::AddWorkspace => (
+                app.workspace_bar.add,
+                t!("workspace-tip-add-workspace").to_owned(),
             ),
             Hover::Browser => (app.layout.browser, t!("preview-browser-open").to_owned()),
             Hover::Preview(mode) => {

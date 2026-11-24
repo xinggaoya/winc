@@ -159,7 +159,6 @@ impl App {
         };
         slot.name = workspace.name.clone();
         slot.label = workspace.label().to_owned();
-
     }
 }
 
