@@ -192,3 +192,28 @@ fn switching_workspaces_keeps_their_own_state() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+/// 左栏没有面板时，工作区标签条照样画出来：工作区要能切换。
+#[test]
+fn the_workspace_bar_is_drawn_without_panels() {
+    let a = search_folder("ws-nopanel-a");
+    let mut app = app_with(&a, false);
+    // 把文件面板挪到右栏：左栏没有面板了。
+    app.config.panels_left = Some(Vec::new());
+    app.config.panels_right = Some(vec![winc_config::Panel::Files]);
+    app.adopt_panels();
+    paint(&mut app);
+    assert_eq!(app.layout.left_count, 0, "左栏没有面板");
+
+    let chip = app.workspace_bar.chips[0].clone();
+    let image = app.frame.renderer.as_ref().unwrap().image().unwrap();
+    let scale = image.width as f32 / app.layout.window.w;
+    let x = ((chip.rect.x + 2.0) * scale) as usize;
+    let y = ((chip.rect.y + chip.rect.h / 2.0) * scale) as usize;
+    let pixel = image.pixels[y * image.width as usize + x];
+    // 标签左边是卡片本身的底色：两处不同说明标签那块实底画出来了。
+    let outside = image.pixels[y * image.width as usize + ((chip.rect.x - 4.0) * scale) as usize];
+    assert_ne!(pixel, outside, "标签条画出来了");
+
+    let _ = std::fs::remove_dir_all(&a);
+}

@@ -22,12 +22,29 @@ fn draw_column(app: &mut App, frame: &mut Frame<'_>, column: Column) {
         Column::Left => (app.layout.left_panels, app.layout.left_count),
         Column::Right => (app.layout.right_panels, app.layout.right_count),
     };
-    if count == 0 {
-        return;
-    }
     if column == Column::Left {
         // 工作区标签条只在左栏：它连着项目菜单（切换目录、打开目录）。
+        //
+        // 左栏没有面板时也要画：标签条是切换工作区的地方，不能跟着面板一起没了。
         sidebar::draw_workspaces(app, frame);
+        if count == 0 {
+            let area = Rect::new(
+                app.layout.sidebar.x,
+                app.layout.sidebar_header.bottom(),
+                app.layout.sidebar.w,
+                (app.layout.sidebar.bottom() - app.layout.sidebar_header.bottom()).max(0.0),
+            );
+            draw_empty_state(
+                app,
+                frame,
+                (area, area),
+                t!("workspace-sidebar-no-panels"),
+                None,
+            );
+        }
+    }
+    if count == 0 {
+        return;
     }
     // 有输入框的面板返回光标的位置，供输入法候选框定位。
     let mut caret = None;

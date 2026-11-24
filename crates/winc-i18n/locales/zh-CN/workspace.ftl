@@ -37,6 +37,7 @@ workspace-outline-no-contents = 此电子书没有目录
 workspace-outline-no-symbols = 文件中无可列出的符号
 workspace-sidebar-commit = 提交
 workspace-sidebar-no-folder = 未打开目录
+workspace-sidebar-no-panels = 左栏没有面板
 workspace-tree-open-hint-key = { $key } 打开文件或目录
 workspace-tree-open-hint = 打开文件或目录
 workspace-tree-open-folder-hint-key = { $key } 打开目录

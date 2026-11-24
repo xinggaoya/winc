@@ -37,6 +37,7 @@ workspace-outline-no-contents = This book has no table of contents
 workspace-outline-no-symbols = No symbols found in this file
 workspace-sidebar-commit = Commit
 workspace-sidebar-no-folder = No Folder Open
+workspace-sidebar-no-panels = No panels in the left column
 workspace-tree-open-hint-key = { $key } to open a file or folder
 workspace-tree-open-hint = Open a file or folder
 workspace-tree-open-folder-hint-key = { $key } to open a folder
