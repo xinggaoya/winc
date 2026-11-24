@@ -1089,7 +1089,7 @@ fn long_result_files_unfold_under_the_mouse() {
     assert!(
         matches!(
             app.pointer.hover,
-            Hover::Result(long) | Hover::RowAction(long, _)
+            Hover::Result(i) | Hover::RowAction(i, _) if i == long
         ),
         "写全名那一行没有盖住右边缘的滚动条：{:?}",
         app.pointer.hover
