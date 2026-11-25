@@ -548,6 +548,8 @@ fn a_narrow_log_fits_its_header_and_stacks_the_details() {
     history_repo(&root, 10);
     app.git_refresh();
     app.run_action(Action::GitShowLog);
+    // 日志在本仓库的中间一栏里，两侧的栏各占去一截：窗口宽一些，列表与详情才是并排的。
+    widen(&mut app);
     paint(&mut app);
     assert!(!app.log_parts().stacked);
     app.run_action(Action::SplitRight);

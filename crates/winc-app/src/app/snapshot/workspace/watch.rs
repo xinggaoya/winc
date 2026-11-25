@@ -529,9 +529,14 @@ fn git_status_rechecks_recover_missed_notifications() {
     );
 
     // 隐藏 Git 视图、失去焦点或窗口不可见时不持续启动状态查询。
-    app.set_sidebar_view(Panel::Files);
+    //
+    // 本仓库的提交面板在左右两栏之一里：把它从两栏里拿掉就是「隐藏 Git 视图」。
+    app.panels.layout.left.retain(|p| *p != Panel::Commit);
+    app.panels.layout.right.retain(|p| *p != Panel::Commit);
+    app.relayout();
     assert!(app.git_status_tick(now).is_none());
-    app.set_sidebar_view(Panel::Commit);
+    app.panels.layout.right.insert(0, Panel::Commit);
+    app.relayout();
     app.window.focused = false;
     assert!(app.git_status_tick(now).is_none());
     app.window.focused = true;

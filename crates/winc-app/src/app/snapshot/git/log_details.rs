@@ -258,6 +258,8 @@ fn a_file_in_the_log_details_has_a_menu_and_a_full_path_tip() {
     );
     app.git_refresh();
     app.run_action(Action::GitShowLog);
+    // 日志在本仓库的中间一栏里：窗口宽一些，详情里的目录才写不下、需要悬停提示全路径。
+    widen(&mut app);
     paint(&mut app);
     let full = format!("{deep}/retry.rs");
     assert_eq!(app.log_file_tip(0).as_deref(), Some(full.as_str()));

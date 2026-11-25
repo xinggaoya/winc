@@ -1108,6 +1108,8 @@ fn the_log_list_has_room_on_top_and_the_author_column_eases_in() {
     history_repo(&root, 10);
     app.git_refresh();
     app.run_action(Action::GitShowLog);
+    // 日志在本仓库的中间一栏里，两侧的栏各占去一截：窗口不够宽时列表与详情上下排。
+    widen(&mut app);
     paint(&mut app);
     // 第一行上方留出间距，不紧贴标题栏的分隔线。
     let list = app.log_parts().list;
