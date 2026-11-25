@@ -22,6 +22,8 @@ mod animation;
 mod editor;
 #[cfg(unix)]
 mod git;
+mod git_layout;
+mod git_overflow;
 mod input;
 #[cfg(target_os = "macos")]
 mod memory;
@@ -86,6 +88,17 @@ fn sample_folder(name: &str) -> PathBuf {
 /// 让本测试线程使用 VS Code 方案：测试按的是该方案中的键。
 fn use_vscode_keys() {
     crate::keymap::install(crate::keymap::Preset::VsCode, &Default::default());
+}
+
+/// 把提交面板挪到左栏：写全名要伸到面板外面，左栏的右边还有编辑区，右栏的右边就是窗口边。
+fn commit_in_left_column(app: &mut App) {
+    use winc_config::Panel;
+    let layout = &mut app.panels.layout;
+    layout.right.retain(|panel| *panel != Panel::Commit);
+    layout.left.retain(|panel| *panel != Panel::Files);
+    layout.left.insert(0, Panel::Commit);
+    layout.right.insert(0, Panel::Files);
+    app.relayout();
 }
 
 /// 打开 `path`（目录或文件），按给定主题准备好一个画进内存的界面。
@@ -153,6 +166,24 @@ pub(super) fn paint(app: &mut App) {
     app.declare_base(&mut renderer);
     renderer.draw(|frame| view::draw(app, frame));
     app.frame.renderer = Some(renderer);
+}
+
+/// 返回画面上逻辑坐标 `(x, y)` 处的像素。
+fn pixel(app: &App, (x, y): (f32, f32)) -> u32 {
+    let image = app.frame.renderer.as_ref().unwrap().image().unwrap();
+    let (x, y) = ((x * SCALE) as usize, (y * SCALE) as usize);
+    image.pixels[y * image.width as usize + x]
+}
+
+/// 像素是否接近颜色 `c`（每个通道相差不超过 2，容许舍入）。
+fn near(px: u32, c: Color) -> bool {
+    let ch = |shift: u32, v: f32| ((px >> shift) & 0xff).abs_diff((v * 255.0).round() as u32);
+    ch(16, c.r) <= 2 && ch(8, c.g) <= 2 && ch(0, c.b) <= 2
+}
+
+/// 返回光标竖线中心处的点：竖线从 `rect.x` 起宽 2，顶边从行顶下移 1。
+fn caret_point(app: &App, rect: Rect) -> (f32, f32) {
+    (rect.x.round() + 1.0, rect.y + app.fonts.line_height / 2.0)
 }
 
 /// 直接删除 `path`（文件或目录），不移入废纸篓，避免测试在用户的废纸篓中留下内容。
@@ -270,6 +301,10 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
         SettingsPart::Close => layout.close,
         SettingsPart::SearchField => layout.search,
         SettingsPart::Page(page) => layout.pages.iter().find(|(p, _)| *p == page).unwrap().1,
+        SettingsPart::Reset(s) => {
+            let links = app.hits.reset_links.iter();
+            links.clone().find(|(setting, _)| *setting == s).unwrap().1
+        }
         SettingsPart::Field(s) | SettingsPart::Switch(s) | SettingsPart::Action(s) => {
             layout.row(s).unwrap().control
         }
@@ -375,6 +410,7 @@ fn settings_point(app: &App, part: SettingsPart) -> (f32, f32) {
         // 按钮、链接和 × 的位置在绘制时才确定，调用前需要先绘制一帧。
         SettingsPart::KeyEdit(_)
         | SettingsPart::KeyReset(_)
+        | SettingsPart::KeyVim(..)
         | SettingsPart::KeyRemove(_)
         | SettingsPart::KeySave
         | SettingsPart::KeyCancel => {

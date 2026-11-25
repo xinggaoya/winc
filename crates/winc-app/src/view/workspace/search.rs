@@ -18,6 +18,7 @@ use crate::view::controls::over;
 use winc_config::Panel;
 
 mod overflow;
+mod tree;
 
 use overflow::{actions_lag, draw_text, file_text, moved_back, sync_name, text_width};
 pub(in crate::view) use overflow::{
@@ -39,7 +40,7 @@ pub(in crate::view) fn draw_search_dialog(app: &mut App, frame: &mut Frame<'_>) 
     // 卡片底色：浮层用浮层的底色，不透出下方的编辑区。
     draw_card(frame, app.palette, card, RADIUS_BAR, app.palette.popup_bg);
 
-    app.panels.global.sync_rows();
+    app.sync_result_rows();
     // 查找、替换输入框随内容长高：先按框的宽度折好行（宽度和高度无关），框的高度按行数定，
     // 绘制时继续使用折好的行。
     let wraps = {
@@ -83,7 +84,9 @@ pub(in crate::view) fn draw_search_dialog(app: &mut App, frame: &mut Frame<'_>) 
     caret
 }
 
-/// 绘制面板第一行：左边是「搜索」，右端是三个按钮。
+/// 绘制面板第一行：左边是「搜索」，右端是五个按钮。
+///
+/// 工具按钮与上游的搜索面板一致：重新搜索、清除结果、在对话框中打开、切换列表/树形、全部折叠。
 fn draw_panel_header(app: &App, frame: &mut Frame<'_>, parts: &PanelParts) {
     let p = app.palette;
     let header = parts.header;
@@ -101,8 +104,12 @@ fn draw_panel_header(app: &App, frame: &mut Frame<'_>, parts: &PanelParts) {
     let has_results = !app.panels.global.engine.results.is_empty();
 
     for (rect, tool) in parts.tools {
-        // 没有结果时「清除」「全部折叠」置灰。
-        let enabled = tool == PanelTool::Refresh || has_results;
+        // 没有结果时「清除」「全部折叠」置灰；显示方式随时可以切换，下次搜索沿用。
+        let always = matches!(
+            tool,
+            PanelTool::Refresh | PanelTool::OpenDialog | PanelTool::Layout
+        );
+        let enabled = always || has_results;
         let hovered = enabled && app.pointer.hover == Hover::Panel(PanelButton::Tool(tool));
         draw_button(frame, p, rect, header, hovered, false);
 
@@ -116,6 +123,10 @@ fn draw_panel_header(app: &App, frame: &mut Frame<'_>, parts: &PanelParts) {
         match tool {
             PanelTool::Refresh => icons::refresh(frame, c, color, header),
             PanelTool::Clear => icons::clear_results(frame, c, color, header),
+            PanelTool::OpenDialog => icons::float_window(frame, c, color, header),
+            // 图标是点击后换成的显示方式，同日志里文件列表的开关。
+            PanelTool::Layout if app.search_tree() => icons::list_view(frame, c, color, header),
+            PanelTool::Layout => icons::tree_view(frame, c, color, header),
             PanelTool::CollapseAll if app.panels.global.all_collapsed() => {
                 icons::expand_all(frame, c, color, header);
             }
@@ -338,8 +349,8 @@ fn draw_summary(app: &App, frame: &mut Frame<'_>, parts: &PanelParts) {
     } else if searching && total == 0 {
         (t!("workspace-search-searching").to_owned(), p.text_dim)
     } else {
-        // 截断了，或有行因正则回溯过多而放弃查找：计数是下限。
-        let more = if engine.is_truncated() || engine.gave_up() {
+        // 截断了、有行因正则回溯过多而放弃查找，或远端没能搜完：计数是下限。
+        let more = if engine.is_truncated() || engine.gave_up() || engine.remote_failed() {
             "+"
         } else {
             ""
@@ -369,9 +380,20 @@ fn draw_summary(app: &App, frame: &mut Frame<'_>, parts: &PanelParts) {
     ui_text_small(frame, app, x, row, &text, color, row);
 }
 
-/// 绘制结果列表：每个文件一行（箭头、图标、文件名、所在目录、匹配数），其下每处匹配一行。
+/// 绘制结果列表：每个文件一行（箭头、图标、文件名、所在目录、匹配数），其下每处匹配一行；以树形
+/// 显示时文件排在各级目录下面，不写所在目录。
 fn draw_results(app: &mut App, frame: &mut Frame<'_>, parts: &PanelParts) {
     let area = parts.results;
+    if app.no_search_results() && app.panels.global.engine.remote_failed() {
+        draw_empty_state(
+            app,
+            frame,
+            (area, area),
+            t!("workspace-search-remote-failed"),
+            Some(t!("workspace-search-remote-failed-hint")),
+        );
+        return;
+    }
     if app.no_search_results() {
         draw_empty_state(
             app,
@@ -506,10 +528,15 @@ fn draw_result_row(
         (Some(o), ResultRow::File(f)) => Some(moved_back(o.actions, actions_lag(app, frame, f))),
         _ => None,
     };
+    // 以树形显示时按所在的层缩进：箭头、图标和文字一起右移，右端的计数、按钮不动。
+    tree::draw_guides(app, frame, kind, row, area);
+    let shift = tree::shift(app, kind);
+    let content = Rect::new(row.x + shift, row.y, row.w - shift, row.h);
     match kind {
-        ResultRow::File(f) => draw_file_row(app, frame, row, area, f, (&end, moved)),
+        ResultRow::Dir(d) => tree::draw_dir_row(app, frame, content, area, d, &end),
+        ResultRow::File(f) => draw_file_row(app, frame, content, area, f, (&end, moved)),
         ResultRow::Match(f, m) => {
-            draw_match_row(app, frame, row, area, (f, m), &end, cx.replacement);
+            draw_match_row(app, frame, content, area, (f, m), &end, cx.replacement);
         }
     }
 
@@ -595,19 +622,8 @@ fn draw_file_row(
     draw_file_icon(frame, p, (row.x + PANEL_LEFT, cy), text.name, clip);
     let x = row.x + PANEL_TEXT;
 
-    // 右端的匹配数绘制为与按钮同高的胶囊，右边缘与按钮对齐；
-    // 文字的右边界按胶囊计算，悬停时保持不变。
-    let count = file.matches.len().to_string();
-    let size = app.fonts.ui_small;
-    let count_w = frame.measure(FontKind::Ui, size, &count);
-    let slot = end.slot;
-    let badge_w = (count_w + 2.0 * end.pad).max(slot.w);
-    let badge = Rect::new(slot.right() - badge_w, slot.y, badge_w, slot.h);
-    if !end.covered {
-        frame.rect_clipped(badge, p.hover, slot.h / 2.0, clip);
-        let x = badge.right() - end.pad - count_w;
-        caps_label(frame, app, size, (x, badge), &count, p.text_muted, clip);
-    }
+    // 右端的匹配数绘制为与按钮同高的胶囊；文字的右边界按胶囊计算，悬停时保持不变。
+    let badge_x = tree::draw_count(app, frame, file.matches.len(), end, clip);
 
     // 写全名：完整绘制，按展开到的宽度露出，在跟过来的按钮之前截断。
     if let Some((replace, dismiss)) = moved {
@@ -620,7 +636,7 @@ fn draw_file_row(
         return;
     }
 
-    let right = badge.x - end.pad;
+    let right = badge_x - end.pad;
     let name_max = (right - x).max(0.0);
     let name = ellipsize(frame, text.name, app.fonts.ui, name_max);
     let mut end_x = ui_text(frame, app, x, row, &name, p.text, clip);

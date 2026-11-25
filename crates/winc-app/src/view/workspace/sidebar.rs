@@ -78,10 +78,10 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
         );
         // 名字：项目名，已经按开头截短，右端给关闭按钮留着位置。
         let name_x = badge.right() + 5.0;
-        let end = ui_text(frame, app, name_x, rect, &chip.text.name, color, bar_clip);
+        let mut end = ui_text(frame, app, name_x, rect, &chip.text.name, color, bar_clip);
         // 位置标记：小号淡色文字跟在名字后面；地方不够时标签里没有它，项目名优先。
         if let Some(host) = chip.text.host.as_deref() {
-            ui_text_small(
+            end = ui_text_small(
                 frame,
                 app,
                 end + CHIP_HOST_GAP,
@@ -90,6 +90,23 @@ pub(in crate::view) fn draw_workspaces(app: &mut App, frame: &mut Frame<'_>) {
                 p.text_dim,
                 bar_clip,
             );
+        }
+        // 项目未保存（有多余的目录还没有项目文件）时，名字后面跟一个淡色的「未保存」标注：
+        // 上游的上下文栏里就是这个标注，本仓库的上下文栏换成了工作区标签条，标注跟到标签上。
+        if on && app.project_unsaved() {
+            let tag = t!("workspace-project-unsaved");
+            let width = frame.measure(FontKind::Ui, app.fonts.ui_small, tag);
+            if end + UNSAVED_GAP + width <= rect.right() {
+                ui_text_small(
+                    frame,
+                    app,
+                    end + UNSAVED_GAP,
+                    rect,
+                    tag,
+                    p.text_dim,
+                    bar_clip,
+                );
+            }
         }
         // 悬停时右端出现关闭按钮：指针在标签上停留一会儿才出现，鼠标路过时不会出现。
         if app.workspace_bar.close_ready && hovered {
@@ -161,6 +178,9 @@ pub(in crate::view) const NAME_FADE: f32 = 20.0;
 pub(in crate::view) const BADGE_ROOM: f32 = 34.0;
 /// 徽章中心相对徽章左边���距离（逻辑像素）。
 pub(in crate::view) const BADGE_CENTER: f32 = 16.0;
+
+/// 项目名与其后未保存的标注之间的间隔（逻辑像素）。
+const UNSAVED_GAP: f32 = 6.0;
 
 /// 绘制工作区标签里的项目徽章：`folder` 是工作区的目录，`current` 表示它是当前工作区。
 ///
@@ -803,13 +823,13 @@ fn draw_name_input(
     *ime = caret;
 }
 
-/// 名字收回时，末尾的淡出从过渡的这个进度开始出现（经验值）：名字已基本缩回侧栏。
+/// 名字收回时，末尾的淡出从过渡的这个进度开始出现：名字已基本缩回侧栏。
 pub(in crate::view) const FADE_FROM: f32 = 0.7;
-/// 合并显示的目录中没有突出的各级的不透明度（经验值）：比突出的那一级淡，仍能看清。
+/// 合并显示的目录中没有突出的各级的不透明度：比突出的那一级淡，仍能看清。
 const CHAIN_DIM: f32 = 0.6;
-/// 合并显示的目录之间分隔符的不透明度（经验值）：比目录名淡，一眼能分出各级。
+/// 合并显示的目录之间分隔符的不透明度：比目录名淡，一眼能分出各级。
 pub(in crate::view) const CHAIN_SEPARATOR: f32 = 0.45;
-/// 合并显示的目录之间分隔符两侧各留的空白（逻辑像素，经验值）。
+/// 合并显示的目录之间分隔符两侧各留的空白（逻辑像素，取自调参）。
 pub(in crate::view) const CHAIN_GAP: f32 = 4.0;
 /// 合并显示的目录放不下时代替被折叠的各级的记号。
 pub(in crate::view) const CHAIN_FOLD: &str = "…";
@@ -980,7 +1000,7 @@ fn draw_overflow_band(
     if right <= rect.x {
         return;
     }
-    // 这一行在最上层：底色从滚动条的范围起，滚动条只被这一行的高度挡住，上下两段照常显示。
+    // 这一行在最上层：底色从滚动条的范围起，滚动条只被这一行的高度挡住，上下两段仍然显示。
     let left = tree.right() - SCROLLBAR_HIT;
     let rect = Rect::new(left, rect.y, right - left, rect.h);
     let clip = Rect::new(rect.x, tree.y, rect.w, tree.h);
@@ -1129,12 +1149,11 @@ fn label_width(app: &App, frame: &mut Frame<'_>, entry: &Entry) -> f32 {
 
 /// 逐级绘制合并显示的目录，起点是 `at` 的横坐标和所在的行；`report` 收到每一级的左右边界和路径。
 ///
-/// 拖动放进其中某一级或鼠标悬停在某一级时，那一级加上底色并突出；选中这一行（`style` 的第二项）
-/// 时突出选中的那一级。突出的一级用文字颜色（`style` 的第一项），其余按 [`CHAIN_DIM`] 变淡，被 Git
-/// 忽略等本身较淡的文字也能分出是哪一级。分隔符和留白归入相邻的两级，各占一半。
+/// 拖动放进其中某一级或鼠标悬停在某一级时，那一级加上底色并突出；选中这一行（`style` 的第二项）时突
+/// 出选中的那一级。突出的一级用文字颜色（`style` 的第一项），其余按 [`CHAIN_DIM`] 变淡。
 ///
-/// `at` 的第三项是要显示的各部分（见 [`fold_chain`]），`None` 时显示全部；第四项是过渡的绘制
-/// 参数，相同的前缀之后的部分按它淡入。
+/// `at` 的第三项是要显示的各部分（见 [`fold_chain`]），`None` 时显示全部；第四项是过渡的绘制参数，
+/// 相同的前缀之后的部分按它淡入。
 fn draw_chain(
     app: &App,
     frame: &mut Frame<'_>,

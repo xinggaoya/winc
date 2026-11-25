@@ -167,6 +167,30 @@ fn ascii_comments_take_the_fast_path_without_an_italic() {
 
 #[cfg(target_os = "macos")]
 #[test]
+fn the_preview_body_uses_its_own_font_or_the_interface_font() {
+    // 没有单独的预览正文字体：与界面字体相同。
+    let mut fonts = Fonts::load(&[], &[], &[], 400).expect("系统里有等宽字体");
+    let ui = fonts.resolve(FontKind::Ui, 'a');
+    assert_eq!(fonts.resolve(FontKind::Prose, 'a'), ui);
+    let missing = FontSpec::Path("/nonexistent/font.ttf".into());
+    fonts.set_prose(&[missing]);
+    assert_eq!(fonts.resolve(FontKind::Prose, 'a'), ui);
+
+    // 单独设置后用自己的槽位，缺的字仍从界面字体和后备字体中找；界面字体不变。
+    let monaco = FontSpec::Path("/System/Library/Fonts/Monaco.ttf".into());
+    let mut fonts = Fonts::load(&[], &[], &[], 400).expect("系统里有等宽字体");
+    fonts.set_prose(&[monaco]);
+    let (slot, glyph) = fonts.resolve(FontKind::Prose, 'a');
+    assert_eq!(slot, PROSE);
+    assert_ne!(glyph, 0);
+    assert_eq!(fonts.resolve(FontKind::Ui, 'a'), ui);
+    let (slot, glyph) = fonts.resolve(FontKind::Prose, '字');
+    assert_ne!((slot, glyph), (PROSE, 0));
+    assert_ne!(slot, PROSE);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
 fn the_terminal_uses_its_own_font_or_the_editor_font() {
     // 没有单独的终端字体：终端的正体、斜体与编辑区的相同。
     let mut fonts = Fonts::load(&[], &[], &[], 400).expect("系统里有等宽字体");
@@ -271,7 +295,7 @@ fn files_of_other_accounts_are_not_modifiable() {
     // 组或其他用户有写权限时，属主是谁都可能被修改。
     assert!(is_modifiable(service, 0o664, user));
     assert!(is_modifiable(0, 0o646, user));
-    // 以 root 运行：root 的文件照常映射，其他账号的文件可能被其属主修改。
+    // 以 root 运行：root 的文件仍然映射，其他账号的文件可能被其属主修改。
     assert!(!is_modifiable(0, 0o644, 0));
     assert!(is_modifiable(user, 0o644, 0));
 }
@@ -523,7 +547,7 @@ fn weight_follows_the_axis_and_the_rest_is_emboldened() {
 }
 
 /// 字体列表：第一个字体缺的字依次用列表中后面的字体，排在界面字体和平台后备字体之前；打不开的
-/// 字体略过。界面字体缺的字同样先用等宽字体的列表。
+/// 字体略过。终端同样使用编辑区的列表，界面不使用。
 #[cfg(target_os = "macos")]
 #[test]
 fn font_lists_fall_back_in_order() {
@@ -541,11 +565,42 @@ fn font_lists_fall_back_in_order() {
     assert!(fonts.listed[0].start >= fonts.fallbacks.end);
     assert_eq!(fonts.resolve(FontKind::MonoItalic, '中').0, slot);
     assert_eq!(fonts.resolve(FontKind::Terminal, '中').0, slot);
-    assert_eq!(fonts.resolve(FontKind::Ui, '中').0, slot);
+    assert_ne!(fonts.resolve(FontKind::Ui, '中').0, slot);
 
     // 第一个字体打不开时，第一个能打开的字体成为主字体。
     let mut fonts = Fonts::load(&mono[1..], &[], &[], 400).expect("冬青黑体是 macOS 自带字体");
     assert_eq!(fonts.resolve(FontKind::Mono, '中').0, MONO);
+}
+
+/// 用户配置的等宽字体与界面字体互不作为缺字后备：等宽字体含汉字时，界面、预览正文和公式的
+/// 汉字仍用平台后备字体；界面字体含汉字时，编辑区和终端的汉字不变。
+#[cfg(target_os = "macos")]
+#[test]
+fn a_configured_font_stays_in_its_own_area() {
+    let hiragino = FontSpec::Path("/System/Library/Fonts/Hiragino Sans GB.ttc".into());
+    let mut builtin = Fonts::load(&[], &[], &[], 400).expect("系统里有等宽字体");
+    let ui = builtin.resolve(FontKind::Ui, '中');
+    let mono = builtin.resolve(FontKind::Mono, '中');
+    assert!(builtin.fallbacks.contains(&ui.0), "{ui:?}");
+
+    let mut fonts = Fonts::load(std::slice::from_ref(&hiragino), &[], &[], 400)
+        .expect("冬青黑体是 macOS 自带字体");
+    assert_eq!(fonts.resolve(FontKind::Mono, '中').0, MONO);
+    assert_eq!(fonts.resolve(FontKind::Terminal, '中').0, MONO);
+    for kind in [FontKind::Ui, FontKind::Prose, FontKind::Math] {
+        assert_eq!(fonts.resolve(kind, '中'), ui, "{kind:?}");
+    }
+
+    let mut fonts = Fonts::load(&[], std::slice::from_ref(&hiragino), &[], 400)
+        .expect("冬青黑体是 macOS 自带字体");
+    assert_eq!(fonts.resolve(FontKind::Ui, '中').0, UI);
+    assert_eq!(fonts.resolve(FontKind::Mono, '中'), mono);
+    assert_eq!(fonts.resolve(FontKind::Terminal, '中'), mono);
+
+    // 终端字重不同时，按终端字重另开的字体中也没有用户配置的界面字体。
+    let fonts =
+        Fonts::load_with(&[], &[hiragino], &[], 400, 300).expect("冬青黑体是 macOS 自带字体");
+    assert!(fonts.listed[2].is_empty(), "{:?}", fonts.listed[2]);
 }
 
 #[test]

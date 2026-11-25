@@ -80,7 +80,11 @@ cargo xtask test --all
 | `crates/winc-app/src/app/workspace/bar.rs`、`place.rs` | 左栏顶部的工作区标签条 | 上游若改动侧栏头部的位置，两处都要跟着改 |
 | `crates/winc-app/src/app/settings/panels.rs`、`layout/settings/panels.rs` | 「面板」设置页 | 上游若新增设置项或改设置页布局，两边都要对齐 |
 | `crates/winc-app/src/app/git/commit.rs`、`view/git/commit/**` | 提交面板改用自己所在栏的卡片 | 提交视图上游改动频繁，冲突时逐处确认裁剪区域 |
+| `crates/winc-app/src/view/workspace/search.rs`、`search/overflow.rs` | 全局搜索弹窗的绘制（上游的 `view/workspace/panel.rs` 在本仓库改名为 `search.rs`） | 目录改名的同时上游也改了 `panel.rs`，两边都要跟着改 |
+| `crates/winc-app/src/app/workspace/global.rs` | 全局搜索的状态与树形结果的行 | 上游新增的结果树接口（`row_depth`、`parent_row` 等）一并接进来 |
+| `crates/winc-app/src/app/workspace/search_dialog.rs`、`view/workspace/search_dialog.rs` | 上游新增的「在文件中查找的对话框」，本仓库默认不用 | 上游若改动对话框，两边都要保留；本仓库默认仍用全局搜索弹窗 |
 | `crates/winc-app/src/app/input/mouse/target.rs` | 标题栏控件登记为客户区 | 上游若新增顶栏控件，同样要登记，否则在 Windows 上点不动 |
+| `crates/winc-app/src/keymap/action.rs`、`action/list.rs` | 命令清单（本仓库原在 `action/commands.rs`，上游改名为 `action/list.rs`） | 两边都改了命令表，合并后要确认命令没漏、没重 |
 | `crates/winc-editor/src/lib.rs` | 文档编号改为进程内全局唯一 | 与上游的 `next_id` 冲突时保留全局计数器 |
 | `crates/winc-app/src/updates.rs`、`updates/github.rs` | 自动更新改用 GitHub 的发布 | 上游若改动 appcast 的解析，两边都要保留 |
 | `crates/winc-config/src/config/panels.rs`、`config/fields.rs` | 面板种类与 `panels` 一节的配置 | 上游若新增配置节，追加到 `SECTIONS` 表即可 |
@@ -91,6 +95,18 @@ cargo xtask test --all
 - **界面结构**（布局、面板、工作区）以本仓库为准：这些是我们二次开发的核心，上游没有对应概念。
 - **功能细节**（语法高亮、预览、Git 操作、性能优化）以上游为准：这些是上游的主战场，我们没有改动。
 - 拿不准时，先看上游的提交说明，再回到本文件的高发区表核对。
+
+### 两边都有的「搜索」 / Two different search UIs
+
+上下游各有一套「搜索」的界面，名字却会撞车，同步时要分清：
+
+| | 本仓库 | 上游 |
+| --- | --- | --- |
+| 全局搜索 | 浮在编辑区上的弹窗，`Card::GlobalSearch` | 侧栏里的面板 |
+| 在文件中查找的对话框 | 没有（上游新增的） | 浮在编辑区上的对话框，`Card::Search` |
+
+上游的 `Card` 枚举里也有一个 `Search`，指的是「在文件中查找的对话框」；本仓库原先也用 `Search`
+指全局搜索弹窗，同步时把本仓库的改名为 `GlobalSearch`，两者不再混淆。
 
 ## 仓库结构 / Repository layout
 
@@ -116,8 +132,8 @@ README.md / README.zh-CN.md
 （例如 `v0.1.900`），推送 tag。推送 tag 会触发 Release 工作流：
 
 1. `release.yml` 收到 tag，取出源码并算出这次发布要用的版本号。
-2. 四个平台各自构建：macOS（Apple silicon 与 Intel）、Linux（x86_64）、Windows（x86_64）。
-3. 四个平台的产物都通过核对后，`release.yml` 把它们、校验和清单 `SHA256SUMS` 与发布说明一起
+2. 五个平台各自构建：macOS（Apple silicon 与 Intel）、Linux（x86_64 与 arm64）、Windows（x86_64）。
+3. 五个平台的产物都通过核对后，`release.yml` 把它们、校验和清单 `SHA256SUMS` 与发布说明一起
    上传到 GitHub 的 Release（直接发布，不再是草稿）。
 
 发布说明由 Git 日志生成：`release/common/notes.mjs` 读上一次 tag 到这次 tag 之间的提交，

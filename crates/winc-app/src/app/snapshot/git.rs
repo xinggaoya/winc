@@ -18,6 +18,7 @@ use super::*;
 mod blame;
 mod branch;
 mod changes;
+mod combined;
 mod commit;
 mod commit_selection;
 mod diff;
@@ -31,6 +32,18 @@ mod rebase;
 mod repository;
 mod rewrite;
 mod worktree;
+
+/// 在 `at` 处双击：第二次按下紧接着第一次，与两次之间过了多久无关。
+///
+/// 第一次单击可能在当前线程上运行 `git`（测试中后台任务就地执行），负载高时耗时超过连击的
+/// 间隔，第二次按下会被当作单击。
+fn double_click(app: &mut App, at: (f32, f32)) {
+    click(app, at);
+    if let Some(last) = &mut app.pointer.last_click {
+        last.at = std::time::Instant::now();
+    }
+    click(app, at);
+}
 
 /// 机器上没有可用的 git 时跳过该测试并返回 `true`。
 ///
@@ -179,17 +192,6 @@ fn git_app_in(name: &str, long: bool, dark: bool) -> Option<(App, PathBuf)> {
     }
     let root = app.editor.root().unwrap().to_path_buf();
     Some((app, root))
-}
-
-/// 把提交面板挪到左栏：写全名要伸到面板外面，左栏的右边还有编辑区，右栏的右边就是窗口边。
-fn commit_in_left_column(app: &mut App) {
-    use winc_config::Panel;
-    let layout = &mut app.panels.layout;
-    layout.right.retain(|panel| *panel != Panel::Commit);
-    layout.left.retain(|panel| *panel != Panel::Files);
-    layout.left.insert(0, Panel::Commit);
-    layout.right.insert(0, Panel::Files);
-    app.relayout();
 }
 
 /// 把窗口改宽：Git 的日志与三栏合并都在中间那栏里，两侧的栏各占去一截，窗口不够宽时放不下。

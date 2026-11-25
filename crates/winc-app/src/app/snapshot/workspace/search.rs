@@ -1,5 +1,5 @@
-//! 查找条行筛选的测试：搜索与结果行、单个与全部替换、「只显示匹配的行」、结果菜单、滚动条，
-//! 以及悬停与按下的目标一致。
+//! 全局搜索弹窗与查找条行筛选的测试：搜索与结果行、单个与全部替换、「只显示匹配的行」、
+//! 结果菜单、滚动条，以及悬停与按下的目标一致。
 
 use winit::keyboard::{Key, NamedKey};
 
@@ -238,6 +238,32 @@ fn hover_and_click_agree_on_what_is_under_the_mouse() {
     }
     assert!(checked > 0);
 
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// 在文件中查找只在焦点在编辑区时取光标处的词：焦点在文件树上按 `⇧⌘F`（在文件夹中查找）只
+/// 限定范围，点击侧栏的搜索按钮只切到这一页，查询都沿用上一次的。
+#[test]
+fn only_the_editor_seeds_find_in_files() {
+    let dir = winc_config::files::canonicalize(search_folder("global-seed")).unwrap();
+    let mut app = app_with(&dir, false);
+    app.open_path(&dir.join("src/main.rs"));
+    app.panels.global.query.set_text("earlier");
+
+    app.focus = Focus::Tree;
+    app.find_in_folder(&dir.join("src/main.rs"));
+    assert_eq!(app.panels.global.query.text(), "earlier");
+    assert_eq!(app.panels.global.include.text(), "./src");
+
+    app.focus = Focus::Editor;
+    app.show_global_search(false, None);
+    assert_eq!(app.panels.global.query.text(), "earlier");
+
+    // 快捷键从编辑区打开：取光标所在的词。
+    app.focus = Focus::Editor;
+    app.open_global_search(false);
+    assert_eq!(app.panels.global.query.text(), "fn");
+    finish_search(&mut app);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -789,6 +815,50 @@ fn result_keys_jump_to_the_ends_and_page() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// `⌘↓` 从查找框进入结果列表并打开第一处匹配；方向键逐条打开匹配，焦点留在列表，连续按键时
+/// 防抖到期后才打开最后选中的一处；`⌘↑` 回到查找框。
+#[test]
+fn arrow_keys_browse_the_results() {
+    let dir = search_folder("global-browse");
+    let mut app = app_with(&dir, false);
+    // 本仓库的全局搜索是浮在编辑区上的弹窗（上游是侧栏里的面板）：打开弹窗，焦点在查找输入框。
+    app.show_global_search(false, None);
+    paint(&mut app);
+    assert_eq!(app.focus, Focus::GlobalQuery);
+    app.edit_field(|f| f.insert("config"));
+    app.run_global_search();
+    finish_search(&mut app);
+    let name = |app: &App| app.editor.active().map(|d| d.name().to_string());
+    let selected = |app: &App| app.panels.global.rows()[app.panels.global.selected_row().unwrap()];
+    let key = |app: &mut App, key: NamedKey| {
+        app.results_key(&Key::Named(key));
+        paint(app);
+    };
+
+    app.step_panel_focus(false);
+    paint(&mut app);
+    assert_eq!(app.focus, Focus::Results);
+    assert_eq!(selected(&app), ResultRow::Match(0, 0));
+    assert_eq!(name(&app).as_deref(), Some("Cargo.toml"));
+
+    key(&mut app, NamedKey::ArrowDown);
+    key(&mut app, NamedKey::ArrowDown);
+    assert_eq!(selected(&app), ResultRow::Match(1, 0));
+    assert_eq!(name(&app).as_deref(), Some("Cargo.toml"));
+    app.poll_browse(Instant::now() + crate::app::workspace::global::BROWSE_DELAY);
+    paint(&mut app);
+    assert_eq!(name(&app).as_deref(), Some("config.rs"));
+    assert_eq!(app.focus, Focus::Results);
+
+    app.pointer.modifiers = command_modifiers();
+    key(&mut app, NamedKey::ArrowUp);
+    app.pointer.modifiers = winit::keyboard::ModifiersState::empty();
+    assert_eq!(app.focus, Focus::GlobalQuery);
+    app.step_panel_focus(true);
+    assert_eq!(app.focus, Focus::GlobalQuery);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 #[test]
 fn replace_and_filter_rows_slide_open() {
     use crate::app::Clock;
@@ -1079,7 +1149,7 @@ fn long_result_files_unfold_under_the_mouse() {
     assert!(dismiss.right() > results.right());
     assert_eq!(app.result_actions(long), overflow.actions);
 
-    // 伸出的那一段同样是这一行，按钮照常响应。
+    // 这一行右端的滚动条属于这一行；伸出的那一段同样是这一行，按钮仍然响应。
     let y = row.y + row.h / 2.0;
     // 写全名这一行盖住了卡片右边缘的滚动条：那里的命中是这一行或它的按钮。
     //
@@ -1104,6 +1174,13 @@ fn long_result_files_unfold_under_the_mouse() {
         Hover::RowAction(long, RowAction::Dismiss),
         "伸出去的那一段上的按钮没有响应"
     );
+
+    // 这一行上的分隔条仍然可以拖动，鼠标停在上面时全名保持展开。
+    let splitter = app.layout.splitter;
+    app.on_mouse_move(splitter.x + splitter.w / 2.0, y);
+    paint(&mut app);
+    assert_eq!(app.pointer.hover, Hover::Splitter);
+    assert_eq!(app.panels.global.overflow.map(|o| o.index), Some(long));
 
     // 鼠标移到伸出部分之外的编辑区：收起。
     app.on_mouse_move(spill.right() + 20.0, y);

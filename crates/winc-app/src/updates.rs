@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use ed25519_dalek::{Signature, VerifyingKey};
 use sha2::Digest;
+use winc_i18n::t;
 
 use crate::web::{Failure, curl, fetch, wget};
 use crate::winc::UpdateState;
@@ -44,6 +45,10 @@ const FIRST_CHECK: Duration = Duration::from_secs(5);
 ///
 /// 该值决定了更新提示的最长延迟；按天更新即可满足发布节奏。
 const CHECK_INTERVAL: Duration = Duration::from_secs(86_400);
+/// 等待下一次检查期间查看系统时间的间隔（10 分钟）。
+///
+/// 该值决定电脑从睡眠中恢复后最迟多久补上到期的检查；每次只读一次时钟。
+const CHECK_POLL: Duration = Duration::from_secs(600);
 /// 请求一个通道的 appcast 的等待上限（秒）。
 ///
 /// 超过该时长仍未返回时，该通道按没有回应处理。
@@ -98,6 +103,8 @@ pub enum Delivery {
     Install,
     /// 由 pacman 从 Winc 的软件源更新：Arch 包。
     Pacman,
+    /// 由 Scoop 更新：Scoop 装的 Windows 便携版。
+    Scoop,
     /// 只提醒，从下载页取得：deb、rpm 和 Windows 便携版。
     Download,
 }
@@ -160,6 +167,9 @@ pub fn start(
     let delivery = match &target {
         Some(_) => Delivery::Install,
         None if from_pacman() => Delivery::Pacman,
+        None if cfg!(windows) && std::env::current_exe().is_ok_and(|exe| from_scoop(&exe)) => {
+            Delivery::Scoop
+        }
         None => Delivery::Download,
     };
     let hooks = Hooks {
@@ -182,7 +192,15 @@ pub fn start(
         std::thread::sleep(FIRST_CHECK);
         loop {
             tick();
-            std::thread::sleep(CHECK_INTERVAL);
+            // 按系统时间计：线程的休眠不计入电脑睡眠的时间，每天合盖的电脑上休眠 24 小时实际
+            // 历时数天。
+            let checked = std::time::SystemTime::now();
+            while checked
+                .elapsed()
+                .is_ok_and(|passed| passed < CHECK_INTERVAL)
+            {
+                std::thread::sleep(CHECK_POLL);
+            }
         }
     });
     true
@@ -208,12 +226,24 @@ fn from_pacman() -> bool {
         })
 }
 
+/// 程序 `exe` 是否由 Scoop 安装：Scoop 在所装程序的目录里留下安装记录，新版叫
+/// `scoop-install.json`，旧版叫 `install.json` 和 `manifest.json`。
+#[allow(clippy::disallowed_methods, reason = "只访问本机：程序自身所在的目录")]
+fn from_scoop(exe: &Path) -> bool {
+    let Some(dir) = exe.parent() else {
+        return false;
+    };
+    let has = |name: &str| dir.join(name).is_file();
+    has("scoop-install.json") || (has("install.json") && has("manifest.json"))
+}
+
 /// 在后台检查更新。
 pub fn check() {
     let Some(updater) = UPDATER.get() else {
         return;
     };
-    if !begin() {
+    // 已有核对过的更新在等重新启动：不再检查，否则状态退回「发现新版本」，提示随之消失。
+    if work(|w| w.ready.is_some()) || !begin() {
         return;
     }
     report(UpdateState::Checking);
@@ -327,7 +357,8 @@ pub fn install() {
     let Some(item) = work(|w| w.item.clone()) else {
         return;
     };
-    if !begin() {
+    // 已经准备好的更新不重新下载：退出时运行的是那份核对过的文件。
+    if work(|w| w.ready.is_some()) || !begin() {
         return;
     }
     report(UpdateState::Downloading(item.version.clone(), 0));
@@ -519,10 +550,13 @@ fn download(url: &str, path: &Path, length: u64, progress: &dyn Fn(u8)) -> Resul
                 .stdout(Stdio::null())
                 .stderr(Stdio::piped())
                 .spawn()
-                .map_err(|e| format!("curl、wget 都无法运行：{e}"))?;
+                .map_err(|e| t!("settings-updates-error-tool", error = e.to_string()))?;
             (child, true)
         }
-        result => (result.map_err(|e| format!("无法运行 curl：{e}"))?, false),
+        result => {
+            let failed = |e: io::Error| t!("settings-updates-error-tool", error = e.to_string());
+            (result.map_err(failed)?, false)
+        }
     };
     let output = watch(child, path, length, progress).map_err(|e| e.to_string())?;
     if output.status.success() {
@@ -559,22 +593,25 @@ pub(crate) fn percent(done: u64, length: u64) -> u8 {
 
 /// 核对下载的内容：长度与更新包里写的一致，且内容与凭据相符。
 ///
+/// 凭据有两种：appcast 里的 Ed25519 签名（[`Proof::Signature`]）和 GitHub 发布里的 SHA-256
+/// 校验值（[`Proof::Checksum`]）。
+///
 /// # Errors
 ///
 /// 长度或校验值不符时返回错误信息。
 fn verify(item: &Item, bytes: &[u8], key: Option<&VerifyingKey>) -> Result<(), String> {
     if item.length != 0 && bytes.len() as u64 != item.length {
-        return Err(format!(
-            "大小不对：应为 {} 字节，下载到 {} 字节",
-            item.length,
-            bytes.len()
+        return Err(t!(
+            "settings-updates-error-size",
+            expected = item.length as usize,
+            actual = bytes.len()
         ));
     }
     match &item.proof {
         Proof::Signature(signature) => {
             let key = key.ok_or("没有核对签名的公钥")?;
             key.verify_strict(bytes, &Signature::from_bytes(signature))
-                .map_err(|_| "签名不对".to_owned())
+                .map_err(|_| t!("settings-updates-error-signature").to_owned())
         }
         Proof::Checksum(sum) => {
             let digest = sha2::Sha256::digest(bytes);
@@ -585,6 +622,16 @@ fn verify(item: &Item, bytes: &[u8], key: Option<&VerifyingKey>) -> Result<(), S
             }
         }
     }
+}
+
+/// 无法写入更新包存放的目录 `dir` 时给用户看的原因。
+fn cannot_write(dir: &Path, error: &io::Error) -> String {
+    let path = dir.display().to_string();
+    t!(
+        "settings-updates-error-write",
+        path = path,
+        error = error.to_string()
+    )
 }
 
 /// 返回 appcast 中本机架构 `arch`（如 `x86_64`）上版本号最大的一项。
@@ -633,6 +680,12 @@ fn newest_for_installer(xml: &str, arch: &str, installer: Option<&str>) -> Optio
 /// 判断 `version` 是否比 `current` 新，比较包含 `SemVer` 预发布优先级。
 pub fn newer(version: &str, current: &str) -> bool {
     winc_config::compare_versions(version, current).is_gt()
+}
+
+/// 是否由安装程序装在当前用户之下（NSIS 安装包）；MSI 装在全机之下，便携版没有安装。
+#[cfg(windows)]
+pub(crate) fn installed_per_user() -> bool {
+    matches!(installer::current_kind(), Some(installer::Kind::Nsis))
 }
 
 #[cfg(unix)]

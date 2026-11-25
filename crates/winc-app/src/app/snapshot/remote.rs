@@ -12,8 +12,16 @@ use crate::app::git::form::FormKind;
 use crate::keymap::Action;
 use winc_pty::protocol::Modes;
 
+mod diff;
+mod features;
+mod project;
+
 /// 在本进程内启动服务端并登记为到 `name` 的连接：该目标的虚拟路径指向本机的同名路径。
 fn loopback(name: &str) -> winc_backend::Target {
+    // 对端在本进程内，没有服务进程的程序可以运行：搜索、列出文件改在对端的线程上进行。
+    for (name, run) in winc_search::host::COMMANDS {
+        remote::register_builtin(name, run);
+    }
     let (requests, to_server) = std::io::pipe().unwrap();
     let (replies, from_server) = std::io::pipe().unwrap();
     std::thread::spawn(move || {
@@ -52,7 +60,9 @@ fn a_folder_on_a_connected_host_opens_as_the_workspace() {
     // 测试线程相当于界面线程：不允许等待远端的应答，后台任务就地执行时除外。
     remote::forbid_blocking();
     folders_on_a_remote_host_are_not_taken_for_files();
-    features_work_in_a_remote_workspace();
+    diff::a_remote_diff_keeps_its_working_tree_side();
+    crumb_menus_on_a_remote_host_list_the_folder();
+    features::features_work_in_a_remote_workspace();
     clipboard_images_pasted_into_a_remote_terminal_are_sent_there_first();
     ssh_arguments_open_the_project_and_file();
 
@@ -70,7 +80,7 @@ fn a_folder_on_a_connected_host_opens_as_the_workspace() {
     assert!(app.overlays.picker.open && app.overlays.picker.remote.is_some());
     app.close_picker();
 
-    // 模块开着时，状态栏上终端开关的左边有连接的按钮，点了打开面板。
+    // 模块开着时，状态栏上终端开关的左边有连接的按钮，点击打开面板。
     paint(&mut app);
     let remote_button = crate::app::StatusItem::Remote;
     assert!(
@@ -527,6 +537,7 @@ fn a_folder_on_a_connected_host_opens_as_the_workspace() {
     local_only_actions_are_not_offered_on_a_remote_host();
     files_copied_in_a_remote_tree_are_pasted_there();
     remote_items_download_to_this_computer();
+    project::remote_folders_are_added_and_saved_as_a_project();
 }
 
 /// 截图：开始页、主机面板、目录面板（浏览与筛选）和打开远端目录后的窗口。
@@ -797,6 +808,51 @@ fn ssh_arguments_open_the_project_and_file() {
     app.open_remote(crate::cli::remote_open(&parsed.targets).unwrap());
     assert_eq!(caret(&app), (root.join("src/config.rs"), (2, 0)));
     remote::disconnect(&target);
+}
+
+/// 回归：界面线程不能读取远端的目录，状态栏路径的目录菜单只有一行读取失败的说明。
+///
+/// 由 [`a_folder_on_a_connected_host_opens_as_the_workspace`] 调用，原因同
+/// [`folders_on_a_remote_host_are_not_taken_for_files`]。
+fn crumb_menus_on_a_remote_host_list_the_folder() {
+    use crate::app::{PopupRow, folder_level};
+    use winit::keyboard::{Key, NamedKey};
+    let dir = search_folder("remote-crumbs").canonicalize().unwrap();
+    let target = loopback("app-remote-crumbs");
+    let root = winc_backend::virtual_path(&target, dir.as_os_str().as_bytes());
+    let file = root.join("src/main.rs");
+    let mut app = blank_app(false);
+    app.config.remote_enabled = Some(true);
+    remote::forbid_blocking();
+    app.open_folder(&root);
+    app.open_path(&file);
+    paint(&mut app);
+
+    // 尚未读取的远端目录只有一行说明，不在界面线程上读取。
+    let level = folder_level(&root);
+    assert_eq!(level.loading, Some((root.clone(), false)));
+    assert_eq!(level.rows.len(), 1);
+
+    // 第 `level` 级菜单中各个文件和目录的名字。
+    let names = |app: &App, level: usize| -> Vec<String> {
+        let rows = &app.popup().unwrap().levels[level].rows;
+        let name = |row: &PopupRow| match row {
+            PopupRow::Entry { name, .. } => Some(name.clone()),
+            _ => None,
+        };
+        rows.iter().filter_map(name).collect()
+    };
+    app.open_crumb_menu(0);
+    let listed = names(&app, 0);
+    assert_eq!(listed[0], "src");
+    assert!(listed.contains(&"Cargo.toml".to_owned()), "{listed:?}");
+    // 展开子目录同样在后台读取。
+    let menu = app.overlays.context_menu.as_mut().unwrap();
+    menu.popup.as_mut().unwrap().levels[0].hover = Some(0);
+    assert!(app.popup_logical_key(&Key::Named(NamedKey::ArrowRight)));
+    assert_eq!(names(&app, 1), ["config.rs", "main.rs"]);
+    remote::disconnect(&target);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// 回归：界面线程上查询远端路径的类别一律得到「不是目录」，据此取上一级时，「在终端中打开」
@@ -1105,7 +1161,7 @@ fn clipboard_images_pasted_into_a_remote_terminal_are_sent_there_first() {
     assert_eq!(std::fs::read(&path).unwrap(), png);
 
     // ⌃V：有程序运行、在主屏上、开启了括号粘贴时同样先传再粘贴路径。shell 的提示符下（⌃V 是
-    // 逐字输入）、备用屏上的程序（vim 的 ⌃V 是列选择）和剪贴板里只有文字时照常发给程序。
+    // 逐字输入）、备用屏上的程序（vim 的 ⌃V 是列选择）和剪贴板里只有文字时仍然发给程序。
     app.clipboard.copied = None;
     app.clipboard.copied_files.clear();
     app.clipboard.copied_image = Some(png.clone());
@@ -1158,7 +1214,7 @@ fn clipboard_images_pasted_into_a_remote_terminal_are_sent_there_first() {
     let notice = app.notice.text.take().unwrap();
     assert!(notice.contains("太大"), "{notice}");
 
-    // 本机的终端不变：仍是一次空的括号粘贴，由程序自己读剪贴板；⌃V 也照常发给程序。
+    // 本机的终端不变：仍是一次空的括号粘贴，由程序自己读剪贴板；⌃V 也仍然发给程序。
     app.clipboard.copied_files.clear();
     app.clipboard.copied_image = Some(png);
     app.terminal.tab_mut().unwrap().cwd = dir.as_os_str().as_bytes().to_vec();
@@ -1197,7 +1253,7 @@ fn local_only_actions_are_not_offered_on_a_remote_host() {
             })
             .collect()
     };
-    // 终端模块关闭：两项都不列出；开启后「在终端中打开」进入内置终端，照常列出。
+    // 终端模块关闭：两项都不列出；开启后「在终端中打开」进入内置终端，仍然列出。
     for terminal in [false, true] {
         app.config.terminal_enabled = Some(terminal);
         let tree = listed(&mut app, MenuTarget::Tree(Some(file.clone())));
@@ -1271,12 +1327,9 @@ fn local_only_actions_are_not_offered_on_a_remote_host() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// 远端工作区的文件树里复制、剪切文件，再粘贴到同一工作区。由
-/// [`a_folder_on_a_connected_host_opens_as_the_workspace`] 调用，原因同
-/// [`folders_on_a_remote_host_are_not_taken_for_files`]。
-///
 /// 远端文件树的「下载…」：文件和目录复制到本机选定的目录，重名时不覆盖，完成后可以在文件管理器
-/// 中显示。由 [`a_folder_on_a_connected_host_opens_as_the_workspace`] 调用，原因同
+/// 中显示；目录中的特殊文件跳过并在提示中列出，单独下载特殊文件时报错。由
+/// [`a_folder_on_a_connected_host_opens_as_the_workspace`] 调用，原因同
 /// [`folders_on_a_remote_host_are_not_taken_for_files`]。
 fn remote_items_download_to_this_computer() {
     let dir = search_folder("remote-download").canonicalize().unwrap();
@@ -1284,6 +1337,10 @@ fn remote_items_download_to_this_computer() {
     std::fs::write(dir.join("50%.txt"), "half\n").unwrap();
     std::fs::create_dir_all(dir.join("kit/inner")).unwrap();
     std::fs::write(dir.join("kit/inner/tool.txt"), "tool\n").unwrap();
+    let fifo = std::process::Command::new("mkfifo")
+        .arg(dir.join("kit/pipe"))
+        .status();
+    assert!(fifo.unwrap().success());
     let here = sample_folder("remote-download-here")
         .canonicalize()
         .unwrap();
@@ -1301,11 +1358,20 @@ fn remote_items_download_to_this_computer() {
     assert_eq!(read("notes 副本.txt"), "note\n");
     assert_eq!(read("kit/inner/tool.txt"), "tool\n");
     assert_eq!(read("50%.txt"), "half\n");
-    assert_eq!(app.notice.text.as_deref(), Some("已下载 3 项"));
+    assert!(!here.join("kit/pipe").exists());
+    assert_eq!(
+        app.notice.text.as_deref(),
+        Some("已下载 3 项，已跳过 1 项无法下载的内容：kit/pipe（不是普通文件）")
+    );
+    assert_eq!(app.notice.kind, crate::app::NoticeKind::Warning);
     assert_eq!(
         app.notice.action,
         Some(NoticeAction::Reveal(here.join("50%.txt")))
     );
+
+    app.download(vec![root.join("kit/pipe")], here.clone());
+    assert_eq!(app.notice.kind, crate::app::NoticeKind::Error);
+    assert!(!here.join("pipe").exists());
 
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&here);
