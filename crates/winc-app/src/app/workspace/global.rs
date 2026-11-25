@@ -788,7 +788,6 @@ impl App {
         self.request_redraw();
     }
 
-
     /// 把第 `index` 个结果行从结果中移除（不改文件），用于全部替换前排除不想修改的位置；目录行
     /// 移除其中的各个文件。
     pub(in crate::app) fn dismiss_row(&mut self, index: usize) {

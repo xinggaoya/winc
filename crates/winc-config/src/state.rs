@@ -377,7 +377,6 @@ impl State {
         State::try_parse(text).unwrap_or_default()
     }
 
-
     /// 返回上次退出时开着的目录的现场，启动时据此恢复；没有时返回 `None`。
     pub fn last_session(&self) -> Option<&Session> {
         self.session_for(self.last.as_deref()?)

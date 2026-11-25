@@ -656,6 +656,25 @@ fn deployment(dir: &str, digest: &str) -> remote::Deploy {
     }
 }
 
+/// Linux 上「Text file busy」的错误码（`ETXTBSY`）。
+const TEXT_FILE_BUSY: i32 = 26;
+
+/// 改写已安装的服务程序。
+///
+/// 服务进程刚退出时，程序文件还被内核占用着（Linux 上是「Text file busy」），稍等片刻就能改写。
+fn overwrite_installed(path: &Path, content: &[u8]) {
+    for _ in 0..100 {
+        match std::fs::write(path, content) {
+            Ok(()) => return,
+            Err(e) if e.raw_os_error() == Some(TEXT_FILE_BUSY) => {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Err(e) => panic!("改写 {} 失败：{e}", path.display()),
+        }
+    }
+    panic!("改写 {} 失败：程序文件一直被占用", path.display());
+}
+
 /// 在本机直接运行引导命令，不经过 `ssh`。
 fn bootstrap(deploy: &remote::Deploy) -> Command {
     let words = deploy.command().unwrap();
@@ -707,7 +726,7 @@ fn the_server_is_uploaded_once_and_started_from_the_upload_directory() {
     // 等服务进程退出：它还在运行时程序文件不能改写。
     connection.close();
     // 已有的程序残缺（字节数不符）：重新上传后仍然启动。
-    std::fs::write(&installed, "damaged").unwrap();
+    overwrite_installed(&installed, b"damaged");
     std::fs::set_permissions(&installed, PermissionsExt::from_mode(0o700)).unwrap();
     drop(Connection::deploy(bootstrap(&deploy), &deploy, &remote::Abort::default()).unwrap());
     assert!(std::fs::read(&installed).unwrap() == deploy.programs[0].content);
